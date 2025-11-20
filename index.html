@@ -128,23 +128,23 @@
             const fallbackImageSrc = "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/2018_Tesla_Model_3_Long_Range_%28US_Spec%29_Left_Side.jpg/640px-2018_Tesla_Model_3_Long_Range_%28US_Spec%29_Left_Side.jpg";
 
             return (
-                <div className="relative w-full h-64 md:h-96 bg-gradient-to-b from-slate-800 to-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-700 flex items-center justify-center perspective-1000">
+                <div className="relative w-full h-64 md:h-96 bg-gradient-to-b from-[#2a0808] to-slate-950 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 flex items-center justify-center perspective-1000">
                     <div className="absolute inset-0 z-0">
-                        <div className="h-1/2 bg-slate-800/50 w-full relative overflow-hidden">
+                        <div className="h-1/2 bg-gradient-to-b from-red-900/20 to-transparent w-full relative overflow-hidden">
                            <div className={`absolute top-4 right-10 w-20 h-20 rounded-full bg-yellow-100/10 blur-3xl transition-opacity duration-1000 ${params.temperature > 25 ? 'opacity-100' : 'opacity-0'}`}></div>
                            <div className={`absolute top-0 left-0 w-full h-full bg-blue-500/5 transition-opacity duration-1000 ${params.temperature < 0 ? 'opacity-100' : 'opacity-0'}`}></div>
                         </div>
-                        <div className="h-1/2 bg-[#1c1c1c] w-full relative overflow-hidden">
-                            <div className="absolute top-0 left-0 w-full h-2 bg-white/10"></div>
+                        <div className="h-1/2 bg-[#1a1a1a] w-full relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-2 bg-white/5"></div>
                             <div className="absolute bottom-0 left-0 w-full h-full flex justify-center">
-                                <div className={`w-full h-full bg-[linear-gradient(90deg,transparent_49%,rgba(255,255,255,0.1)_50%,transparent_51%)] bg-[length:200px_100%] ${params.speed > 0 ? 'animate-road-move' : ''}`} style={{ animationDuration: `${200/Math.max(params.speed, 1)}s` }}></div>
+                                <div className={`w-full h-full bg-[linear-gradient(90deg,transparent_49%,rgba(255,255,255,0.05)_50%,transparent_51%)] bg-[length:200px_100%] ${params.speed > 0 ? 'animate-road-move' : ''}`} style={{ animationDuration: `${200/Math.max(params.speed, 1)}s` }}></div>
                             </div>
                         </div>
                     </div>
                     <div className="relative z-10 transition-transform duration-500 ease-out" style={{ transform: `rotate(${rotation}deg) translateY(${rotation * 2}px)` }}>
                         <div className="relative w-[300px] md:w-[450px]">
                              <img src={imgError ? fallbackImageSrc : localImageSrc} onError={() => setImgError(true)} alt="Tesla Model 3" className="w-full h-auto drop-shadow-2xl object-cover"
-                                style={{ filter: 'contrast(1.1) brightness(1.1)', transform: 'none', maskImage: imgError ? 'linear-gradient(to bottom, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)' : 'none', WebkitMaskImage: imgError ? 'linear-gradient(to bottom, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)' : 'none' }} />
+                                style={{ filter: 'contrast(1.05) brightness(1.05)', transform: 'none', maskImage: imgError ? 'linear-gradient(to bottom, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)' : 'none', WebkitMaskImage: imgError ? 'linear-gradient(to bottom, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)' : 'none' }} />
                              <div className={`absolute bottom-[16%] left-[19%] w-[14%] h-[14%] rounded-full border-2 border-gray-400/30 bg-black/80 ${params.speed > 0 ? 'animate-spin' : ''}`} style={{ animationDuration: `${0.5 * (100/Math.max(params.speed, 1))}s` }}><div className="w-full h-full border-t-2 border-gray-500/50 rounded-full"></div></div>
                              <div className={`absolute bottom-[16%] right-[17.5%] w-[14%] h-[14%] rounded-full border-2 border-gray-400/30 bg-black/80 ${params.speed > 0 ? 'animate-spin' : ''}`} style={{ animationDuration: `${0.5 * (100/Math.max(params.speed, 1))}s` }}><div className="w-full h-full border-t-2 border-gray-500/50 rounded-full"></div></div>
                              {params.wind !== 0 && (
