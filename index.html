@@ -325,15 +325,15 @@
                 {/* Environment */}
                 <div className="absolute inset-0 bg-red-900/10"></div>
 
-                {/* Wind Particles */}
+                {/* Wind Particles - INVERTED LOGIC as requested */}
                 {params.windSpeed !== 0 && (
                     <div className="absolute inset-0 pointer-events-none z-10">
                         {windParticles.map(p => (
                             <div key={p.id} 
-                                className={`absolute h-0.5 bg-white/20 rounded-full ${isHeadwind ? 'wind-particle-head' : 'wind-particle-tail'}`}
+                                className={`absolute h-0.5 bg-white/20 rounded-full ${!isHeadwind ? 'wind-particle-head' : 'wind-particle-tail'}`}
                                 style={{
                                     top: p.top,
-                                    left: isHeadwind ? '100%' : '-10%', 
+                                    left: !isHeadwind ? '100%' : '-10%', 
                                     width: Math.random() * 50 + 50 + 'px',
                                     animationDuration: '0.8s',
                                     animationDelay: p.delay
@@ -358,13 +358,11 @@
                         }}
                     />
 
-                    {/* Wheels Spinners (Size Reduced 10%, Right Wheel Shifted Right 80px, Both Raised 3px) */}
-                    {/* Original Width: 12.1%. */}
+                    {/* Wheels Spinners */}
                     {/* Left Wheel: 12.8% */}
-                    {/* Right Wheel: Originally 26% (shifted left). 26% - 20% (80px/400px) = 6%. */}
-                    {/* Vertical: Raised 3px. 19% + 1.5% = 20.5% */}
+                    {/* Right Wheel: Adjusted 40px left (6% + 10% = 16%) */}
                     <div className={`absolute bottom-[20.5%] left-[12.8%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
-                    <div className={`absolute bottom-[20.5%] right-[6%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
+                    <div className={`absolute bottom-[20.5%] right-[16%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
                 </div>
 
                 {/* Road */}
