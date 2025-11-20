@@ -242,10 +242,21 @@
       };
 
       const ResultsDisplay = ({ consumption, params, costs }) => {
-        const costPer100Elec = (consumption * costs.electricityPrice).toFixed(2);
-        const costPer100Gas = (costs.gasConsumptionRef * costs.gasPrice).toFixed(2);
-        const savings = (parseFloat(costPer100Gas) - parseFloat(costPer100Elec)).toFixed(2);
-        const savingsPercent = ((parseFloat(savings) / parseFloat(costPer100Gas)) * 100).toFixed(0);
+        // Calculations
+        const costPer100ElecRaw = consumption * costs.electricityPrice;
+        const costPer100GasRaw = costs.gasConsumptionRef * costs.gasPrice;
+
+        const costPer100Elec = costPer100ElecRaw.toFixed(2);
+        const costPer100Gas = costPer100GasRaw.toFixed(2);
+
+        // Nuevos cálculos: Coste por Km
+        const costPerKmElec = (costPer100ElecRaw / 100).toFixed(3);
+        const costPerKmGas = (costPer100GasRaw / 100).toFixed(3);
+
+        const savings = (costPer100GasRaw - costPer100ElecRaw).toFixed(2);
+        const savingsPercent = costPer100GasRaw > 0 
+            ? ((savings / costPer100GasRaw) * 100).toFixed(0) 
+            : 0;
         
         // Calcular autonomía: (Capacidad Batería / Consumo) * 100
         const range = consumption > 0.1 ? ((params.batteryCapacity / consumption) * 100).toFixed(0) : '---';
@@ -271,7 +282,10 @@
                         {costPer100Elec}€
                         <span className="text-lg text-slate-500 ml-2 font-sans font-normal">/100km</span>
                     </div>
-                    <div className="text-xs text-slate-500 mt-2 text-center">
+                    <div className="text-sm text-green-300/70 mt-2 font-mono font-bold">
+                        {costPerKmElec} €/km
+                    </div>
+                    <div className="text-xs text-slate-500 mt-1 text-center">
                         Precio kWh: {costs.electricityPrice}€
                     </div>
                 </div>
@@ -282,6 +296,9 @@
                     <div className="text-4xl font-display font-bold text-orange-400 tabular-nums">
                         {costPer100Gas}€
                         <span className="text-lg text-slate-500 ml-2 font-sans font-normal">/100km</span>
+                    </div>
+                    <div className="text-sm text-orange-300/70 mt-2 font-mono font-bold">
+                        {costPerKmGas} €/km
                     </div>
                     <div className="text-sm text-green-400 mt-2 font-bold flex flex-col items-center">
                         <span>Ahorro: {savings}€ ({savingsPercent}%)</span>
@@ -329,9 +346,7 @@
                 {/* Environment */}
                 <div className="absolute inset-0 bg-red-900/10"></div>
 
-                {/* Wind Particles - CORREGIDO */}
-                {/* Viento Contra (isHeadwind = true): Debe venir de la derecha (100%) y usar animacion head (derecha a izquierda) */}
-                {/* Viento Favor (isHeadwind = false): Debe venir de la izquierda (-10%) y usar animacion tail (izquierda a derecha) */}
+                {/* Wind Particles */}
                 {params.windSpeed !== 0 && (
                     <div className="absolute inset-0 pointer-events-none z-10">
                         {windParticles.map(p => (
