@@ -8,25 +8,20 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
     
-    <!-- Babel para compilar React en el navegador -->
+    <!-- React y ReactDOM UMD (Carga universal rápida) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel para JSX -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-      body {
-        font-family: 'Inter', sans-serif;
-        background-color: #0a0a0a;
-        color: #e5e5e5;
-      }
-      .font-display {
-        font-family: 'Orbitron', sans-serif;
-      }
-      /* Custom scrollbar */
+      body { font-family: 'Inter', sans-serif; background-color: #0a0a0a; color: #e5e5e5; }
+      .font-display { font-family: 'Orbitron', sans-serif; }
       ::-webkit-scrollbar { width: 8px; }
       ::-webkit-scrollbar-track { background: #1a1a1a; }
       ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
-      ::-webkit-scrollbar-thumb:hover { background: #555; }
       
-      /* Animaciones personalizadas */
       @keyframes road-move { 0% { background-position: 0 0; } 100% { background-position: -200px 0; } }
       .animate-road-move { animation: road-move linear infinite; }
       
@@ -36,39 +31,50 @@
       .animate-wind-flow-tail { animation: wind-flow-tail linear infinite; }
     </style>
 
-    <!-- Import Map para cargar librerías directamente desde CDN -->
-    <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@18.2.0",
-        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-        "lucide-react": "https://esm.sh/lucide-react@0.300.0",
-        "@google/genai": "https://esm.sh/@google/genai@0.1.1"
-      }
-    }
+    <!-- Cargar SDK de Gemini de forma asíncrona y exponerlo a window -->
+    <script type="module">
+        import { GoogleGenAI } from "https://esm.sh/@google/genai@0.1.1";
+        window.GoogleGenAI = GoogleGenAI;
     </script>
 </head>
 <body>
     <div id="root">
+        <!-- Loader Inicial simple en HTML puro -->
         <div style="height: 100vh; display: flex; justify-content: center; align-items: center; flex-direction: column; color: #666;">
             <div style="font-family: 'Orbitron'; font-size: 24px; margin-bottom: 20px;">BOARDING<span style="color: red">GATE</span></div>
-            <div>Cargando simulador...</div>
-            <div style="font-size: 12px; margin-top: 10px; opacity: 0.6">Si esto tarda más de 5s, verifica tu conexión.</div>
+            <div style="width: 40px; height: 40px; border: 3px solid #333; border-top-color: red; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
         </div>
     </div>
 
-    <script type="text/babel" data-type="module">
-        import React, { useState, useEffect } from 'react';
-        import { createRoot } from 'react-dom/client';
-        import { Wind, Thermometer, Gauge, TrendingUp, Activity, Zap, Euro, Fuel, BatteryCharging, Car, PiggyBank, BrainCircuit, Sparkles, ChevronRight } from 'lucide-react';
-        import { GoogleGenAI, Type } from '@google/genai';
+    <script type="text/babel">
+        // Configuración Global
+        // IMPORTANTE: Pega tu API Key aquí abajo
+        const API_KEY = ''; 
 
-        // --- CONFIGURACIÓN API KEY ---
-        // IMPORTANTE: Pega tu API Key dentro de las comillas simples abajo.
-        window.process = {
-            env: {
-                API_KEY: '' 
-            }
+        const { useState, useEffect } = React;
+
+        // --- ICONOS SVG INLINE (Para eliminar dependencia de Lucide) ---
+        const Icon = ({ d, className, color }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} style={{ color }}>
+                {d}
+            </svg>
+        );
+        const Icons = {
+            Wind: (p) => <Icon {...p} d={<><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></>} />,
+            Thermometer: (p) => <Icon {...p} d={<path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/>} />,
+            Gauge: (p) => <Icon {...p} d={<><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></>} />,
+            TrendingUp: (p) => <Icon {...p} d={<><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>} />,
+            Activity: (p) => <Icon {...p} d={<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>} />,
+            Zap: (p) => <Icon {...p} d={<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>} />,
+            Euro: (p) => <Icon {...p} d={<><path d="M4 10h12"/><path d="M4 14h9"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 12c0 4.4 3.5 8 7.8 8 2 0 3.8-.8 5.2-2"/></>} />,
+            Fuel: (p) => <Icon {...p} d={<><line x1="3" x2="15" y1="22" y2="22"/><line x1="4" x2="14" y1="9" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/></>} />,
+            BatteryCharging: (p) => <Icon {...p} d={<><path d="M15 7h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><path d="M6 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h1"/><path d="m11 7-3 5h4l-3 5"/><line x1="22" x2="22" y1="11" y2="13"/></>} />,
+            Car: (p) => <Icon {...p} d={<><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></>} />,
+            PiggyBank: (p) => <Icon {...p} d={<><path d="M19 5c-1.5 0-2.8.6-3.8 1.7l-3 3.4a2 2 0 0 1-2.8.2L6 7.5l-1.6.5A2 2 0 0 0 3 10v2h.5"/><path d="M19 5v14c0 1.1-.9 2-2 2H7c-1.1 0-2-.9-2-2v-4"/><path d="M8.5 13.5 12 17"/><path d="M15 5v14"/></>} />,
+            BrainCircuit: (p) => <Icon {...p} d={<><path d="M12 4.5a2.5 2.5 0 0 0-4.96-.46 2.5 2.5 0 0 0-1.98 3 2.5 2.5 0 0 0-1.32 4.24 3 3 0 0 0 .34 5.58 2.5 2.5 0 0 0 2.96 3.08 2.5 2.5 0 0 0 4.91.05L12 20V4.5Z"/><path d="M16 8V5c0-1.1.9-2 2-2"/><path d="M12 13h4"/><path d="M12 18h6a2 2 0 0 1 2 2v1"/></>} />,
+            Sparkles: (p) => <Icon {...p} d={<path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>} />,
+            ChevronRight: (p) => <Icon {...p} d={<path d="m9 18 6-6-6-6"/>} />
         };
 
         // --- FÍSICA ---
@@ -86,50 +92,32 @@
             const relativeSpeedKmh = speed + wind;
             const relativeSpeedMs = relativeSpeedKmh / 3.6;
             const speedMs = speed / 3.6;
-
-            // Fuerza Aerodinámica
             const aeroForce = 0.5 * AIR_DENSITY * DRAG_COEFFICIENT * FRONTAL_AREA * (relativeSpeedMs * Math.abs(relativeSpeedMs)); 
-            
-            // Resistencia a la rodadura y gravedad
             const g = 9.81;
             const rollingForce = ROLLING_RESISTANCE * MASS * g;
             const gradeDecimal = gradient / 100;
             const gravityForce = MASS * g * gradeDecimal;
-            
             const totalForce = aeroForce + rollingForce + gravityForce;
-
-            // Potencia mecánica requerida
             let powerWatts = totalForce * speedMs;
-
-            // Consumo HVAC (Climatización)
             let hvacPowerWatts = 0;
             const deltaT = 20 - temperature;
             if (temperature < 20) {
-                hvacPowerWatts = 500 + (Math.pow(Math.abs(deltaT), 1.5) * 50); // Calor consume más
+                hvacPowerWatts = 500 + (Math.pow(Math.abs(deltaT), 1.5) * 50);
             } else {
-                hvacPowerWatts = 500 + (Math.pow(Math.abs(deltaT), 1.2) * 30); // Aire acondicionado
+                hvacPowerWatts = 500 + (Math.pow(Math.abs(deltaT), 1.2) * 30);
             }
-
             let totalPowerWatts = powerWatts + hvacPowerWatts;
-
-            // Eficiencia del tren motriz
             if (totalPowerWatts > 0) {
-                totalPowerWatts = totalPowerWatts / 0.90; // 90% eficiencia al descargar
+                totalPowerWatts = totalPowerWatts / 0.90;
             } else {
-                totalPowerWatts = totalPowerWatts * 0.70; // 70% eficiencia al regenerar
+                totalPowerWatts = totalPowerWatts * 0.70;
             }
-
             const powerKw = totalPowerWatts / 1000;
             const timeFor100km = 100 / speed;
             let consumption = powerKw * timeFor100km;
-
-            // Calibración según referencia de usuario
             const calibrationScalar = refConsumption / PHYSICS_BASE_100KMH;
             consumption = consumption * calibrationScalar;
-
-            // Límite físico de regeneración
             if (consumption < -15) consumption = -15;
-            
             return parseFloat(consumption.toFixed(2));
         };
 
@@ -146,169 +134,84 @@
 
         // --- SERVICIOS IA ---
         const getAiAnalysis = async (params, consumption) => {
-            const apiKey = window.process.env.API_KEY;
-            if (!apiKey) return "⚠️ Se requiere API Key. Edita el archivo index.html y añade tu clave de Gemini.";
+            if (!API_KEY) return "⚠️ Se requiere API Key. Edita el archivo index.html y añade tu clave de Gemini.";
+            if (!window.GoogleGenAI) return "⏳ La IA se está cargando, intenta en unos segundos...";
             
             try {
-                const ai = new GoogleGenAI({ apiKey });
-                const prompt = `
-                  Actúa como un ingeniero de Tesla y experto en "Hypermiling".
-                  Analiza las siguientes condiciones de conducción para un Model 3 Highland:
-                  - Velocidad: ${params.speed} km/h
-                  - Temperatura: ${params.temperature}°C
-                  - Desnivel de carretera: ${params.gradient}%
-                  - Viento: ${params.wind} km/h (Positivo es Viento en contra)
-                  - Consumo Estimado: ${consumption} kWh/100km.
-
-                  Proporciona una visión profesional breve e impactante (máximo 3 frases) en ESPAÑOL sobre cómo estas variables específicas están afectando la autonomía ahora mismo.
-                  Después, proporciona un consejo práctico para mejorar la eficiencia bajo estas condiciones específicas.
-                  Devuelve texto plano.
-                `;
-                const response = await ai.models.generateContent({
-                    model: 'gemini-2.5-flash',
-                    contents: prompt,
-                });
+                const ai = new window.GoogleGenAI({ apiKey: API_KEY });
+                const prompt = `Actúa como experto de Tesla. Analiza: Velocidad ${params.speed}km/h, Temp ${params.temperature}C, Desnivel ${params.gradient}%, Viento ${params.wind}km/h, Consumo ${consumption} kWh/100km. Da una opinión profesional breve (máx 3 frases) en ESPAÑOL y un consejo de eficiencia.`;
+                const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
                 return response.text;
             } catch (error) {
                 console.error("Gemini Error:", error);
-                return "Error al conectar con la IA. Verifica tu API Key en la consola.";
+                return "Error al conectar con la IA. Verifica tu API Key.";
             }
         };
 
         const generateScenario = async () => {
-            const apiKey = window.process.env.API_KEY;
-            if (!apiKey) {
-                alert("Por favor edita index.html y añade tu API KEY para usar esta función.");
-                return null;
-            }
+            if (!API_KEY) { alert("Añade tu API KEY en index.html"); return null; }
+            if (!window.GoogleGenAI) { alert("La librería de IA aún no ha cargado"); return null; }
             try {
-                const ai = new GoogleGenAI({ apiKey });
+                const ai = new window.GoogleGenAI({ apiKey: API_KEY });
                 const response = await ai.models.generateContent({
                     model: 'gemini-2.5-flash',
-                    contents: "Generate a challenging or interesting driving scenario for an electric vehicle simulation. Return the Name and Description in SPANISH.",
-                    config: {
-                        responseMimeType: "application/json",
-                        responseSchema: {
-                            type: Type.OBJECT,
-                            properties: {
-                                name: { type: Type.STRING },
-                                description: { type: Type.STRING },
-                                params: {
-                                    type: Type.OBJECT,
-                                    properties: {
-                                        speed: { type: Type.NUMBER },
-                                        temperature: { type: Type.NUMBER },
-                                        gradient: { type: Type.NUMBER },
-                                        wind: { type: Type.NUMBER }
-                                    },
-                                    required: ["speed", "temperature", "gradient", "wind"]
-                                }
-                            }
-                        }
-                    }
+                    contents: "Generate a challenging driving scenario. Return JSON with name, description (in SPANISH), params: speed, temperature, gradient, wind.",
+                    config: { responseMimeType: "application/json" }
                 });
                 return JSON.parse(response.text);
             } catch (error) {
-                console.error("Gemini Scenario Error:", error);
+                console.error("Error:", error);
                 return null;
             }
         };
 
-        // --- COMPONENTES UI ---
-
+        // --- COMPONENTES ---
         const Visualizer = ({ params, consumption }) => {
             const [imgError, setImgError] = useState(false);
-            // Efectos visuales basados en parámetros
             const rotation = Math.min(Math.max(params.gradient * -1.5, -25), 25);
-            const windOpacity = Math.min(Math.abs(params.wind) / 50, 1);
             const isHeadwind = params.wind > 0;
-            
             const localImageSrc = "./tesla_model_3.png";
             const fallbackImageSrc = "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/2018_Tesla_Model_3_Long_Range_%28US_Spec%29_Left_Side.jpg/640px-2018_Tesla_Model_3_Long_Range_%28US_Spec%29_Left_Side.jpg";
 
             return (
-                <div className="relative w-full h-64 md:h-96 bg-gradient-to-b from-slate-800 to-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-700 flex items-center justify-center perspective-1000 group">
-                    {/* Fondo y Ambiente */}
+                <div className="relative w-full h-64 md:h-96 bg-gradient-to-b from-slate-800 to-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-700 flex items-center justify-center perspective-1000">
                     <div className="absolute inset-0 z-0">
-                        {/* Cielo */}
                         <div className="h-1/2 bg-slate-800/50 w-full relative overflow-hidden">
-                           {/* Sol / Efecto Calor */}
                            <div className={`absolute top-4 right-10 w-20 h-20 rounded-full bg-yellow-100/10 blur-3xl transition-opacity duration-1000 ${params.temperature > 25 ? 'opacity-100' : 'opacity-0'}`}></div>
-                           {/* Efecto Frío */}
                            <div className={`absolute top-0 left-0 w-full h-full bg-blue-500/5 transition-opacity duration-1000 ${params.temperature < 0 ? 'opacity-100' : 'opacity-0'}`}></div>
                         </div>
-                        {/* Carretera */}
                         <div className="h-1/2 bg-[#1c1c1c] w-full relative overflow-hidden">
                             <div className="absolute top-0 left-0 w-full h-2 bg-white/10"></div>
                             <div className="absolute bottom-0 left-0 w-full h-full flex justify-center">
-                                <div className={`w-full h-full bg-[linear-gradient(90deg,transparent_49%,rgba(255,255,255,0.1)_50%,transparent_51%)] bg-[length:200px_100%] ${params.speed > 0 ? 'animate-road-move' : ''}`} 
-                                     style={{ animationDuration: `${200/Math.max(params.speed, 1)}s` }}>
-                                </div>
+                                <div className={`w-full h-full bg-[linear-gradient(90deg,transparent_49%,rgba(255,255,255,0.1)_50%,transparent_51%)] bg-[length:200px_100%] ${params.speed > 0 ? 'animate-road-move' : ''}`} style={{ animationDuration: `${200/Math.max(params.speed, 1)}s` }}></div>
                             </div>
                         </div>
                     </div>
-
-                    {/* Coche */}
                     <div className="relative z-10 transition-transform duration-500 ease-out" style={{ transform: `rotate(${rotation}deg) translateY(${rotation * 2}px)` }}>
                         <div className="relative w-[300px] md:w-[450px]">
-                             <img 
-                                src={imgError ? fallbackImageSrc : localImageSrc}
-                                onError={() => setImgError(true)}
-                                alt="Tesla Model 3" 
-                                className="w-full h-auto drop-shadow-2xl object-cover"
-                                style={{ 
-                                    filter: 'contrast(1.1) brightness(1.1)',
-                                    transform: 'scaleX(-1)', // Invertir para mirar a la derecha
-                                    maskImage: imgError ? 'linear-gradient(to bottom, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)' : 'none',
-                                    WebkitMaskImage: imgError ? 'linear-gradient(to bottom, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)' : 'none'
-                                }} 
-                             />
-                             
-                             {/* Ruedas animadas */}
-                             <div className={`absolute bottom-[16%] left-[19%] w-[14%] h-[14%] rounded-full border-2 border-gray-400/30 bg-black/80 ${params.speed > 0 ? 'animate-spin' : ''}`} style={{ animationDuration: `${0.5 * (100/Math.max(params.speed, 1))}s` }}>
-                                <div className="w-full h-full border-t-2 border-gray-500/50 rounded-full"></div>
-                             </div>
-                             <div className={`absolute bottom-[16%] right-[17.5%] w-[14%] h-[14%] rounded-full border-2 border-gray-400/30 bg-black/80 ${params.speed > 0 ? 'animate-spin' : ''}`} style={{ animationDuration: `${0.5 * (100/Math.max(params.speed, 1))}s` }}>
-                                <div className="w-full h-full border-t-2 border-gray-500/50 rounded-full"></div>
-                             </div>
-
-                             {/* Efecto Viento */}
+                             <img src={imgError ? fallbackImageSrc : localImageSrc} onError={() => setImgError(true)} alt="Tesla Model 3" className="w-full h-auto drop-shadow-2xl object-cover"
+                                style={{ filter: 'contrast(1.1) brightness(1.1)', transform: 'scaleX(-1)', maskImage: imgError ? 'linear-gradient(to bottom, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)' : 'none', WebkitMaskImage: imgError ? 'linear-gradient(to bottom, rgba(0,0,0,1) 80%, rgba(0,0,0,0) 100%)' : 'none' }} />
+                             <div className={`absolute bottom-[16%] left-[19%] w-[14%] h-[14%] rounded-full border-2 border-gray-400/30 bg-black/80 ${params.speed > 0 ? 'animate-spin' : ''}`} style={{ animationDuration: `${0.5 * (100/Math.max(params.speed, 1))}s` }}><div className="w-full h-full border-t-2 border-gray-500/50 rounded-full"></div></div>
+                             <div className={`absolute bottom-[16%] right-[17.5%] w-[14%] h-[14%] rounded-full border-2 border-gray-400/30 bg-black/80 ${params.speed > 0 ? 'animate-spin' : ''}`} style={{ animationDuration: `${0.5 * (100/Math.max(params.speed, 1))}s` }}><div className="w-full h-full border-t-2 border-gray-500/50 rounded-full"></div></div>
                              {params.wind !== 0 && (
                                  <div className="absolute inset-0 pointer-events-none">
-                                    <div className={`w-full h-full opacity-${Math.floor(windOpacity * 100)} transition-opacity duration-300`}>
+                                    <div className={`w-full h-full opacity-50 transition-opacity duration-300`}>
                                         {[...Array(5)].map((_, i) => (
                                             <div key={i} className={`absolute h-0.5 bg-white/20 rounded-full ${isHeadwind ? 'animate-wind-flow-head' : 'animate-wind-flow-tail'}`}
-                                                style={{
-                                                    top: `${20 + i * 15}%`, 
-                                                    width: `${30 + Math.random() * 40}%`, 
-                                                    left: isHeadwind ? '-50%' : '100%',
-                                                    animationDuration: `${1 + Math.random()}s`, 
-                                                    animationDelay: `${Math.random()}s`
-                                                }}
-                                            />
+                                                style={{ top: `${20 + i * 15}%`, width: `${30 + Math.random() * 40}%`, left: isHeadwind ? '-50%' : '100%', animationDuration: `${1 + Math.random()}s`, animationDelay: `${Math.random()}s` }} />
                                         ))}
                                     </div>
                                  </div>
                              )}
                         </div>
                     </div>
-
-                    {/* HUD Stats Superpuestos */}
                     <div className="absolute top-4 left-4 flex flex-col gap-2">
-                        <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 text-xs text-white/80">
-                            <Gauge className="w-4 h-4 text-blue-400" /><span>{params.speed} km/h</span>
-                        </div>
-                        <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 text-xs text-white/80">
-                            <TrendingUp className={`w-4 h-4 ${params.gradient > 0 ? 'text-red-400' : 'text-green-400'}`} /><span>{params.gradient}% Desnivel</span>
-                        </div>
+                        <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 text-xs text-white/80"><Icons.Gauge className="w-4 h-4 text-blue-400" /><span>{params.speed} km/h</span></div>
+                        <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 text-xs text-white/80"><Icons.TrendingUp className={`w-4 h-4 ${params.gradient > 0 ? 'text-red-400' : 'text-green-400'}`} /><span>{params.gradient}% Desnivel</span></div>
                     </div>
                     <div className="absolute top-4 right-4 flex flex-col gap-2">
-                         <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 text-xs text-white/80">
-                            <Thermometer className={`w-4 h-4 ${params.temperature < 10 ? 'text-blue-300' : params.temperature > 25 ? 'text-red-300' : 'text-green-300'}`} /><span>{params.temperature}°C</span>
-                         </div>
-                         <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 text-xs text-white/80">
-                            <Wind className={`w-4 h-4 ${params.wind > 0 ? 'text-orange-400' : 'text-emerald-400'}`} /><span>{Math.abs(params.wind)} km/h {params.wind > 0 ? 'Contra' : 'Favor'}</span>
-                         </div>
+                         <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 text-xs text-white/80"><Icons.Thermometer className={`w-4 h-4 ${params.temperature < 10 ? 'text-blue-300' : params.temperature > 25 ? 'text-red-300' : 'text-green-300'}`} /><span>{params.temperature}°C</span></div>
+                         <div className="bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 flex items-center gap-2 text-xs text-white/80"><Icons.Wind className={`w-4 h-4 ${params.wind > 0 ? 'text-orange-400' : 'text-emerald-400'}`} /><span>{Math.abs(params.wind)} km/h {params.wind > 0 ? 'Contra' : 'Favor'}</span></div>
                     </div>
                 </div>
             );
@@ -317,70 +220,55 @@
         const ControlPanel = ({ params, costParams, onParamChange, onCostParamChange }) => {
             const handleParamChange = (key, value) => onParamChange({ ...params, [key]: value });
             const handleCostChange = (key, value) => onCostParamChange({ ...costParams, [key]: value });
-
             return (
                 <div className="bg-slate-900/80 backdrop-blur-lg p-6 rounded-3xl border border-slate-800 shadow-xl">
-                    <h3 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Activity className="w-5 h-5 text-red-500" /> Condiciones de Conducción</h3>
+                    <h3 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Icons.Activity className="w-5 h-5 text-red-500" /> Condiciones de Conducción</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-3">
-                            <div className="flex justify-between text-sm"><label className="text-slate-400 flex items-center gap-2"><Zap className="w-4 h-4" /> Velocidad</label><span className="text-white font-mono">{params.speed} km/h</span></div>
-                            <input type="range" min="0" max="200" value={params.speed} onChange={(e) => handleParamChange('speed', Number(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-600" />
-                        </div>
-                        <div className="space-y-3">
-                            <div className="flex justify-between text-sm"><label className="text-slate-400 flex items-center gap-2"><Thermometer className="w-4 h-4" /> Temperatura</label><span className="text-white font-mono">{params.temperature}°C</span></div>
-                            <input type="range" min="-20" max="45" value={params.temperature} onChange={(e) => handleParamChange('temperature', Number(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-orange-500" />
-                        </div>
-                        <div className="space-y-3">
-                            <div className="flex justify-between text-sm"><label className="text-slate-400 flex items-center gap-2">Desnivel / Pendiente</label><span className="text-white font-mono">{params.gradient > 0 ? '+' : ''}{params.gradient}%</span></div>
-                            <input type="range" min="-15" max="15" step="0.5" value={params.gradient} onChange={(e) => handleParamChange('gradient', Number(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500" />
-                        </div>
-                        <div className="space-y-3">
-                            <div className="flex justify-between text-sm"><label className="text-slate-400 flex items-center gap-2"><Wind className="w-4 h-4" /> Viento</label><span className="text-white font-mono">{Math.abs(params.wind)} km/h {params.wind > 0 ? '(Contra)' : '(Favor)'}</span></div>
-                            <input type="range" min="-50" max="50" value={params.wind} onChange={(e) => handleParamChange('wind', Number(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500" />
-                        </div>
+                        <div className="space-y-3"><div className="flex justify-between text-sm"><label className="text-slate-400 flex items-center gap-2"><Icons.Zap className="w-4 h-4" /> Velocidad</label><span className="text-white font-mono">{params.speed} km/h</span></div><input type="range" min="0" max="200" value={params.speed} onChange={(e) => handleParamChange('speed', Number(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-600" /></div>
+                        <div className="space-y-3"><div className="flex justify-between text-sm"><label className="text-slate-400 flex items-center gap-2"><Icons.Thermometer className="w-4 h-4" /> Temperatura</label><span className="text-white font-mono">{params.temperature}°C</span></div><input type="range" min="-20" max="45" value={params.temperature} onChange={(e) => handleParamChange('temperature', Number(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-orange-500" /></div>
+                        <div className="space-y-3"><div className="flex justify-between text-sm"><label className="text-slate-400 flex items-center gap-2">Desnivel / Pendiente</label><span className="text-white font-mono">{params.gradient > 0 ? '+' : ''}{params.gradient}%</span></div><input type="range" min="-15" max="15" step="0.5" value={params.gradient} onChange={(e) => handleParamChange('gradient', Number(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500" /></div>
+                        <div className="space-y-3"><div className="flex justify-between text-sm"><label className="text-slate-400 flex items-center gap-2"><Icons.Wind className="w-4 h-4" /> Viento</label><span className="text-white font-mono">{Math.abs(params.wind)} km/h {params.wind > 0 ? '(Contra)' : '(Favor)'}</span></div><input type="range" min="-50" max="50" value={params.wind} onChange={(e) => handleParamChange('wind', Number(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-emerald-500" /></div>
                     </div>
                     <div className="h-px bg-slate-800 my-8" />
-                    <h3 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Euro className="w-5 h-5 text-yellow-500" /> Configuración de Costes y Vehículo</h3>
+                    <h3 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Icons.Euro className="w-5 h-5 text-yellow-500" /> Costes y Vehículo</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                        <div className="space-y-2"><label className="text-xs text-slate-400 uppercase font-bold">Luz (€/kWh)</label><input type="number" step="0.01" value={costParams.electricityPrice} onChange={(e) => handleCostChange('electricityPrice', parseFloat(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-                        <div className="space-y-2"><label className="text-xs text-slate-400 uppercase font-bold">Gasolina (€/L)</label><input type="number" step="0.01" value={costParams.gasPrice} onChange={(e) => handleCostChange('gasPrice', parseFloat(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-                        <div className="space-y-2"><label className="text-xs text-slate-400 uppercase font-bold flex items-center gap-1"><Fuel className="w-3 h-3"/> Ref. Gasolina (L/100)</label><input type="number" step="0.1" value={costParams.gasConsumptionRef} onChange={(e) => handleCostChange('gasConsumptionRef', parseFloat(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-                        <div className="space-y-2"><label className="text-xs text-slate-400 uppercase font-bold flex items-center gap-1"><Zap className="w-3 h-3"/> Ref. Eléctrico (kWh/100)</label><input type="number" step="0.1" value={costParams.electricConsumptionRef} onChange={(e) => handleCostChange('electricConsumptionRef', parseFloat(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white focus:ring-2 focus:ring-blue-500 outline-none" /></div>
+                        <div className="space-y-2"><label className="text-xs text-slate-400 uppercase font-bold">Luz (€/kWh)</label><input type="number" step="0.01" value={costParams.electricityPrice} onChange={(e) => handleCostChange('electricityPrice', parseFloat(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white outline-none" /></div>
+                        <div className="space-y-2"><label className="text-xs text-slate-400 uppercase font-bold">Gasolina (€/L)</label><input type="number" step="0.01" value={costParams.gasPrice} onChange={(e) => handleCostChange('gasPrice', parseFloat(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white outline-none" /></div>
+                        <div className="space-y-2"><label className="text-xs text-slate-400 uppercase font-bold flex items-center gap-1"><Icons.Fuel className="w-3 h-3"/> Ref. Gasolina (L/100)</label><input type="number" step="0.1" value={costParams.gasConsumptionRef} onChange={(e) => handleCostChange('gasConsumptionRef', parseFloat(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white outline-none" /></div>
+                        <div className="space-y-2"><label className="text-xs text-slate-400 uppercase font-bold flex items-center gap-1"><Icons.Zap className="w-3 h-3"/> Ref. Eléctrico (kWh/100)</label><input type="number" step="0.1" value={costParams.electricConsumptionRef} onChange={(e) => handleCostChange('electricConsumptionRef', parseFloat(e.target.value))} className="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white outline-none" /></div>
                     </div>
                 </div>
             );
         };
 
-        const ResultsDisplay = ({ results }) => {
-            return (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-slate-900/90 backdrop-blur-xl p-6 rounded-2xl border border-slate-800 relative overflow-hidden group">
-                        <div className="absolute -right-6 -top-6 w-24 h-24 bg-blue-600/20 rounded-full blur-3xl group-hover:bg-blue-600/30 transition-colors"></div>
-                        <div className="flex items-start justify-between mb-4">
-                            <div><h4 className="text-slate-400 text-sm font-medium uppercase tracking-wider">Consumo</h4><div className="text-4xl font-display font-bold text-white mt-1">{results.consumption} <span className="text-lg font-sans font-normal text-slate-400">kWh/100km</span></div></div>
-                            <div className="p-2 bg-slate-800 rounded-lg text-blue-400"><BatteryCharging className="w-6 h-6" /></div>
-                        </div>
-                        <div className="text-sm text-slate-500">Autonomía Est.: <span className="text-blue-400 font-bold">{results.range > 999 ? '>999' : results.range.toFixed(0)} km</span></div>
+        const ResultsDisplay = ({ results }) => (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-slate-900/90 backdrop-blur-xl p-6 rounded-2xl border border-slate-800 relative overflow-hidden group">
+                    <div className="absolute -right-6 -top-6 w-24 h-24 bg-blue-600/20 rounded-full blur-3xl"></div>
+                    <div className="flex items-start justify-between mb-4">
+                        <div><h4 className="text-slate-400 text-sm font-medium uppercase tracking-wider">Consumo</h4><div className="text-4xl font-display font-bold text-white mt-1">{results.consumption} <span className="text-lg font-sans font-normal text-slate-400">kWh/100km</span></div></div>
+                        <div className="p-2 bg-slate-800 rounded-lg text-blue-400"><Icons.BatteryCharging className="w-6 h-6" /></div>
                     </div>
-                    <div className="bg-slate-900/90 backdrop-blur-xl p-6 rounded-2xl border border-slate-800 relative overflow-hidden group">
-                        <div className="absolute -right-6 -top-6 w-24 h-24 bg-green-600/20 rounded-full blur-3xl group-hover:bg-green-600/30 transition-colors"></div>
-                        <div className="flex items-start justify-between mb-4">
-                             <div><h4 className="text-slate-400 text-sm font-medium uppercase tracking-wider">Coste Eléctrico</h4><div className="text-4xl font-display font-bold text-white mt-1">€{results.costElectric} <span className="text-lg font-sans font-normal text-slate-400">/100km</span></div></div>
-                            <div className="p-2 bg-slate-800 rounded-lg text-green-400"><Car className="w-6 h-6" /></div>
-                        </div>
-                        <div className="text-sm text-slate-500">Basado en tarifa eléctrica</div>
-                    </div>
-                    <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-2xl border border-yellow-900/30 relative overflow-hidden">
-                         <div className="absolute -right-6 -top-6 w-24 h-24 bg-yellow-600/10 rounded-full blur-3xl"></div>
-                         <div className="flex items-start justify-between mb-4">
-                             <div><h4 className="text-yellow-500/80 text-sm font-medium uppercase tracking-wider">Ahorro vs Gasolina</h4><div className="text-4xl font-display font-bold text-yellow-500 mt-1">€{results.savings} <span className="text-lg font-sans font-normal text-yellow-500/60">/100km</span></div></div>
-                            <div className="p-2 bg-slate-800 rounded-lg text-yellow-500"><PiggyBank className="w-6 h-6" /></div>
-                        </div>
-                        <div className="text-sm text-slate-500">Equivalente Gasolina: <span className="text-slate-300">€{results.costGas}/100km</span></div>
-                    </div>
+                    <div className="text-sm text-slate-500">Autonomía Est.: <span className="text-blue-400 font-bold">{results.range > 999 ? '>999' : results.range.toFixed(0)} km</span></div>
                 </div>
-            );
-        };
+                <div className="bg-slate-900/90 backdrop-blur-xl p-6 rounded-2xl border border-slate-800 relative overflow-hidden">
+                    <div className="absolute -right-6 -top-6 w-24 h-24 bg-green-600/20 rounded-full blur-3xl"></div>
+                    <div className="flex items-start justify-between mb-4">
+                         <div><h4 className="text-slate-400 text-sm font-medium uppercase tracking-wider">Coste Eléctrico</h4><div className="text-4xl font-display font-bold text-white mt-1">€{results.costElectric} <span className="text-lg font-sans font-normal text-slate-400">/100km</span></div></div>
+                        <div className="p-2 bg-slate-800 rounded-lg text-green-400"><Icons.Car className="w-6 h-6" /></div>
+                    </div>
+                    <div className="text-sm text-slate-500">Basado en tarifa eléctrica</div>
+                </div>
+                <div className="bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-2xl border border-yellow-900/30 relative overflow-hidden">
+                     <div className="absolute -right-6 -top-6 w-24 h-24 bg-yellow-600/10 rounded-full blur-3xl"></div>
+                     <div className="flex items-start justify-between mb-4">
+                         <div><h4 className="text-yellow-500/80 text-sm font-medium uppercase tracking-wider">Ahorro vs Gasolina</h4><div className="text-4xl font-display font-bold text-yellow-500 mt-1">€{results.savings} <span className="text-lg font-sans font-normal text-yellow-500/60">/100km</span></div></div>
+                        <div className="p-2 bg-slate-800 rounded-lg text-yellow-500"><Icons.PiggyBank className="w-6 h-6" /></div>
+                    </div>
+                    <div className="text-sm text-slate-500">Equivalente Gasolina: <span className="text-slate-300">€{results.costGas}/100km</span></div>
+                </div>
+            </div>
+        );
 
         const GeminiAdvisor = ({ params, consumption, onApplyScenario }) => {
             const [analysis, setAnalysis] = useState(null);
@@ -400,7 +288,7 @@
                 const scenario = await generateScenario();
                 if (scenario) {
                     onApplyScenario(scenario.params);
-                    setAnalysis(`**Escenario Cargado: ${scenario.name}**\n\n${scenario.description}`);
+                    setAnalysis(`**Escenario: ${scenario.name}**\n\n${scenario.description}`);
                 }
                 setScenarioLoading(false);
             };
@@ -410,28 +298,23 @@
                     <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-50"></div>
                     <div className="flex flex-col md:flex-row gap-6 items-start md:items-center justify-between mb-6">
                         <div className="flex items-center gap-3">
-                            <div className="p-3 bg-indigo-500/20 rounded-xl text-indigo-300"><BrainCircuit className="w-6 h-6" /></div>
+                            <div className="p-3 bg-indigo-500/20 rounded-xl text-indigo-300"><Icons.BrainCircuit className="w-6 h-6" /></div>
                             <div><h3 className="text-lg font-bold text-white">Tesla Neural Core</h3><p className="text-sm text-indigo-200/70">Análisis de energía con IA</p></div>
                         </div>
                         <div className="flex gap-3 w-full md:w-auto">
-                             <button onClick={handleSurprise} disabled={scenarioLoading} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg border border-slate-600 transition-all text-sm font-medium disabled:opacity-50"><Sparkles className="w-4 h-4 text-yellow-400" />{scenarioLoading ? 'Generando...' : 'Sorpréndeme'}</button>
-                            <button onClick={handleAnalyze} disabled={loading} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg shadow-lg shadow-indigo-500/20 transition-all font-medium disabled:opacity-50">{loading ? 'Analizando...' : 'Analizar Eficiencia'}{!loading && <ChevronRight className="w-4 h-4" />}</button>
+                             <button onClick={handleSurprise} disabled={scenarioLoading} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg border border-slate-600 transition-all text-sm font-medium disabled:opacity-50"><Icons.Sparkles className="w-4 h-4 text-yellow-400" />{scenarioLoading ? 'Generando...' : 'Sorpréndeme'}</button>
+                            <button onClick={handleAnalyze} disabled={loading} className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-lg shadow-lg shadow-indigo-500/20 transition-all font-medium disabled:opacity-50">{loading ? 'Analizando...' : 'Analizar Eficiencia'}{!loading && <Icons.ChevronRight className="w-4 h-4" />}</button>
                         </div>
                     </div>
                     {(analysis || loading) && (
                         <div className="bg-slate-950/50 rounded-xl p-5 border border-indigo-500/20 min-h-[80px] transition-all">
-                            {loading ? (
-                                <div className="flex flex-col gap-2 animate-pulse"><div className="h-2 bg-indigo-400/20 rounded w-3/4"></div><div className="h-2 bg-indigo-400/20 rounded w-full"></div></div>
-                            ) : (
-                                <div className="text-indigo-100 leading-relaxed whitespace-pre-wrap text-sm">{analysis}</div>
-                            )}
+                            {loading ? <div className="flex flex-col gap-2 animate-pulse"><div className="h-2 bg-indigo-400/20 rounded w-3/4"></div><div className="h-2 bg-indigo-400/20 rounded w-full"></div></div> : <div className="text-indigo-100 leading-relaxed whitespace-pre-wrap text-sm">{analysis}</div>}
                         </div>
                     )}
                 </div>
             );
         };
 
-        // --- APP PRINCIPAL ---
         const App = () => {
             const [params, setParams] = useState({ speed: 120, temperature: 20, gradient: 0, wind: 0 });
             const [costParams, setCostParams] = useState({ electricityPrice: 0.08, gasPrice: 1.45, gasConsumptionRef: 6.5, electricConsumptionRef: 13.2 });
@@ -476,7 +359,7 @@
             );
         };
 
-        const root = createRoot(document.getElementById('root'));
+        const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
 </body>
