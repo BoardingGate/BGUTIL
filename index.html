@@ -354,17 +354,13 @@
                         src="tesla_model_3.png" 
                         alt="Tesla Model 3"
                         className="w-full h-full object-contain relative z-10 filter drop-shadow-2xl contrast-125 brightness-90"
-                        onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/2019_Tesla_Model_3_Performance_AWD_Front.jpg/1920px-2019_Tesla_Model_3_Performance_AWD_Front.jpg';
-                        }}
                     />
 
                     {/* Wheels Spinners */}
                     {/* Left Wheel: 12.8% */}
-                    {/* Right Wheel: Adjusted 5px right (16% - 1.25% = 14.75%) */}
+                    {/* Right Wheel: Adjusted 7px right from 14.75% to 13% */}
                     <div className={`absolute bottom-[20.5%] left-[12.8%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
-                    <div className={`absolute bottom-[20.5%] right-[14.75%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
+                    <div className={`absolute bottom-[20.5%] right-[13%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
                 </div>
 
                 {/* Road */}
