@@ -19,7 +19,7 @@
     <style>
       body { font-family: 'Inter', sans-serif; background-color: #0a0a0a; color: #e5e5e5; }
       .font-display { font-family: 'Orbitron', sans-serif; }
-      ::-webkit-scrollbar { width: 8px; }
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
       ::-webkit-scrollbar-track { background: #1a1a1a; }
       ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
       
@@ -50,6 +50,29 @@
       /* Ruedas girando */
       @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       .animate-spin-fast { animation: spin 0.3s linear infinite; }
+      
+      /* Excel Inputs */
+      .excel-input {
+        width: 100%;
+        height: 100%;
+        background: white;
+        color: #DC2626; /* Red text like excel */
+        font-weight: bold;
+        font-size: 1.5rem;
+        text-align: center;
+        outline: none;
+        border: none;
+      }
+      .excel-input:focus { background: #f0f9ff; }
+      
+      .excel-input-sm {
+        width: 100%;
+        background: transparent;
+        text-align: center;
+        outline: none;
+        border-bottom: 1px dashed #666;
+        color: inherit;
+      }
     </style>
 </head>
 <body>
@@ -75,7 +98,7 @@
       const Icons = {
         Wind: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>,
         Thermometer: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>,
-        TrendingUp: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+        TrendingUp: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 6 23 12"/></svg>,
         Gauge: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>,
         Zap: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
         Fuel: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" x2="15" y1="22" y2="22"/><line x1="4" x2="14" y1="9" y2="9"/><path d="M14 22V4a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v18"/><path d="M14 13h2a2 2 0 0 1 2 2v2a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V9.83a2 2 0 0 0-.59-1.42L18 5"/></svg>,
@@ -84,7 +107,9 @@
         LogOut: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
         Battery: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="6" width="18" height="12" rx="2" ry="2"></rect><line x1="23" y1="13" x2="23" y2="11"></line><polyline points="11 11 13 11 13 7 9 7 9 17 13 17 13 13 11 13"></polyline></svg>,
         Chart: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>,
-        Wallet: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg>
+        Wallet: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg>,
+        Trash: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+        Plus: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
       };
 
       // --- FÍSICA ---
@@ -361,7 +386,7 @@
 
                     {/* Wheels Spinners */}
                     {/* Left Wheel: 12.8% */}
-                    {/* Right Wheel: 13% */}
+                    {/* Right Wheel: 13% (Moved 7px right from 14.75%) */}
                     <div className={`absolute bottom-[20.5%] left-[12.8%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
                     <div className={`absolute bottom-[20.5%] right-[13%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
                 </div>
@@ -395,13 +420,187 @@
         );
       };
 
-      const ChargingStrategyView = () => (
-        <div className="flex flex-col items-center justify-center h-96 bg-slate-900/50 border border-slate-800 rounded-2xl text-slate-400">
-            <Icons.Battery />
-            <h2 className="text-xl font-bold mt-4">Estrategia de Carga</h2>
-            <p className="text-sm mt-2">Sección en construcción</p>
-        </div>
-      );
+      const ChargingStrategyView = ({ params, costs, consumption }) => {
+        const [chargerPower, setChargerPower] = useState(7.4); // kW
+        const [initialSoC, setInitialSoC] = useState(100);
+        const [weekData, setWeekData] = useState([
+            { day: 'LUN', km: 72, targetCharge: '' },
+            { day: 'MAR', km: 72, targetCharge: '' },
+            { day: 'MIE', km: 72, targetCharge: '' },
+            { day: 'JUE', km: 72, targetCharge: '' },
+            { day: 'VIE', km: 72, targetCharge: 70 },
+            { day: 'SÁB', km: 32, targetCharge: '' },
+            { day: 'DOM', km: 32, targetCharge: '' },
+        ]);
+
+        const updateDay = (index, field, value) => {
+            const newData = [...weekData];
+            newData[index][field] = value;
+            setWeekData(newData);
+        };
+
+        // Lógica de cálculo en cadena "Excel"
+        const calculateChain = () => {
+            let currentSoC = initialSoC; // Comienza Lunes mañana
+            const battery = params.batteryCapacity;
+            
+            return weekData.map(day => {
+                // 1. Consumo Diario
+                const dailyKm = parseFloat(day.km) || 0;
+                // Usar el consumo actual calculado en la otra pestaña o uno por defecto
+                const consRate = consumption > 0 ? consumption : 15; 
+                const kWhConsumed = (dailyKm * consRate) / 100;
+                const percentConsumed = (kWhConsumed / battery) * 100;
+
+                const startSoC = currentSoC;
+                let endSoC = startSoC - percentConsumed;
+                
+                // 2. Estado Batería
+                const startKm = (startSoC / 100) * (battery / consRate) * 100;
+                const endKm = (endSoC / 100) * (battery / consRate) * 100;
+
+                // 3. Carga Nocturna (Target)
+                let target = parseFloat(day.targetCharge);
+                let hoursNeeded = 0;
+                let percentAdded = 0;
+
+                if (!isNaN(target)) {
+                    // Si el usuario pone target 80%, y tenemos 40%, cargamos 40%.
+                    // Si tenemos 90%, no cargamos nada.
+                    if (target > endSoC) {
+                        const percentNeeded = target - endSoC;
+                        const kWhNeeded = (percentNeeded / 100) * battery;
+                        hoursNeeded = kWhNeeded / chargerPower;
+                        percentAdded = percentNeeded;
+                        currentSoC = target; // Al día siguiente empezamos con el target
+                    } else {
+                        currentSoC = endSoC; // No carga
+                    }
+                } else {
+                    currentSoC = endSoC; // No carga
+                }
+                
+                // Limites
+                if (currentSoC < 0) currentSoC = 0;
+                if (currentSoC > 100) currentSoC = 100;
+
+                return {
+                    ...day,
+                    percentConsumed,
+                    startSoC,
+                    endSoC,
+                    startKm,
+                    endKm,
+                    kWhConsumed,
+                    hoursNeeded,
+                    nextStart: currentSoC
+                };
+            });
+        };
+
+        const calculatedData = calculateChain();
+
+        return (
+            <div className="w-full overflow-x-auto pb-8">
+                <div className="bg-white rounded-lg shadow-xl border border-slate-300 min-w-[800px] text-slate-800 font-sans">
+                    {/* GRID LAYOUT */}
+                    <div className="grid grid-cols-7 divide-x divide-slate-300 border-b border-slate-300">
+                        
+                        {calculatedData.map((day, i) => (
+                            <div key={i} className="flex flex-col">
+                                {/* Fila 1: Consumo estimado (Rojo) */}
+                                <div className="h-8 bg-pink-100 flex items-center justify-center text-red-600 font-bold text-lg border-b border-slate-300">
+                                    {day.percentConsumed.toFixed(0)}
+                                </div>
+
+                                {/* Fila 2: Día (Naranja) */}
+                                <div className="h-8 bg-orange-200 flex items-center justify-center font-bold uppercase border-b border-slate-300">
+                                    {day.day}
+                                </div>
+
+                                {/* Fila 3: SoC (Verde) */}
+                                <div className="h-14 bg-green-100 border-b border-slate-300 p-1 flex items-center justify-between px-2">
+                                    <span className="text-3xl font-bold text-green-700">{day.startSoC.toFixed(0)}%</span>
+                                    <span className={`text-xl font-bold ${day.endSoC < 20 ? 'text-red-600' : 'text-green-600/70'}`}>{day.endSoC.toFixed(0)}%</span>
+                                </div>
+
+                                {/* Fila 4: Datos Kilometraje (Gris) */}
+                                <div className="h-20 bg-slate-200 border-b border-slate-300 text-[10px] p-1 flex flex-col justify-center leading-tight text-slate-600">
+                                    <div className="font-bold text-xs mb-1">{day.startKm.toFixed(0)}</div>
+                                    <div className="border-t border-slate-400 pt-1">
+                                        <input 
+                                            type="number" 
+                                            value={day.km}
+                                            onChange={(e) => updateDay(i, 'km', e.target.value)}
+                                            className="excel-input-sm w-12 font-bold text-slate-900"
+                                        /> km
+                                    </div>
+                                    <div>y {day.kWhConsumed.toFixed(1)} kWh</div>
+                                    <div className="mt-1 text-right font-bold text-xs">{day.endKm.toFixed(0)}</div>
+                                </div>
+
+                                {/* Fila 5: INPUT CARGA (Blanco) */}
+                                <div className="h-16 border-b border-slate-300 relative group">
+                                    <input 
+                                        type="number" 
+                                        placeholder=""
+                                        value={day.targetCharge}
+                                        onChange={(e) => updateDay(i, 'targetCharge', e.target.value)}
+                                        className="excel-input"
+                                    />
+                                    <div className="absolute top-0 left-0 text-[8px] text-slate-400 p-0.5 pointer-events-none group-hover:hidden">
+                                        % CARGA
+                                    </div>
+                                </div>
+
+                                {/* Fila 6: Tiempo Carga (Rosa) */}
+                                <div className="h-8 bg-pink-50 flex items-center justify-center text-purple-600 font-medium text-sm">
+                                    {day.hoursNeeded > 0 ? `${day.hoursNeeded.toFixed(1)} h` : ''}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Configuración extra (Abajo) */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                    <div className="bg-slate-800 p-4 rounded border border-slate-700 text-white">
+                         <h4 className="text-xs text-slate-400 uppercase mb-2">SoC Inicial (Lunes)</h4>
+                         <div className="flex items-center gap-2">
+                            <input 
+                                type="number" 
+                                value={initialSoC}
+                                onChange={(e) => setInitialSoC(parseFloat(e.target.value))}
+                                className="bg-slate-700 border border-slate-600 rounded px-2 py-1 w-20 text-center"
+                            />
+                            <span>%</span>
+                         </div>
+                    </div>
+                    
+                    <div className="bg-blue-900/30 p-4 rounded border border-blue-800 text-white">
+                         <h4 className="text-xs text-blue-300 uppercase mb-2">Características Cargador</h4>
+                         <div className="flex items-center justify-between">
+                            <label className="text-sm">Potencia (kW):</label>
+                            <input 
+                                type="number" 
+                                step="0.1"
+                                value={chargerPower}
+                                onChange={(e) => setChargerPower(parseFloat(e.target.value))}
+                                className="bg-blue-900 border border-blue-700 rounded px-2 py-1 w-20 text-center font-bold text-red-400"
+                            />
+                         </div>
+                         <div className="text-xs text-slate-400 mt-1">
+                             Velocidad carga: {(100 / (params.batteryCapacity/chargerPower)).toFixed(1)} %/hora
+                         </div>
+                    </div>
+
+                    <div className="bg-slate-800 p-4 rounded border border-slate-700 text-xs text-slate-400">
+                        <p><strong>Nota:</strong> Los cálculos utilizan el consumo medio actual de la pestaña "Eficiencia" ({consumption.toFixed(1)} kWh/100km). Modifica la velocidad o el clima allí para simular peores condiciones.</p>
+                    </div>
+                </div>
+            </div>
+        );
+      };
 
       const ICEvsEVView = () => (
         <div className="flex flex-col items-center justify-center h-96 bg-slate-900/50 border border-slate-800 rounded-2xl text-slate-400">
@@ -512,7 +711,7 @@
                                 consumption={consumption} 
                             />
                         )}
-                        {activeTab === 'charging' && <ChargingStrategyView />}
+                        {activeTab === 'charging' && <ChargingStrategyView params={params} costs={costs} consumption={consumption} />}
                         {activeTab === 'ice_vs_ev' && <ICEvsEVView />}
                         {activeTab === 'tariffs' && <TariffComparatorView />}
                     </main>
