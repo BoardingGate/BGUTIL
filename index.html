@@ -28,7 +28,8 @@
         0% { background-position: 0 0; } 
         100% { background-position: -200px 0; } 
       }
-      .animate-road-move { animation: road-move 0.5s linear infinite; }
+      /* La duración se sobreescribe inline en React */
+      .animate-road-move { animation-name: road-move; animation-timing-function: linear; animation-iteration-count: infinite; }
       
       /* Viento en CONTRA (Derecha a Izquierda) */
       @keyframes wind-flow-head { 
@@ -347,14 +348,17 @@
                         }}
                     />
 
-                    {/* Wheels Spinners (Position Adjusted for Highland) */}
-                    <div className={`absolute bottom-[19%] left-[12.8%] w-[13.5%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
-                    <div className={`absolute bottom-[19%] right-[16%] w-[13.5%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
+                    {/* Wheels Spinners (Size Reduced 10%, Right Wheel shifted 40px left) */}
+                    {/* Original Width: 13.5%. New: ~12.1% */}
+                    {/* Original Right: 16%. Shift 40px on 400px = 10%. New Right: 26% */}
+                    <div className={`absolute bottom-[19%] left-[12.8%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
+                    <div className={`absolute bottom-[19%] right-[26%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
                 </div>
 
                 {/* Road */}
                 <div className="absolute bottom-0 w-full h-24 bg-slate-800 overflow-hidden transform perspective-xl rotate-x-60">
-                     <div className={`w-[200%] h-2 border-t-4 border-dashed border-slate-600 mt-10 ${isMoving ? 'animate-road-move' : ''}`}></div>
+                     <div className={`w-[200%] h-2 border-t-4 border-dashed border-slate-600 mt-10 ${isMoving ? 'animate-road-move' : ''}`}
+                          style={{ animationDuration: isMoving && params.speed > 0 ? `${50 / params.speed}s` : '0s' }}></div>
                 </div>
             </div>
         );
