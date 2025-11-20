@@ -198,7 +198,7 @@
                     </div>
 
                     <div className="pt-6 border-t border-slate-800">
-                        <h3 className="text-sm font-bold text-slate-300 mb-4">Configuración de Costes</h3>
+                        <h3 className="text-sm font-bold text-slate-300 mb-4">Configuración de Costes y Vehículo</h3>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="text-xs text-slate-500 block mb-1">Electricidad (€/kWh)</label>
@@ -224,6 +224,12 @@
                                     onChange={(e) => handleChange('electricConsumptionRef', e.target.value)}
                                     className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500" />
                             </div>
+                            <div>
+                                <label className="text-xs text-slate-500 block mb-1">Capacidad Batería (kWh)</label>
+                                <input type="number" step="1" value={params.batteryCapacity}
+                                    onChange={(e) => handleChange('batteryCapacity', e.target.value)}
+                                    className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500" />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -236,6 +242,9 @@
         const costPer100Gas = (costs.gasConsumptionRef * costs.gasPrice).toFixed(2);
         const savings = (parseFloat(costPer100Gas) - parseFloat(costPer100Elec)).toFixed(2);
         const savingsPercent = ((parseFloat(savings) / parseFloat(costPer100Gas)) * 100).toFixed(0);
+        
+        // Calcular autonomía: (Capacidad Batería / Consumo) * 100
+        const range = consumption > 0.1 ? ((params.batteryCapacity / consumption) * 100).toFixed(0) : '---';
 
         return (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -246,7 +255,9 @@
                         {consumption.toFixed(1)}
                         <span className="text-lg text-slate-500 ml-2 font-sans font-normal">kWh/100</span>
                     </div>
-                    <div className="text-xs text-slate-500 mt-2">Estimación tiempo real</div>
+                    <div className="text-sm text-blue-400 mt-2 font-bold">
+                        Autonomía: {range} km
+                    </div>
                 </div>
 
                 <div className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center shadow-lg relative overflow-hidden group">
@@ -377,7 +388,8 @@
             temperature: 20,
             gradient: 0,
             windSpeed: 0,
-            electricConsumptionRef: 13.2
+            electricConsumptionRef: 13.2,
+            batteryCapacity: 60
         });
 
         const [costs, setCosts] = useState({
