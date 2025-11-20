@@ -1,0 +1,5 @@
+{
+  "name": "Tesla Model 3 Highland - Energy Simulator",
+  "description": "A dynamic, interactive energy consumption visualizer for the Tesla Model 3 Highland. Adjust speed, weather, and terrain to see real-time impacts on efficiency and cost, powered by Gemini AI analysis.",
+  "requestFramePermissions": []
+}
