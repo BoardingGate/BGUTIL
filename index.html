@@ -32,15 +32,17 @@
       
       /* Viento en CONTRA (Derecha a Izquierda) */
       @keyframes wind-flow-head { 
-        0% { transform: translateX(100%); opacity: 0; } 
-        50% { opacity: 0.6; } 
+        0% { transform: translateX(0%); opacity: 0; } 
+        10% { opacity: 0.6; } 
+        90% { opacity: 0.6; }
         100% { transform: translateX(-200%); opacity: 0; } 
       }
       
       /* Viento a FAVOR (Izquierda a Derecha) */
       @keyframes wind-flow-tail { 
-        0% { transform: translateX(-100%); opacity: 0; } 
-        50% { opacity: 0.6; } 
+        0% { transform: translateX(0%); opacity: 0; } 
+        10% { opacity: 0.6; } 
+        90% { opacity: 0.6; }
         100% { transform: translateX(200%); opacity: 0; } 
       }
 
@@ -292,7 +294,7 @@
 
       const Visualizer = ({ params }) => {
         const isMoving = params.speed > 0;
-        const isHeadwind = params.windSpeed < 0;
+        const isHeadwind = params.windSpeed < 0; // True if wind against, False if tailwind
         
         // 50 particles for wind
         const windParticles = Array.from({ length: Math.abs(params.windSpeed) * 1.5 }).map((_, i) => ({
@@ -327,15 +329,17 @@
                 {/* Environment */}
                 <div className="absolute inset-0 bg-red-900/10"></div>
 
-                {/* Wind Particles - INVERTED LOGIC as requested */}
+                {/* Wind Particles - CORREGIDO */}
+                {/* Viento Contra (isHeadwind = true): Debe venir de la derecha (100%) y usar animacion head (derecha a izquierda) */}
+                {/* Viento Favor (isHeadwind = false): Debe venir de la izquierda (-10%) y usar animacion tail (izquierda a derecha) */}
                 {params.windSpeed !== 0 && (
                     <div className="absolute inset-0 pointer-events-none z-10">
                         {windParticles.map(p => (
                             <div key={p.id} 
-                                className={`absolute h-0.5 bg-white/20 rounded-full ${!isHeadwind ? 'wind-particle-head' : 'wind-particle-tail'}`}
+                                className={`absolute h-0.5 bg-white/20 rounded-full ${isHeadwind ? 'wind-particle-head' : 'wind-particle-tail'}`}
                                 style={{
                                     top: p.top,
-                                    left: !isHeadwind ? '100%' : '-10%', 
+                                    left: isHeadwind ? '100%' : '-10%', 
                                     width: Math.random() * 50 + 50 + 'px',
                                     animationDuration: '0.8s',
                                     animationDelay: p.delay
@@ -357,8 +361,6 @@
                     />
 
                     {/* Wheels Spinners */}
-                    {/* Left Wheel: 12.8% */}
-                    {/* Right Wheel: Adjusted 7px right from 14.75% to 13% */}
                     <div className={`absolute bottom-[20.5%] left-[12.8%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
                     <div className={`absolute bottom-[20.5%] right-[13%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
                 </div>
