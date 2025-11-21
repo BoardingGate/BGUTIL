@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -558,6 +557,10 @@
         const rangeAdded = state.consumption > 0 ? (energyAdded / state.consumption) * 100 : 0;
         const totalCost = energyAdded * state.energyPrice;
 
+        // Logic for total range at target
+        const totalEnergyAtTarget = state.capacity * (validTarget / 100);
+        const totalRangeAtTarget = state.consumption > 0 ? (totalEnergyAtTarget / state.consumption) * 100 : 0;
+
         // Logic for projection
         const dailyCost = (state.dailyKm / 100) * state.consumption * state.energyPrice;
         const monthlyCost = dailyCost * 30.41; // Average days
@@ -709,7 +712,9 @@
                             <div className="text-3xl font-display font-bold text-blue-400">
                                 +{formatMoney(rangeAdded)} <span className="text-lg text-blue-400/50">km</span>
                             </div>
-                            <div className="text-[10px] text-slate-500 mt-1">Consumo: {state.consumption} kWh/100</div>
+                            <div className="text-[10px] text-slate-500 mt-1 font-bold">
+                                Autonomía Total: <span className="text-white">{formatMoney(totalRangeAtTarget)} km</span>
+                            </div>
                         </div>
                      </div>
 
