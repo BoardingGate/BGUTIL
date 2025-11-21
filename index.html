@@ -542,7 +542,8 @@
             startPct: 10,
             targetPct: 80,
             power: 11, // kW
-            consumption: 16 // kWh/100km
+            consumption: 16, // kWh/100km
+            energyPrice: 0.15 // €/kWh
         });
 
         // Logic
@@ -553,6 +554,9 @@
         const hours = Math.floor(timeHours);
         const minutes = Math.round((timeHours - hours) * 60);
         const rangeAdded = state.consumption > 0 ? (energyAdded / state.consumption) * 100 : 0;
+        
+        // Cálculo de Coste de Recarga
+        const totalCost = energyAdded * state.energyPrice;
 
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v) || 0}));
         
@@ -613,9 +617,15 @@
                                 </div>
                             </div>
                             
-                            <div className="pt-2">
-                                <label className="text-xs text-slate-500 block mb-1">Consumo Medio (kWh/100km)</label>
-                                <FormattedInput value={state.consumption} onChange={v => handleChange('consumption', v)} decimals={1}/>
+                            <div className="pt-2 grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-xs text-slate-500 block mb-1">Consumo (kWh/100)</label>
+                                    <FormattedInput value={state.consumption} onChange={v => handleChange('consumption', v)} decimals={1}/>
+                                </div>
+                                <div>
+                                    <label className="text-xs text-slate-500 block mb-1">Precio Energía (€/kWh)</label>
+                                    <FormattedInput value={state.energyPrice} onChange={v => handleChange('energyPrice', v)} decimals={3}/>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -648,13 +658,21 @@
                      </div>
 
                      {/* Results Cards */}
-                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                     <div className="grid grid-cols-2 gap-4">
                         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center">
                             <div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Clock className="w-4 h-4"/> Tiempo Estimado</div>
                             <div className="text-3xl font-display font-bold text-white">
                                 {hours}h <span className="text-lg text-slate-500">{minutes}m</span>
                             </div>
                             <div className="text-[10px] text-slate-500 mt-1">a {state.power} kW de potencia</div>
+                        </div>
+
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center">
+                            <div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Euro className="w-4 h-4"/> Coste Recarga</div>
+                            <div className="text-3xl font-display font-bold text-white">
+                                {formatDecimal(totalCost)}<span className="text-lg text-slate-500">€</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 mt-1">a {state.energyPrice} €/kWh</div>
                         </div>
 
                         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center">
@@ -721,6 +739,7 @@
                 case 'calculator':
                     return <ChargingCalculator />;
                 case 'tariff':
+                case 'charge':
                     return <PlaceholderTab />;
                 default:
                     return null;
@@ -763,6 +782,7 @@
                             <TabButton id="amortization" label="Amortización" />
                             <TabButton id="calculator" label="Calculadora" />
                             <TabButton id="tariff" label="Comparar Tarifas" />
+                            <TabButton id="charge" label="Carga" />
                         </div>
                     </header>
 
