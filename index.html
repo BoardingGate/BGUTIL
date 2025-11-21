@@ -257,12 +257,14 @@
 
       // --- NUEVO: CALCULADORA DE AMORTIZACIÓN (RELOJ CUCO) ---
       const AmortizationCalculator = () => {
+        // ESTADO ACTUALIZADO CON VALORES POR DEFECTO SOLICITADOS
         const [data, setData] = useState({
-            priceEV: 40990, priceICE: 32000, moves: 7000, aidICE: 0, // Added aidICE
-            kmPerYear: 15000, consumptionEV: 16.0, consumptionICE: 7.0,
-            priceElec: 0.10, priceFuel: 1.60, maintenanceSavingsYear: 150, yearsToProject: 10
+            priceEV: 35000, priceICE: 35000, moves: 7000, aidICE: 0,
+            kmPerYear: 20000, consumptionEV: 16.0, consumptionICE: 6.0,
+            priceElec: 0.10, priceFuel: 1.45, maintenanceSavingsYear: 150, yearsToProject: 20
         });
-        const [showTable, setShowTable] = useState(false);
+        // TABLA DESPLEGADA POR DEFECTO
+        const [showTable, setShowTable] = useState(true);
 
         const handleChange = (field, value) => setData({...data, [field]: parseFloat(value) || 0});
 
@@ -280,8 +282,6 @@
         const breakEvenKm = initialDifference > 0 ? (breakEvenYears * data.kmPerYear) : 0;
         
         const totalSavingsProjected = (totalAnnualSavings * data.yearsToProject) - initialDifference;
-        
-        // Coste Real vs Térmico = (Precio EV - Ayudas) - (Ahorro operativo acumulado en N años)
         const operatingSavingsTotal = totalAnnualSavings * data.yearsToProject;
         const effectiveCost = netPriceEV - operatingSavingsTotal;
 
@@ -289,9 +289,7 @@
         const tableRows = [];
         for (let i = 0; i <= data.yearsToProject; i++) {
             const opCostEV = annualElecCost * i;
-            // Para el térmico sumamos el coste de combustible + el "sobrecoste" de mantenimiento (el ahorro del EV)
             const opCostICE = (annualFuelCost + data.maintenanceSavingsYear) * i; 
-            
             const cumCostEV = netPriceEV + opCostEV;
             const cumCostICE = netPriceICE + opCostICE;
             
@@ -299,47 +297,54 @@
                 year: i,
                 ev: cumCostEV,
                 ice: cumCostICE,
-                diff: cumCostICE - cumCostEV // Positivo significa que el ICE es más caro (Ahorro EV)
+                diff: cumCostICE - cumCostEV 
             });
         }
 
         return (
             <div className="space-y-6">
-                {/* Tarjeta de Resultados Principales */}
+                {/* Tarjeta de Resultados Principales - REORDENADA */}
                 <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-8 text-center shadow-2xl">
                     <h3 className="text-slate-400 text-sm font-display uppercase tracking-widest mb-4">Análisis de Rentabilidad</h3>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
-                        <div>
-                            <div className="text-xs text-slate-500 mb-1 uppercase">Equilibrio (Tiempo)</div>
-                            <div className={`text-2xl font-bold font-display ${initialDifference <= 0 ? 'text-green-400' : 'text-white'}`}>
-                                {initialDifference <= 0 ? "Inmediato" : (<span>{breakEvenYears.toFixed(1)} <span className="text-sm font-sans font-normal text-slate-400">años</span></span>)}
-                            </div>
-                        </div>
-
-                        <div>
-                            <div className="text-xs text-slate-500 mb-1 uppercase">Equilibrio (Distancia)</div>
-                            <div className={`text-2xl font-bold font-display ${initialDifference <= 0 ? 'text-green-400' : 'text-white'}`}>
-                                {initialDifference <= 0 ? "0" : Math.round(breakEvenKm).toLocaleString()} <span className="text-sm font-sans font-normal text-slate-400">km</span>
-                            </div>
-                        </div>
-
-                        <div className="bg-slate-900/50 rounded-xl p-3 border border-slate-600 relative overflow-hidden">
-                             <div className="relative z-10">
-                                <div className="text-[10px] text-blue-300 mb-1 uppercase font-bold">Coste Real vs Térmico</div>
-                                <div className="text-2xl font-bold font-display text-white">
-                                    {effectiveCost.toLocaleString()}€
-                                </div>
-                                <div className="text-[10px] text-slate-500 leading-tight mt-1">Precio final EV menos ahorro generado en {data.yearsToProject} años</div>
-                            </div>
-                        </div>
-
-                         <div className="bg-slate-900/50 rounded-xl p-3 border border-slate-600 relative overflow-hidden">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                        
+                        {/* 1. AHORRO NETO */}
+                        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 relative overflow-hidden">
                             <div className="absolute inset-0 bg-green-500/5"></div>
                             <div className="relative z-10">
-                                <div className="text-[10px] text-green-400 mb-1 uppercase font-bold">Ahorro Neto ({data.yearsToProject} años)</div>
-                                <div className={`text-3xl font-bold font-display ${totalSavingsProjected >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                <div className="text-xs text-green-400 mb-2 uppercase font-bold">Ahorro Neto ({data.yearsToProject} años)</div>
+                                <div className={`text-4xl font-bold font-display ${totalSavingsProjected >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     {totalSavingsProjected > 0 ? '+' : ''}{Math.round(totalSavingsProjected).toLocaleString()}€
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 2. COSTE REAL */}
+                        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 relative overflow-hidden">
+                             <div className="relative z-10">
+                                <div className="text-xs text-blue-300 mb-2 uppercase font-bold">Coste Real vs Térmico</div>
+                                <div className="text-3xl font-bold font-display text-white">
+                                    {effectiveCost.toLocaleString()}€
+                                </div>
+                                <div className="text-[10px] text-slate-500 leading-tight mt-2">Precio EV menos ahorro generado</div>
+                            </div>
+                        </div>
+
+                         {/* 3. PUNTO DE EQUILIBRIO (Agrupado) */}
+                         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 relative overflow-hidden">
+                            <div className="text-xs text-slate-500 mb-3 uppercase font-bold">Punto de Equilibrio</div>
+                            <div className="flex justify-around items-center">
+                                <div>
+                                    <div className={`text-2xl font-bold font-display ${initialDifference <= 0 ? 'text-green-400' : 'text-white'}`}>
+                                        {initialDifference <= 0 ? "0" : breakEvenYears.toFixed(1)} <span className="text-sm font-sans font-normal text-slate-400">años</span>
+                                    </div>
+                                </div>
+                                <div className="h-8 w-px bg-slate-700"></div>
+                                <div>
+                                    <div className={`text-2xl font-bold font-display ${initialDifference <= 0 ? 'text-green-400' : 'text-white'}`}>
+                                        {initialDifference <= 0 ? "0" : Math.round(breakEvenKm).toLocaleString()} <span className="text-sm font-sans font-normal text-slate-400">km</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
