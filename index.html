@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -539,11 +540,11 @@
       const ChargingCalculator = () => {
         const [state, setState] = useState({
             capacity: 60, // kWh
-            startPct: 10,
+            startPct: 20, // UPDATED DEFAULT
             targetPct: 80,
-            power: 11, // kW
+            power: 7.4, // UPDATED DEFAULT
             consumption: 14.5, // kWh/100km (NEW DEFAULT)
-            energyPrice: 0.45, // €/kWh (INITIAL)
+            energyPrice: 0.07, // UPDATED DEFAULT to match power < 11
             dailyKm: 50 // km
         });
 
