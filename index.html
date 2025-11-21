@@ -1,4 +1,4 @@
-
+V01
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -83,6 +83,7 @@
 
       // --- FÍSICA (Simulador) ---
       const calculateConsumption = (params) => {
+        // Lógica de física (sin cambios)
         const mass = 1800; const cr = 0.006; const g = 9.81;
         const rho = 1.225; const cd = 0.219; const area = 2.22; 
         const drivetrainEfficiency = 0.90;
@@ -272,8 +273,7 @@
         const annualFuelCost = (data.kmPerYear / 100) * data.consumptionICE * data.priceFuel;
         const annualElecCost = (data.kmPerYear / 100) * data.consumptionEV * data.priceElec;
         
-        // Coste Anual Completo (Energia + Mantenimiento + Averías Prorr. - Ahorro Impuestos)
-        // NOTA: "Ahorro Impuestos" resta coste.
+        // Coste Anual Completo
         const totalAnnualCostEV = annualElecCost + data.maintenanceEV + annualBreakdownEV - data.taxSavingsEV;
         const totalAnnualCostICE = annualFuelCost + data.maintenanceICE + annualBreakdownICE - data.taxSavingsICE;
 
@@ -460,6 +460,22 @@
             </div>
         );
       };
+
+      // --- COMPONENTE PLACEHOLDER (The missing piece) ---
+      const PlaceholderTab = () => (
+        <div className="flex flex-col items-center justify-center h-96 bg-slate-900/30 rounded-3xl border border-slate-800 border-dashed p-8 text-center">
+            <div className="bg-slate-800 p-4 rounded-full mb-4 text-slate-400"><Icons.Construction /></div>
+            <h3 className="text-xl font-display font-bold text-white mb-2">En Construcción</h3>
+            <p className="text-slate-400 text-sm max-w-md mb-8">Esta funcionalidad estará disponible próximamente. Mientras tanto, puedes utilizar la versión completa en Excel.</p>
+            <a href="https://docs.google.com/spreadsheets/d/1bLZmgVGTBqg2bS2E45JpORjs9eK2nb05AWXYLLDY-RI/edit?usp=drivesdk" 
+               target="_blank"
+               className="bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-lg font-medium transition-all shadow-lg hover:shadow-green-900/20 flex items-center gap-2">
+                <Icons.Piggy />
+                VERSIÓN EN EXCEL de Google Drive
+            </a>
+            <p className="text-xs text-slate-600 mt-2">(haga un duplicado para su uso particular)</p>
+         </div>
+      );
 
       // --- APP PRINCIPAL ---
       const App = () => {
