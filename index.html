@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -53,6 +54,12 @@
       .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
       .tab-inactive { border-bottom: 2px solid transparent; color: #94a3b8; }
       .tab-inactive:hover { color: #e2e8f0; background: rgba(255, 255, 255, 0.05); }
+      
+      /* Tabla */
+      .custom-table th { @apply text-xs font-bold text-slate-400 uppercase tracking-wider p-3 text-left border-b border-slate-700; }
+      .custom-table td { @apply text-sm text-slate-300 p-3 border-b border-slate-800 font-mono; }
+      .custom-table tr:last-child td { @apply border-0; }
+      .custom-table tr:hover td { @apply bg-slate-800/50; }
     </style>
 </head>
 <body>
@@ -84,7 +91,8 @@
         Euro: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 10h12"/><path d="M4 14h9"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 12c0 4.4 3.5 8 7.8 8 2 0 3.8-.8 5.2-2"/></svg>,
         LogOut: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
         Piggy: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 5c-1.5 0-2.8.6-3.5 1.5A9 9 0 0 0 3 12c0 5 4 9 9 9s9-4 9-9a9 9 0 0 0-4-7.5c.7-.9 2-1.5 3.5-1.5.8 0 1.5.2 2 .6V4c-.5-.4-1.2-.6-2-.6z"/><path d="M16 14c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z"/><path d="M10 14c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z"/></svg>,
-        Construction: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="8" rx="1"/><path d="M17 14v7"/><path d="M7 14v7"/><path d="M17 3v3"/><path d="M7 3v3"/><path d="M10 14 2.3 6.3"/><path d="m14 6 7.7 7.7"/><path d="m8 6 8 8"/></svg>
+        Construction: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="8" rx="1"/><path d="M17 14v7"/><path d="M7 14v7"/><path d="M17 3v3"/><path d="M7 3v3"/><path d="M10 14 2.3 6.3"/><path d="m14 6 7.7 7.7"/><path d="m8 6 8 8"/></svg>,
+        Table: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h18v18H3z"/><path d="M21 9H3"/><path d="M21 15H3"/><path d="M12 3v18"/></svg>
       };
 
       // --- FÍSICA (Simulador) ---
@@ -123,7 +131,6 @@
                     <Icons.Settings /> Parámetros de Simulación
                 </h2>
                 <div className="space-y-6">
-                    {/* Sliders básicos */}
                     {[
                         { icon: Icons.Gauge, label: "Velocidad", key: "speed", min: 0, max: 200, unit: "km/h" },
                         { icon: Icons.Thermometer, label: "Temperatura", key: "temperature", min: -20, max: 50, unit: "°C" },
@@ -250,39 +257,51 @@
 
       // --- NUEVO: CALCULADORA DE AMORTIZACIÓN (RELOJ CUCO) ---
       const AmortizationCalculator = () => {
-        // Estado inicial
         const [data, setData] = useState({
-            priceEV: 40990,
-            priceICE: 32000,
-            moves: 7000,
-            kmPerYear: 15000,
-            consumptionEV: 16.0,
-            consumptionICE: 7.0,
-            priceElec: 0.10,
-            priceFuel: 1.60,
-            maintenanceSavingsYear: 150, // Ahorro anual en mtto/IVTM/Seguro
-            yearsToProject: 10
+            priceEV: 40990, priceICE: 32000, moves: 7000, aidICE: 0, // Added aidICE
+            kmPerYear: 15000, consumptionEV: 16.0, consumptionICE: 7.0,
+            priceElec: 0.10, priceFuel: 1.60, maintenanceSavingsYear: 150, yearsToProject: 10
         });
+        const [showTable, setShowTable] = useState(false);
 
         const handleChange = (field, value) => setData({...data, [field]: parseFloat(value) || 0});
 
         // Cálculos
         const netPriceEV = data.priceEV - data.moves;
-        const initialDifference = netPriceEV - data.priceICE; // Inversion extra inicial (generalmente positiva)
+        const netPriceICE = data.priceICE - data.aidICE;
+        const initialDifference = netPriceEV - netPriceICE;
         
-        // Coste operativo anual
         const annualFuelCost = (data.kmPerYear / 100) * data.consumptionICE * data.priceFuel;
         const annualElecCost = (data.kmPerYear / 100) * data.consumptionEV * data.priceElec;
         const operationalSavingsYear = annualFuelCost - annualElecCost;
-        
         const totalAnnualSavings = operationalSavingsYear + data.maintenanceSavingsYear;
 
-        // Punto de equilibrio
         const breakEvenYears = initialDifference > 0 ? (initialDifference / totalAnnualSavings) : 0;
         const breakEvenKm = initialDifference > 0 ? (breakEvenYears * data.kmPerYear) : 0;
         
-        // Ahorro total proyectado
         const totalSavingsProjected = (totalAnnualSavings * data.yearsToProject) - initialDifference;
+        
+        // Coste Real vs Térmico = (Precio EV - Ayudas) - (Ahorro operativo acumulado en N años)
+        const operatingSavingsTotal = totalAnnualSavings * data.yearsToProject;
+        const effectiveCost = netPriceEV - operatingSavingsTotal;
+
+        // Generar datos de la tabla
+        const tableRows = [];
+        for (let i = 0; i <= data.yearsToProject; i++) {
+            const opCostEV = annualElecCost * i;
+            // Para el térmico sumamos el coste de combustible + el "sobrecoste" de mantenimiento (el ahorro del EV)
+            const opCostICE = (annualFuelCost + data.maintenanceSavingsYear) * i; 
+            
+            const cumCostEV = netPriceEV + opCostEV;
+            const cumCostICE = netPriceICE + opCostICE;
+            
+            tableRows.push({
+                year: i,
+                ev: cumCostEV,
+                ice: cumCostICE,
+                diff: cumCostICE - cumCostEV // Positivo significa que el ICE es más caro (Ahorro EV)
+            });
+        }
 
         return (
             <div className="space-y-6">
@@ -290,28 +309,38 @@
                 <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-8 text-center shadow-2xl">
                     <h3 className="text-slate-400 text-sm font-display uppercase tracking-widest mb-4">Análisis de Rentabilidad</h3>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center">
                         <div>
-                            <div className="text-sm text-slate-500 mb-1">Punto de Equilibrio (Tiempo)</div>
-                            <div className={`text-3xl font-bold font-display ${initialDifference <= 0 ? 'text-green-400' : 'text-white'}`}>
-                                {initialDifference <= 0 ? "¡Inmediato!" : (<span>{breakEvenYears.toFixed(1)} <span className="text-sm font-sans font-normal text-slate-400">años</span></span>)}
+                            <div className="text-xs text-slate-500 mb-1 uppercase">Equilibrio (Tiempo)</div>
+                            <div className={`text-2xl font-bold font-display ${initialDifference <= 0 ? 'text-green-400' : 'text-white'}`}>
+                                {initialDifference <= 0 ? "Inmediato" : (<span>{breakEvenYears.toFixed(1)} <span className="text-sm font-sans font-normal text-slate-400">años</span></span>)}
                             </div>
                         </div>
 
-                        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 relative overflow-hidden">
-                            <div className="absolute inset-0 bg-blue-500/10 animate-pulse"></div>
+                        <div>
+                            <div className="text-xs text-slate-500 mb-1 uppercase">Equilibrio (Distancia)</div>
+                            <div className={`text-2xl font-bold font-display ${initialDifference <= 0 ? 'text-green-400' : 'text-white'}`}>
+                                {initialDifference <= 0 ? "0" : Math.round(breakEvenKm).toLocaleString()} <span className="text-sm font-sans font-normal text-slate-400">km</span>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-900/50 rounded-xl p-3 border border-slate-600 relative overflow-hidden">
+                             <div className="relative z-10">
+                                <div className="text-[10px] text-blue-300 mb-1 uppercase font-bold">Coste Real vs Térmico</div>
+                                <div className="text-2xl font-bold font-display text-white">
+                                    {effectiveCost.toLocaleString()}€
+                                </div>
+                                <div className="text-[10px] text-slate-500 leading-tight mt-1">Precio final EV menos ahorro generado en {data.yearsToProject} años</div>
+                            </div>
+                        </div>
+
+                         <div className="bg-slate-900/50 rounded-xl p-3 border border-slate-600 relative overflow-hidden">
+                            <div className="absolute inset-0 bg-green-500/5"></div>
                             <div className="relative z-10">
-                                <div className="text-xs text-blue-300 mb-1 uppercase font-bold">Ahorro Neto ({data.yearsToProject} años)</div>
-                                <div className={`text-4xl font-bold font-display ${totalSavingsProjected >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                <div className="text-[10px] text-green-400 mb-1 uppercase font-bold">Ahorro Neto ({data.yearsToProject} años)</div>
+                                <div className={`text-3xl font-bold font-display ${totalSavingsProjected >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                                     {totalSavingsProjected > 0 ? '+' : ''}{Math.round(totalSavingsProjected).toLocaleString()}€
                                 </div>
-                            </div>
-                        </div>
-
-                        <div>
-                            <div className="text-sm text-slate-500 mb-1">Punto de Equilibrio (Distancia)</div>
-                            <div className={`text-3xl font-bold font-display ${initialDifference <= 0 ? 'text-green-400' : 'text-white'}`}>
-                                {initialDifference <= 0 ? "0" : Math.round(breakEvenKm).toLocaleString()} <span className="text-sm font-sans font-normal text-slate-400">km</span>
                             </div>
                         </div>
                     </div>
@@ -322,11 +351,11 @@
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                         <h4 className="text-blue-400 font-display font-bold mb-4 flex items-center gap-2"><Icons.Zap /> Vehículo Eléctrico</h4>
                         <div className="space-y-4">
-                            <div><label className="text-xs text-slate-500 block mb-1">Precio Compra (€)</label><input type="number" value={data.priceEV} onChange={e=>handleChange('priceEV', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" /></div>
+                            <div><label className="text-xs text-slate-500 block mb-1">Precio Compra (€)</label><input type="number" value={data.priceEV} onChange={e=>handleChange('priceEV', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
                             <div><label className="text-xs text-slate-500 block mb-1">Ayudas / MOVES (€)</label><input type="number" value={data.moves} onChange={e=>handleChange('moves', e.target.value)} className="w-full bg-slate-800 border border-green-900/50 text-green-400 rounded px-3 py-2" /></div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="text-xs text-slate-500 block mb-1">Consumo (kWh/100)</label><input type="number" step="0.1" value={data.consumptionEV} onChange={e=>handleChange('consumptionEV', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" /></div>
-                                <div><label className="text-xs text-slate-500 block mb-1">Energía (€/kWh)</label><input type="number" step="0.01" value={data.priceElec} onChange={e=>handleChange('priceElec', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" /></div>
+                                <div><label className="text-xs text-slate-500 block mb-1">Consumo (kWh/100)</label><input type="number" step="0.1" value={data.consumptionEV} onChange={e=>handleChange('consumptionEV', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
+                                <div><label className="text-xs text-slate-500 block mb-1">Energía (€/kWh)</label><input type="number" step="0.01" value={data.priceElec} onChange={e=>handleChange('priceElec', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
                             </div>
                             <div className="pt-2 text-right text-sm text-slate-400">Precio Final: <span className="text-white font-bold">{(data.priceEV - data.moves).toLocaleString()}€</span></div>
                         </div>
@@ -336,13 +365,13 @@
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                         <h4 className="text-orange-400 font-display font-bold mb-4 flex items-center gap-2"><Icons.Fuel /> Vehículo Térmico</h4>
                         <div className="space-y-4">
-                            <div><label className="text-xs text-slate-500 block mb-1">Precio Compra (€)</label><input type="number" value={data.priceICE} onChange={e=>handleChange('priceICE', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" /></div>
-                            <div className="h-[62px] flex items-center justify-center text-slate-600 text-xs italic bg-slate-950/30 rounded border border-dashed border-slate-800">Sin ayudas aplicables</div>
+                            <div><label className="text-xs text-slate-500 block mb-1">Precio Compra (€)</label><input type="number" value={data.priceICE} onChange={e=>handleChange('priceICE', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
+                            <div><label className="text-xs text-slate-500 block mb-1">Ayudas / Plan Renove (€)</label><input type="number" value={data.aidICE} onChange={e=>handleChange('aidICE', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-orange-400" /></div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="text-xs text-slate-500 block mb-1">Consumo (L/100)</label><input type="number" step="0.1" value={data.consumptionICE} onChange={e=>handleChange('consumptionICE', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" /></div>
-                                <div><label className="text-xs text-slate-500 block mb-1">Combustible (€/L)</label><input type="number" step="0.01" value={data.priceFuel} onChange={e=>handleChange('priceFuel', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" /></div>
+                                <div><label className="text-xs text-slate-500 block mb-1">Consumo (L/100)</label><input type="number" step="0.1" value={data.consumptionICE} onChange={e=>handleChange('consumptionICE', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
+                                <div><label className="text-xs text-slate-500 block mb-1">Combustible (€/L)</label><input type="number" step="0.01" value={data.priceFuel} onChange={e=>handleChange('priceFuel', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
                             </div>
-                            <div className="pt-2 text-right text-sm text-slate-400">Precio Final: <span className="text-white font-bold">{data.priceICE.toLocaleString()}€</span></div>
+                            <div className="pt-2 text-right text-sm text-slate-400">Precio Final: <span className="text-white font-bold">{(data.priceICE - data.aidICE).toLocaleString()}€</span></div>
                         </div>
                     </div>
                 </div>
@@ -351,14 +380,50 @@
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
                     <h4 className="text-slate-300 font-bold mb-4 text-sm">Variables de Comparación</h4>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div><label className="text-xs text-slate-500 block mb-1">Kilómetros Anuales</label><input type="number" value={data.kmPerYear} onChange={e=>handleChange('kmPerYear', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" /></div>
-                        <div><label className="text-xs text-slate-500 block mb-1">Años a proyectar</label><input type="number" value={data.yearsToProject} onChange={e=>handleChange('yearsToProject', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" /></div>
+                        <div><label className="text-xs text-slate-500 block mb-1">Kilómetros Anuales</label><input type="number" value={data.kmPerYear} onChange={e=>handleChange('kmPerYear', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
+                        <div><label className="text-xs text-slate-500 block mb-1">Años a proyectar</label><input type="number" value={data.yearsToProject} onChange={e=>handleChange('yearsToProject', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
                         <div>
                             <label className="text-xs text-slate-500 block mb-1">Ahorro Fijo Anual (€)</label>
-                            <input type="number" value={data.maintenanceSavingsYear} onChange={e=>handleChange('maintenanceSavingsYear', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2" />
+                            <input type="number" value={data.maintenanceSavingsYear} onChange={e=>handleChange('maintenanceSavingsYear', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" />
                             <div className="text-[10px] text-slate-600 mt-1">Mtto, IVTM, Zona Azul, Seguros...</div>
                         </div>
                     </div>
+                </div>
+
+                {/* Botón y Tabla Detallada */}
+                <div className="mt-8">
+                    <button 
+                        onClick={() => setShowTable(!showTable)}
+                        className="w-full py-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-sm font-medium text-slate-300 transition-colors flex items-center justify-center gap-2">
+                        <Icons.Table /> {showTable ? 'Ocultar Desglose' : 'Ver Desglose Detallado Año a Año'}
+                    </button>
+
+                    {showTable && (
+                        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800 animate-fade-in">
+                            <table className="w-full custom-table">
+                                <thead className="bg-slate-900">
+                                    <tr>
+                                        <th>Año</th>
+                                        <th>Coste Acumulado EV</th>
+                                        <th>Coste Acumulado ICE</th>
+                                        <th>Diferencia (Ahorro)</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-slate-900/50">
+                                    {tableRows.map((row) => (
+                                        <tr key={row.year}>
+                                            <td className="font-bold text-slate-500">{row.year}</td>
+                                            <td className="text-blue-300">{row.ev.toLocaleString()}€</td>
+                                            <td className="text-orange-300">{row.ice.toLocaleString()}€</td>
+                                            <td className={row.diff >= 0 ? 'text-green-400 font-bold' : 'text-red-400'}>
+                                                {row.diff > 0 ? '+' : ''}{Math.round(row.diff).toLocaleString()}€
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
                 </div>
                 
                 <div className="text-center mt-8">
@@ -388,7 +453,7 @@
 
       // --- APP PRINCIPAL ---
       const App = () => {
-        const [activeTab, setActiveTab] = useState('simulator'); // simulator, amortization, tariff, charge
+        const [activeTab, setActiveTab] = useState('simulator'); 
 
         // Estado Simulador
         const [simParams, setSimParams] = useState({ speed: 120, temperature: 20, gradient: 0, windSpeed: 0, electricConsumptionRef: 14, batteryCapacity: 60 });
@@ -438,7 +503,7 @@
                                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Boarding</span>
                                     <span className="text-red-600">Gate</span>
                                 </h1>
-                                <p className="text-slate-500 font-light tracking-widest text-sm mt-1">TESLA MODEL 3 TOOLS</p>
+                                <p className="text-slate-500 font-light tracking-widest text-sm mt-1">TESLA EFFICIENCY TOOLS</p>
                             </div>
                             <div className="flex flex-col items-end gap-2">
                                 <button onClick={handleBack} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
