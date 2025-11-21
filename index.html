@@ -30,26 +30,6 @@
       }
       .animate-road-move { animation-name: road-move; animation-timing-function: linear; animation-iteration-count: infinite; }
       
-      @keyframes wind-flow-head { 
-        0% { transform: translateX(0%); opacity: 0; } 
-        10% { opacity: 0.6; } 
-        90% { opacity: 0.6; }
-        100% { transform: translateX(-200%); opacity: 0; } 
-      }
-      
-      @keyframes wind-flow-tail { 
-        0% { transform: translateX(0%); opacity: 0; } 
-        10% { opacity: 0.6; } 
-        90% { opacity: 0.6; }
-        100% { transform: translateX(200%); opacity: 0; } 
-      }
-
-      .wind-particle-head { animation: wind-flow-head 1s linear infinite; }
-      .wind-particle-tail { animation: wind-flow-tail 1s linear infinite; }
-
-      @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      .animate-spin-fast { animation: spin 0.3s linear infinite; }
-
       /* Efecto Glow para pestañas */
       .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
       .tab-inactive { border-bottom: 2px solid transparent; color: #94a3b8; }
@@ -60,6 +40,9 @@
       .custom-table td { @apply text-sm text-slate-300 p-3 border-b border-slate-800 font-mono; }
       .custom-table tr:last-child td { @apply border-0; }
       .custom-table tr:hover td { @apply bg-slate-800/50; }
+      
+      /* Inputs */
+      .input-dark { @apply w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white focus:outline-none focus:border-blue-500 text-sm; }
     </style>
 </head>
 <body>
@@ -92,11 +75,13 @@
         LogOut: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
         Piggy: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 5c-1.5 0-2.8.6-3.5 1.5A9 9 0 0 0 3 12c0 5 4 9 9 9s9-4 9-9a9 9 0 0 0-4-7.5c.7-.9 2-1.5 3.5-1.5.8 0 1.5.2 2 .6V4c-.5-.4-1.2-.6-2-.6z"/><path d="M16 14c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z"/><path d="M10 14c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2z"/></svg>,
         Construction: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="6" width="20" height="8" rx="1"/><path d="M17 14v7"/><path d="M7 14v7"/><path d="M17 3v3"/><path d="M7 3v3"/><path d="M10 14 2.3 6.3"/><path d="m14 6 7.7 7.7"/><path d="m8 6 8 8"/></svg>,
-        Table: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h18v18H3z"/><path d="M21 9H3"/><path d="M21 15H3"/><path d="M12 3v18"/></svg>
+        Table: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3h18v18H3z"/><path d="M21 9H3"/><path d="M21 15H3"/><path d="M12 3v18"/></svg>,
+        Wrench: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
       };
 
       // --- FÍSICA (Simulador) ---
       const calculateConsumption = (params) => {
+        // Lógica de física (sin cambios)
         const mass = 1800; const cr = 0.006; const g = 9.81;
         const rho = 1.225; const cd = 0.219; const area = 2.22; 
         const drivetrainEfficiency = 0.90;
@@ -153,11 +138,11 @@
                     <div className="pt-6 border-t border-slate-800">
                         <h3 className="text-sm font-bold text-slate-300 mb-4">Configuración Avanzada</h3>
                         <div className="grid grid-cols-2 gap-4">
-                            <div><label className="text-xs text-slate-500 block mb-1">Electricidad (€/kWh)</label><input type="number" step="0.01" value={costs.electricityPrice} onChange={(e) => handleCostChange('electricityPrice', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500" /></div>
-                            <div><label className="text-xs text-slate-500 block mb-1">Gasolina (€/L)</label><input type="number" step="0.01" value={costs.gasPrice} onChange={(e) => handleCostChange('gasPrice', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500" /></div>
-                            <div><label className="text-xs text-slate-500 block mb-1">Consumo Gasolina (L/100)</label><input type="number" step="0.1" value={costs.gasConsumptionRef} onChange={(e) => handleCostChange('gasConsumptionRef', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500" /></div>
-                            <div><label className="text-xs text-slate-500 block mb-1">Consumo EV (kWh/100)</label><input type="number" step="0.1" value={params.electricConsumptionRef} onChange={(e) => handleChange('electricConsumptionRef', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500" /></div>
-                            <div><label className="text-xs text-slate-500 block mb-1">Batería (kWh)</label><input type="number" step="1" value={params.batteryCapacity} onChange={(e) => handleChange('batteryCapacity', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500" /></div>
+                            <div><label className="text-xs text-slate-500 block mb-1">Electricidad (€/kWh)</label><input type="number" step="0.01" value={costs.electricityPrice} onChange={(e) => handleCostChange('electricityPrice', e.target.value)} className="input-dark" /></div>
+                            <div><label className="text-xs text-slate-500 block mb-1">Gasolina (€/L)</label><input type="number" step="0.01" value={costs.gasPrice} onChange={(e) => handleCostChange('gasPrice', e.target.value)} className="input-dark" /></div>
+                            <div><label className="text-xs text-slate-500 block mb-1">Consumo Gasolina (L/100)</label><input type="number" step="0.1" value={costs.gasConsumptionRef} onChange={(e) => handleCostChange('gasConsumptionRef', e.target.value)} className="input-dark" /></div>
+                            <div><label className="text-xs text-slate-500 block mb-1">Consumo EV (kWh/100)</label><input type="number" step="0.1" value={params.electricConsumptionRef} onChange={(e) => handleChange('electricConsumptionRef', e.target.value)} className="input-dark" /></div>
+                            <div><label className="text-xs text-slate-500 block mb-1">Batería (kWh)</label><input type="number" step="1" value={params.batteryCapacity} onChange={(e) => handleChange('batteryCapacity', e.target.value)} className="input-dark" /></div>
                         </div>
                     </div>
                 </div>
@@ -166,6 +151,7 @@
       };
 
       const ResultsDisplay = ({ consumption, params, costs }) => {
+        // Lógica de resultados (sin cambios funcionales)
         const costPer100ElecRaw = consumption * costs.electricityPrice;
         const costPer100GasRaw = costs.gasConsumptionRef * costs.gasPrice;
         const costPerKmElec = (costPer100ElecRaw / 100).toFixed(3);
@@ -223,7 +209,8 @@
 
         return (
             <div className="relative h-80 w-full bg-gradient-to-b from-[#2a0808] to-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl mb-8">
-                <div className="absolute top-4 left-4 right-4 flex justify-between z-20">
+                 {/* (Código del visualizador igual al anterior) */}
+                 <div className="absolute top-4 left-4 right-4 flex justify-between z-20">
                     <div className="space-y-2">
                         <div className="bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full border border-slate-700 text-xs font-mono text-blue-400 flex items-center gap-2"><Icons.Gauge className="w-3 h-3" /> {params.speed} km/h</div>
                         <div className="bg-slate-900/80 backdrop-blur px-3 py-1 rounded-full border border-slate-700 text-xs font-mono text-green-400 flex items-center gap-2"><Icons.TrendingUp className="w-3 h-3" /> {params.gradient}% Desnivel</div>
@@ -257,13 +244,16 @@
 
       // --- NUEVO: CALCULADORA DE AMORTIZACIÓN (RELOJ CUCO) ---
       const AmortizationCalculator = () => {
-        // ESTADO ACTUALIZADO CON VALORES POR DEFECTO SOLICITADOS
         const [data, setData] = useState({
             priceEV: 35000, priceICE: 35000, moves: 7000, aidICE: 0,
             kmPerYear: 20000, consumptionEV: 16.0, consumptionICE: 6.0,
-            priceElec: 0.10, priceFuel: 1.45, maintenanceSavingsYear: 150, yearsToProject: 20
+            priceElec: 0.10, priceFuel: 1.45, 
+            yearsToProject: 20,
+            // Nuevos campos solicitados
+            maintenanceEV: 60, maintenanceICE: 300,
+            breakdownRateEV: 2, breakdownRateICE: 15 // % sobre precio compra
         });
-        // TABLA DESPLEGADA POR DEFECTO
+        
         const [showTable, setShowTable] = useState(true);
 
         const handleChange = (field, value) => setData({...data, [field]: parseFloat(value) || 0});
@@ -273,10 +263,21 @@
         const netPriceICE = data.priceICE - data.aidICE;
         const initialDifference = netPriceEV - netPriceICE;
         
+        // Calcular coste total de averías estimado y prorratearlo
+        const totalBreakdownEV = data.priceEV * (data.breakdownRateEV / 100);
+        const totalBreakdownICE = data.priceICE * (data.breakdownRateICE / 100);
+        const annualBreakdownEV = totalBreakdownEV / data.yearsToProject;
+        const annualBreakdownICE = totalBreakdownICE / data.yearsToProject;
+
+        // Costes Operativos Anuales Totales
         const annualFuelCost = (data.kmPerYear / 100) * data.consumptionICE * data.priceFuel;
         const annualElecCost = (data.kmPerYear / 100) * data.consumptionEV * data.priceElec;
-        const operationalSavingsYear = annualFuelCost - annualElecCost;
-        const totalAnnualSavings = operationalSavingsYear + data.maintenanceSavingsYear;
+        
+        // Coste Anual Completo (Energia + Mantenimiento + Averías Prorrateadas)
+        const totalAnnualCostEV = annualElecCost + data.maintenanceEV + annualBreakdownEV;
+        const totalAnnualCostICE = annualFuelCost + data.maintenanceICE + annualBreakdownICE;
+
+        const totalAnnualSavings = totalAnnualCostICE - totalAnnualCostEV;
 
         const breakEvenYears = initialDifference > 0 ? (initialDifference / totalAnnualSavings) : 0;
         const breakEvenKm = initialDifference > 0 ? (breakEvenYears * data.kmPerYear) : 0;
@@ -288,13 +289,16 @@
         // Generar datos de la tabla
         const tableRows = [];
         for (let i = 0; i <= data.yearsToProject; i++) {
-            const opCostEV = annualElecCost * i;
-            const opCostICE = (annualFuelCost + data.maintenanceSavingsYear) * i; 
-            const cumCostEV = netPriceEV + opCostEV;
-            const cumCostICE = netPriceICE + opCostICE;
-            
+            // Costes acumulados
+            // Año 0 = Precio compra neto
+            // Año N = Precio compra neto + (Coste Anual Completo * N)
+            const cumCostEV = netPriceEV + (totalAnnualCostEV * i);
+            const cumCostICE = netPriceICE + (totalAnnualCostICE * i);
+            const currentKm = data.kmPerYear * i;
+
             tableRows.push({
                 year: i,
+                km: currentKm,
                 ev: cumCostEV,
                 ice: cumCostICE,
                 diff: cumCostICE - cumCostEV 
@@ -303,12 +307,11 @@
 
         return (
             <div className="space-y-6">
-                {/* Tarjeta de Resultados Principales - REORDENADA */}
+                {/* Tarjeta de Resultados Principales */}
                 <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-8 text-center shadow-2xl">
                     <h3 className="text-slate-400 text-sm font-display uppercase tracking-widest mb-4">Análisis de Rentabilidad</h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-                        
                         {/* 1. AHORRO NETO */}
                         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 relative overflow-hidden">
                             <div className="absolute inset-0 bg-green-500/5"></div>
@@ -331,7 +334,7 @@
                             </div>
                         </div>
 
-                         {/* 3. PUNTO DE EQUILIBRIO (Agrupado) */}
+                         {/* 3. PUNTO DE EQUILIBRIO */}
                          <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 relative overflow-hidden">
                             <div className="text-xs text-slate-500 mb-3 uppercase font-bold">Punto de Equilibrio</div>
                             <div className="flex justify-around items-center">
@@ -356,11 +359,22 @@
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                         <h4 className="text-blue-400 font-display font-bold mb-4 flex items-center gap-2"><Icons.Zap /> Vehículo Eléctrico</h4>
                         <div className="space-y-4">
-                            <div><label className="text-xs text-slate-500 block mb-1">Precio Compra (€)</label><input type="number" value={data.priceEV} onChange={e=>handleChange('priceEV', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
-                            <div><label className="text-xs text-slate-500 block mb-1">Ayudas / MOVES (€)</label><input type="number" value={data.moves} onChange={e=>handleChange('moves', e.target.value)} className="w-full bg-slate-800 border border-green-900/50 text-green-400 rounded px-3 py-2" /></div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div><label className="text-xs text-slate-500 block mb-1">Consumo (kWh/100)</label><input type="number" step="0.1" value={data.consumptionEV} onChange={e=>handleChange('consumptionEV', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
-                                <div><label className="text-xs text-slate-500 block mb-1">Energía (€/kWh)</label><input type="number" step="0.01" value={data.priceElec} onChange={e=>handleChange('priceElec', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
+                            <div><label className="text-xs text-slate-500 block mb-1">Precio Compra (€)</label><input type="number" value={data.priceEV} onChange={e=>handleChange('priceEV', e.target.value)} className="input-dark" /></div>
+                            <div><label className="text-xs text-slate-500 block mb-1">Ayudas / MOVES (€)</label><input type="number" value={data.moves} onChange={e=>handleChange('moves', e.target.value)} className="w-full bg-slate-800 border border-green-900/50 text-green-400 rounded px-3 py-2 text-sm focus:outline-none" /></div>
+                            
+                            <div className="pt-2 border-t border-slate-800"><h5 className="text-xs font-bold text-slate-400 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-3 h-3"/> Mantenimiento y Averías</h5>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div><label className="text-[10px] text-slate-500 block mb-1">Mtto. Anual (€)</label><input type="number" value={data.maintenanceEV} onChange={e=>handleChange('maintenanceEV', e.target.value)} className="input-dark" /></div>
+                                    <div><label className="text-[10px] text-slate-500 block mb-1">% Averías (Total)</label><input type="number" step="0.1" value={data.breakdownRateEV} onChange={e=>handleChange('breakdownRateEV', e.target.value)} className="input-dark" /></div>
+                                </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-800">
+                                <h5 className="text-xs font-bold text-slate-400 mb-2">Consumo</h5>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div><label className="text-[10px] text-slate-500 block mb-1">kWh/100km</label><input type="number" step="0.1" value={data.consumptionEV} onChange={e=>handleChange('consumptionEV', e.target.value)} className="input-dark" /></div>
+                                    <div><label className="text-[10px] text-slate-500 block mb-1">Precio €/kWh</label><input type="number" step="0.01" value={data.priceElec} onChange={e=>handleChange('priceElec', e.target.value)} className="input-dark" /></div>
+                                </div>
                             </div>
                             <div className="pt-2 text-right text-sm text-slate-400">Precio Final: <span className="text-white font-bold">{(data.priceEV - data.moves).toLocaleString()}€</span></div>
                         </div>
@@ -370,11 +384,22 @@
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                         <h4 className="text-orange-400 font-display font-bold mb-4 flex items-center gap-2"><Icons.Fuel /> Vehículo Térmico</h4>
                         <div className="space-y-4">
-                            <div><label className="text-xs text-slate-500 block mb-1">Precio Compra (€)</label><input type="number" value={data.priceICE} onChange={e=>handleChange('priceICE', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
-                            <div><label className="text-xs text-slate-500 block mb-1">Ayudas / Plan Renove (€)</label><input type="number" value={data.aidICE} onChange={e=>handleChange('aidICE', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-orange-400" /></div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div><label className="text-xs text-slate-500 block mb-1">Consumo (L/100)</label><input type="number" step="0.1" value={data.consumptionICE} onChange={e=>handleChange('consumptionICE', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
-                                <div><label className="text-xs text-slate-500 block mb-1">Combustible (€/L)</label><input type="number" step="0.01" value={data.priceFuel} onChange={e=>handleChange('priceFuel', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
+                            <div><label className="text-xs text-slate-500 block mb-1">Precio Compra (€)</label><input type="number" value={data.priceICE} onChange={e=>handleChange('priceICE', e.target.value)} className="input-dark" /></div>
+                            <div><label className="text-xs text-slate-500 block mb-1">Ayudas / Plan Renove (€)</label><input type="number" value={data.aidICE} onChange={e=>handleChange('aidICE', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-orange-400 text-sm focus:outline-none" /></div>
+                            
+                            <div className="pt-2 border-t border-slate-800"><h5 className="text-xs font-bold text-slate-400 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-3 h-3"/> Mantenimiento y Averías</h5>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div><label className="text-[10px] text-slate-500 block mb-1">Mtto. Anual (€)</label><input type="number" value={data.maintenanceICE} onChange={e=>handleChange('maintenanceICE', e.target.value)} className="input-dark" /></div>
+                                    <div><label className="text-[10px] text-slate-500 block mb-1">% Averías (Total)</label><input type="number" step="0.1" value={data.breakdownRateICE} onChange={e=>handleChange('breakdownRateICE', e.target.value)} className="input-dark" /></div>
+                                </div>
+                            </div>
+
+                            <div className="pt-2 border-t border-slate-800">
+                                <h5 className="text-xs font-bold text-slate-400 mb-2">Consumo</h5>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div><label className="text-[10px] text-slate-500 block mb-1">L/100km</label><input type="number" step="0.1" value={data.consumptionICE} onChange={e=>handleChange('consumptionICE', e.target.value)} className="input-dark" /></div>
+                                    <div><label className="text-[10px] text-slate-500 block mb-1">Precio €/L</label><input type="number" step="0.01" value={data.priceFuel} onChange={e=>handleChange('priceFuel', e.target.value)} className="input-dark" /></div>
+                                </div>
                             </div>
                             <div className="pt-2 text-right text-sm text-slate-400">Precio Final: <span className="text-white font-bold">{(data.priceICE - data.aidICE).toLocaleString()}€</span></div>
                         </div>
@@ -384,14 +409,9 @@
                 {/* Parámetros Comunes */}
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
                     <h4 className="text-slate-300 font-bold mb-4 text-sm">Variables de Comparación</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div><label className="text-xs text-slate-500 block mb-1">Kilómetros Anuales</label><input type="number" value={data.kmPerYear} onChange={e=>handleChange('kmPerYear', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
-                        <div><label className="text-xs text-slate-500 block mb-1">Años a proyectar</label><input type="number" value={data.yearsToProject} onChange={e=>handleChange('yearsToProject', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" /></div>
-                        <div>
-                            <label className="text-xs text-slate-500 block mb-1">Ahorro Fijo Anual (€)</label>
-                            <input type="number" value={data.maintenanceSavingsYear} onChange={e=>handleChange('maintenanceSavingsYear', e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded px-3 py-2 text-white" />
-                            <div className="text-[10px] text-slate-600 mt-1">Mtto, IVTM, Zona Azul, Seguros...</div>
-                        </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><label className="text-xs text-slate-500 block mb-1">Kilómetros Anuales</label><input type="number" value={data.kmPerYear} onChange={e=>handleChange('kmPerYear', e.target.value)} className="input-dark" /></div>
+                        <div><label className="text-xs text-slate-500 block mb-1">Años a proyectar</label><input type="number" value={data.yearsToProject} onChange={e=>handleChange('yearsToProject', e.target.value)} className="input-dark" /></div>
                     </div>
                 </div>
 
@@ -409,6 +429,7 @@
                                 <thead className="bg-slate-900">
                                     <tr>
                                         <th>Año</th>
+                                        <th>Kms Totales</th>
                                         <th>Coste Acumulado EV</th>
                                         <th>Coste Acumulado ICE</th>
                                         <th>Diferencia (Ahorro)</th>
@@ -418,8 +439,9 @@
                                     {tableRows.map((row) => (
                                         <tr key={row.year}>
                                             <td className="font-bold text-slate-500">{row.year}</td>
-                                            <td className="text-blue-300">{row.ev.toLocaleString()}€</td>
-                                            <td className="text-orange-300">{row.ice.toLocaleString()}€</td>
+                                            <td className="text-slate-400">{row.km.toLocaleString()}</td>
+                                            <td className="text-blue-300">{Math.round(row.ev).toLocaleString()}€</td>
+                                            <td className="text-orange-300">{Math.round(row.ice).toLocaleString()}€</td>
                                             <td className={row.diff >= 0 ? 'text-green-400 font-bold' : 'text-red-400'}>
                                                 {row.diff > 0 ? '+' : ''}{Math.round(row.diff).toLocaleString()}€
                                             </td>
@@ -440,27 +462,10 @@
         );
       };
 
-      // --- COMPONENTE PLACEHOLDER ---
-      const PlaceholderTab = () => (
-         <div className="flex flex-col items-center justify-center h-96 bg-slate-900/30 rounded-3xl border border-slate-800 border-dashed p-8 text-center">
-            <div className="bg-slate-800 p-4 rounded-full mb-4 text-slate-400"><Icons.Construction /></div>
-            <h3 className="text-xl font-display font-bold text-white mb-2">En Construcción</h3>
-            <p className="text-slate-400 text-sm max-w-md mb-8">Esta funcionalidad estará disponible próximamente. Mientras tanto, puedes utilizar la versión completa en Excel.</p>
-            <a href="https://docs.google.com/spreadsheets/d/1bLZmgVGTBqg2bS2E45JpORjs9eK2nb05AWXYLLDY-RI/edit?usp=drivesdk" 
-               target="_blank"
-               className="bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-lg font-medium transition-all shadow-lg hover:shadow-green-900/20 flex items-center gap-2">
-                <Icons.Piggy />
-                VERSIÓN EN EXCEL de Google Drive
-            </a>
-            <p className="text-xs text-slate-600 mt-2">(haga un duplicado para su uso particular)</p>
-         </div>
-      );
-
       // --- APP PRINCIPAL ---
       const App = () => {
         const [activeTab, setActiveTab] = useState('simulator'); 
 
-        // Estado Simulador
         const [simParams, setSimParams] = useState({ speed: 120, temperature: 20, gradient: 0, windSpeed: 0, electricConsumptionRef: 14, batteryCapacity: 60 });
         const [simCosts, setSimCosts] = useState({ electricityPrice: 0.08, gasPrice: 1.45, gasConsumptionRef: 6.5 });
         const [consumption, setConsumption] = useState(0);
@@ -517,7 +522,6 @@
                             </div>
                         </div>
                         
-                        {/* Navegación de Pestañas */}
                         <div className="flex overflow-x-auto gap-2 border-b border-slate-800/50 mt-4">
                             <TabButton id="simulator" label="Simulador" />
                             <TabButton id="amortization" label="Amortización" />
