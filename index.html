@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -591,7 +592,7 @@
             costPerKwh: 0.45, 
             chargerPower: 150, 
             optimizationTime: 20,
-            consumption: 16.0,
+            consumption: 15.0, // DEFAULT CHANGED TO 15.0
             targetRange: 300
         });
 
@@ -724,7 +725,15 @@
                                     <span className="text-xs font-bold text-blue-400 font-mono">{state.chargerPower} kW</span>
                                 </div>
                                 <input type="range" min="3" max="800" step="1" value={state.chargerPower} onChange={e => handleChange('chargerPower', parseInt(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-blue-500" />
-                                <div className="flex justify-between text-[10px] text-slate-600 mt-1"><span>3kW (Casa)</span><span>150 (V2)</span><span>250 (V3)</span><span>+</span></div>
+                                
+                                <div className="relative w-full h-4 mt-1">
+                                    <span className="absolute left-0 text-[9px] text-slate-500">Home (3)</span>
+                                    {/* V2 = 150kW. Scale 3 to 800. (150-3)/797 = ~18.4% */}
+                                    <span className="absolute text-[9px] text-slate-500 -translate-x-1/2" style={{left: '18.4%'}}>V2 (150)</span>
+                                    {/* V3 = 250kW. (250-3)/797 = ~31.0% */}
+                                    <span className="absolute text-[9px] text-slate-500 -translate-x-1/2" style={{left: '31%'}}>V3 (250)</span>
+                                    <span className="absolute right-0 text-[9px] text-slate-500">800kW</span>
+                                </div>
                             </div>
 
                             <div><label className="text-xs text-slate-500 block mb-1">Coste (€/kWh)</label><FormattedInput decimals={2} value={state.costPerKwh} onChange={v => handleChange('costPerKwh', v)} /></div>
@@ -739,6 +748,8 @@
                          <div className="flex flex-col md:flex-row justify-between items-center mb-6 z-20 relative bg-slate-800/40 rounded-xl p-4 border border-slate-700/50 backdrop-blur-sm">
                              <div className="flex items-center gap-4 mb-2 md:mb-0">
                                  <div className="text-yellow-500 font-display font-bold text-sm bg-yellow-900/20 px-3 py-1 rounded border border-yellow-500/30">INICIO {safeStart}%</div>
+                                 <div className="text-slate-500 text-xs">➜</div>
+                                 <div className="text-white font-bold text-xs bg-white/10 px-2 py-1 rounded">+{safeEnd - safeStart}%</div>
                                  <div className="text-slate-500 text-xs">➜</div>
                                  <div className="text-green-500 font-display font-bold text-sm bg-green-900/20 px-3 py-1 rounded border border-green-500/30">FIN {safeEnd}%</div>
                              </div>
@@ -904,6 +915,7 @@
                             <div>
                                 <h1 className="text-4xl md:text-5xl font-display font-bold"><span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Boarding</span><span className="text-red-600">Gate</span></h1>
                                 <p className="text-slate-500 font-light tracking-widest text-sm mt-1">TESLA EFFICIENCY TOOLS</p>
+                                <p className="text-slate-600 font-light text-[10px] mt-1 opacity-70">Powered by React • TailwindCSS • Babel</p>
                             </div>
                             <button onClick={handleBack} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"><Icons.LogOut /> Volver</button>
                         </div>
