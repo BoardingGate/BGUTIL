@@ -1,4 +1,5 @@
-<!DOCTYPE html> 
+
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
@@ -46,6 +47,9 @@
       .custom-table td { padding: 0.75rem; font-size: 0.875rem; color: #cbd5e1; border-bottom: 1px solid #1e293b; font-family: monospace; text-align: right; }
       .custom-table tr:last-child td { border-bottom: none; }
       .custom-table tr:hover td { background-color: rgba(30, 41, 59, 0.5); }
+      
+      .animate-fade-in { animation: fadeIn 0.5s ease-in; }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
@@ -983,7 +987,7 @@
                         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center">
                             <div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.AlertTriangle className="w-4 h-4"/> Días hasta 0%</div>
                             <div className="text-3xl font-display font-bold text-white">
-                                {drainLow > 0 ? (daysUntilDead > 365 ? '>1 año' : Math.floor(daysUntilDead)) : '∞'} <span className="text-lg text-slate-500">días</span>
+                                {daysUntilDead > 365 ? '>1 año' : Math.floor(daysUntilDead)} <span className="text-lg text-slate-500">días</span>
                             </div>
                             <div className="text-[10px] text-slate-500 mt-1">si mantienes este ritmo</div>
                         </div>
@@ -1042,7 +1046,108 @@
         );
       };
 
-const root = createRoot(document.getElementById('root'));
+      // --- COMPONENTE PLACEHOLDER ---
+      const PlaceholderTab = () => (
+        <div className="flex flex-col items-center justify-center h-96 bg-slate-900/30 rounded-3xl border border-slate-800 border-dashed p-8 text-center">
+            <div className="bg-slate-800 p-4 rounded-full mb-4 text-slate-400"><Icons.Construction /></div>
+            <h3 className="text-xl font-display font-bold text-white mb-2">En Construcción</h3>
+            <p className="text-slate-400 text-sm max-w-md mb-8">Esta funcionalidad estará disponible próximamente. Mientras tanto, puedes utilizar la versión completa en Excel.</p>
+            <a href="https://docs.google.com/spreadsheets/d/1bLZmgVGTBqg2bS2E45JpORjs9eK2nb05AWXYLLDY-RI/edit?usp=drivesdk" 
+               target="_blank"
+               className="bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-lg font-medium transition-all shadow-lg hover:shadow-green-900/20 flex items-center gap-2">
+                <Icons.Piggy />
+                VERSIÓN EN EXCEL de Google Drive
+            </a>
+            <p className="text-xs text-slate-600 mt-2">(haga un duplicado para su uso particular)</p>
+         </div>
+      );
+
+      // --- APP PRINCIPAL ---
+      const App = () => {
+        const [activeTab, setActiveTab] = useState('simulator'); 
+
+        const [simParams, setSimParams] = useState({ speed: 120, temperature: 20, gradient: 0, windSpeed: 0, electricConsumptionRef: 14, batteryCapacity: 60 });
+        const [simCosts, setSimCosts] = useState({ electricityPrice: 0.08, gasPrice: 1.45, gasConsumptionRef: 6.5 });
+        const [consumption, setConsumption] = useState(0);
+
+        useEffect(() => { setConsumption(calculateConsumption(simParams)); }, [simParams]);
+
+        const handleBack = () => { if (window.history.length > 1) window.history.back(); else window.close(); };
+
+        const renderContent = () => {
+            switch(activeTab) {
+                case 'simulator':
+                    return (
+                        <>
+                            <Visualizer params={simParams} />
+                            <ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} />
+                            <ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
+                        </>
+                    );
+                case 'amortization':
+                    return <AmortizationCalculator />;
+                case 'calculator':
+                    return <ChargingCalculator />;
+                case 'drain':
+                    return <DrainCalculator />;
+                case 'tariff':
+                case 'charge':
+                    return <PlaceholderTab />;
+                default:
+                    return null;
+            }
+        };
+
+        const TabButton = ({ id, label }) => (
+            <button 
+                onClick={() => setActiveTab(id)}
+                className={`px-4 py-3 text-sm font-medium transition-all uppercase tracking-wider ${activeTab === id ? 'tab-active' : 'tab-inactive'}`}
+            >
+                {label}
+            </button>
+        );
+
+        return (
+            <div className="min-h-screen bg-[#0a0a0a] text-white p-4 md:p-8">
+                <div className="max-w-5xl mx-auto">
+                    <header className="mb-6">
+                        <div className="flex justify-between items-end border-b border-slate-800 pb-4">
+                            <div>
+                                <h1 className="text-4xl md:text-5xl font-display font-bold">
+                                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Boarding</span>
+                                    <span className="text-red-600">Gate</span>
+                                </h1>
+                                <p className="text-slate-500 font-light tracking-widest text-sm mt-1">TESLA EFFICIENCY TOOLS</p>
+                                <p className="text-[10px] text-slate-600 font-mono mt-1">
+                                    PHYSICS ENGINE V2.1 • TCO CALC V1.2
+                                </p>
+                            </div>
+                            <div className="flex flex-col items-end gap-2">
+                                <button onClick={handleBack} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2">
+                                    <Icons.LogOut /> Volver
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div className="flex overflow-x-auto gap-2 border-b border-slate-800/50 mt-4">
+                            <TabButton id="simulator" label="Simulador" />
+                            <TabButton id="amortization" label="Amortización" />
+                            <TabButton id="calculator" label="Calculadora" />
+                            <TabButton id="drain" label="Drenaje" />
+                            <TabButton id="tariff" label="Comparar Tarifas" />
+                            <TabButton id="charge" label="Carga" />
+                        </div>
+                    </header>
+
+                    <main className="animate-fade-in">
+                        {renderContent()}
+                    </main>
+                </div>
+            </div>
+        );
+      };
+
+      const root = createRoot(document.getElementById('root'));
       root.render(<App />);
     </script>
 </body>
