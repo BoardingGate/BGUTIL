@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -725,8 +726,9 @@
             temperature: 16,
             sentryMode: false,
             sentryTraffic: 'low', // low, med, high
+            sentryHours: 24, // Nuevo parámetro: Horas activo por día
             preconditioning: false,
-            appChecks: 7, // asume 1 cada 2 días para 15 días aprox (15/2)
+            appChecks: 7, 
         });
 
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
@@ -736,17 +738,22 @@
         // 1. BASE DRAIN (Deep Sleep)
         // Garaje: ~0.2 kWh/dia | Calle: ~0.4 kWh/dia + penalización temperatura
         let dailyBase = state.isGarage ? 0.2 : 0.4;
-        // Gestión térmica: funciona siempre, garaje o calle, si la temp es extrema
         const tempDiff = Math.abs(state.temperature - 20);
         dailyBase += (tempDiff * 0.015); 
 
-        // 2. SENTRY MODE (El gran consumidor)
-        // Base Sentry (Idle Computer ~200-250W): 5.5 kWh/día
+        // 2. SENTRY MODE
+        // Base Sentry (24h): 5.5 kWh/día
+        // Ajuste por horas activas:
         let dailySentry = 0;
         if (state.sentryMode) {
-            dailySentry = 5.5; 
-            if (state.sentryTraffic === 'med') dailySentry += 0.3; // Eventos moderados (luces/escritura)
-            if (state.sentryTraffic === 'high') dailySentry += 0.8; // Eventos intensos
+            let sentryPowerKW = 5.5 / 24; // ~0.229 kW
+            
+            // Penalización por tráfico (añadido al consumo base por hora)
+            if (state.sentryTraffic === 'med') sentryPowerKW += (0.3 / 24); 
+            if (state.sentryTraffic === 'high') sentryPowerKW += (0.8 / 24);
+
+            // Multiplicamos por las horas activas
+            dailySentry = sentryPowerKW * state.sentryHours;
         }
 
         // 3. PREACONDICIONAMIENTO
@@ -811,13 +818,28 @@
                                 </div>
                                 
                                 {state.sentryMode && (
-                                    <div className="grid grid-cols-3 gap-2 animate-fade-in">
-                                        {['low', 'med', 'high'].map(lvl => (
-                                            <button key={lvl} onClick={() => handleChange('sentryTraffic', lvl)}
-                                                className={`py-1 px-2 rounded border text-[10px] uppercase font-bold ${state.sentryTraffic === lvl ? 'bg-red-900/50 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
-                                                {lvl === 'low' ? 'Tranquilo' : lvl === 'med' ? 'Normal' : 'Intenso'}
-                                            </button>
-                                        ))}
+                                    <div className="space-y-4 animate-fade-in">
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {['low', 'med', 'high'].map(lvl => (
+                                                <button key={lvl} onClick={() => handleChange('sentryTraffic', lvl)}
+                                                    className={`py-1 px-2 rounded border text-[10px] uppercase font-bold ${state.sentryTraffic === lvl ? 'bg-red-900/50 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
+                                                    {lvl === 'low' ? 'Tranquilo' : lvl === 'med' ? 'Normal' : 'Intenso'}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        
+                                        {/* Slider de Horas Activo */}
+                                        <div>
+                                            <div className="flex justify-between mb-1">
+                                                <label className="text-xs text-slate-500">Horas activo / día</label>
+                                                <span className="text-xs font-bold text-white">{state.sentryHours}h</span>
+                                            </div>
+                                            <input type="range" min="1" max="24" value={state.sentryHours} onChange={e => handleChange('sentryHours', e.target.value)}
+                                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-500" />
+                                            <p className="text-[10px] text-slate-500 mt-1 italic">
+                                                Útil si lo tiene automatizado para que se active a ciertos horarios.
+                                            </p>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -920,7 +942,7 @@
                              </div>
                              {state.sentryMode && (
                                  <div className="flex justify-between text-xs text-red-300">
-                                    <span className="flex items-center gap-1"><Icons.Eye /> Modo Centinela</span>
+                                    <span className="flex items-center gap-1"><Icons.Eye /> Modo Centinela ({state.sentryHours}h/día)</span>
                                     <span className="font-bold">{(dailySentry * state.days).toFixed(1)} kWh</span>
                                  </div>
                              )}
@@ -944,7 +966,7 @@
                             <h4 className="text-sm font-bold text-blue-300">Cómo reducir el consumo (Vampire Drain)</h4>
                         </div>
                         <div className="text-xs text-slate-400 space-y-2">
-                            <p><strong>1. El "Sueño Profundo" es la clave:</strong> Si el coche duerme, solo consume ~0.2-0.4 kWh/día. Si se mantiene despierto (Centinela ON), consume 250Wh + el consumo extra derivado del nº de eventos (luces, guardar evento, etc).</p>
+                            <p><strong>1. El "Sueño Profundo" es la clave:</strong> Si el coche duerme, solo consume ~0.2-0.4 kWh/día. Si se mantiene despierto (Centinela ON), consume 20-30 veces más.</p>
                             <p><strong>2. Cómo desactivar correctamente:</strong></p>
                             <ul className="list-disc pl-4 space-y-1">
                                 <li><span className="text-white">Centinela:</span> App > Seguridad > Modo Centinela (OFF).</li>
@@ -1040,7 +1062,7 @@
                                 </button>
                             </div>
                         </div>
-                        
+            
                         <div className="flex overflow-x-auto gap-2 border-b border-slate-800/50 mt-4">
                             <TabButton id="simulator" label="Simulador" />
                             <TabButton id="amortization" label="Amortización" />
