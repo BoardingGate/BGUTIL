@@ -120,7 +120,8 @@
         Moon: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>,
         Shield: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>,
         Settings: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>,
-        Award: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>
+        Award: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>,
+        Activity: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
       };
 
       // --- FÍSICA (Simulador) ---
@@ -501,6 +502,100 @@
             </div>
         );
       };
+
+      // --- PESTAÑA: CALCULADORA DE CARGA (CORREGIDA) ---
+      const ChargingCalculator = () => {
+        const [state, setState] = useState({
+            capacity: 60, 
+            startPct: 20,
+            targetPct: 80,
+            power: 7.4,
+            consumption: 14.5,
+            energyPrice: 0.07,
+            dailyKm: 50
+        });
+
+        // Logic
+        const validTarget = Math.max(state.startPct, state.targetPct);
+        const percentAdded = validTarget - state.startPct;
+        const energyAdded = state.capacity * (percentAdded / 100);
+        const timeHours = state.power > 0 ? energyAdded / state.power : 0;
+        const hours = Math.floor(timeHours);
+        const minutes = Math.round((timeHours - hours) * 60);
+        const rangeAdded = state.consumption > 0 ? (energyAdded / state.consumption) * 100 : 0;
+        const totalCost = energyAdded * state.energyPrice;
+
+        const totalRangeAtTarget = state.consumption > 0 ? (state.capacity * (validTarget/100) / state.consumption) * 100 : 0;
+        const dailyCost = (state.dailyKm / 100) * state.consumption * state.energyPrice;
+        const monthlyCost = dailyCost * 30.41; 
+        const annualCost = dailyCost * 365;
+
+        const handleChange = (k, v) => {
+            const val = parseFloat(v) || 0;
+            setState(prev => {
+                let updates = { [k]: val };
+                if (k === 'power') {
+                    updates.energyPrice = val < 11 ? 0.07 : 0.45;
+                }
+                return { ...prev, ...updates };
+            });
+        };
+        
+        const powerPresets = [
+            { l: "Schuko", v: 2.3 }, { l: "GreenUp", v: 3.7 }, { l: "Wallbox 1F", v: 7.4 }, 
+            { l: "Wallbox 3F", v: 11 }, { l: "AC Público", v: 22 }, { l: "DC 50", v: 50 }, { l: "Supercharger", v: 150 }
+        ];
+
+        return (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="lg:col-span-5 space-y-6">
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
+                        <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
+                            <Icons.BatteryCharging /> Parámetros de Carga
+                        </h2>
+                        <div className="space-y-6">
+                            <div><label className="text-xs text-slate-500 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.capacity} onChange={v => handleChange('capacity', v)} decimals={1}/></div>
+                            <div>
+                                <div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Porcentaje de Inicio</label><span className="text-xs font-bold text-white">{state.startPct}%</span></div>
+                                <input type="range" min="0" max="100" value={state.startPct} onChange={e => { const val = parseInt(e.target.value); setState(prev => ({...prev, startPct: val, targetPct: Math.max(val, prev.targetPct)})); }} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-yellow-500" />
+                            </div>
+                            <div>
+                                <div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Objetivo de Carga</label><span className="text-xs font-bold text-green-400">{state.targetPct}%</span></div>
+                                <input type="range" min="0" max="100" value={state.targetPct} onChange={e => handleChange('targetPct', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-green-500" />
+                            </div>
+                            <div className="pt-4 border-t border-slate-800">
+                                <label className="text-xs text-slate-500 block mb-2">Potencia de Carga (kW)</label>
+                                <FormattedInput value={state.power} onChange={v => handleChange('power', v)} decimals={1}/>
+                                <div className="flex flex-wrap gap-2 mt-3">{powerPresets.map(p => (<button key={p.v} onClick={() => handleChange('power', p.v)} className={`px-2 py-1 text-[10px] rounded border transition-colors ${state.power === p.v ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>{p.l}</button>))}</div>
+                            </div>
+                            <div className="pt-2 grid grid-cols-2 gap-4">
+                                <div><label className="text-xs text-slate-500 block mb-1">Consumo (kWh/100)</label><FormattedInput value={state.consumption} onChange={v => handleChange('consumption', v)} decimals={1}/></div>
+                                <div><label className="text-xs text-slate-500 block mb-1">Precio Energía (€/kWh)</label><FormattedInput value={state.energyPrice} onChange={v => handleChange('energyPrice', v)} decimals={3}/></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="lg:col-span-7 space-y-6">
+                     <div className="bg-black/40 border border-slate-800 rounded-xl p-8 flex items-center justify-center relative overflow-hidden h-48">
+                        <div className="relative w-full max-w-md h-24 border-4 border-slate-600 rounded-2xl p-1 flex items-center">
+                            <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-10 bg-slate-600 rounded-r-md"></div>
+                            <div className="h-full bg-slate-800 rounded-l-lg" style={{width: `${state.startPct}%`}}></div>
+                            <div className="h-full bg-green-500 relative overflow-hidden animate-charge" style={{width: `${Math.max(0, percentAdded)}%`}}><div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAiIGhlaWdodD0iMTAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHBhdGggZD0iTTAgMTBMMTAgMFYxMEgwWiIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIi8+PC9zdmc+')] opacity-30"></div></div>
+                            <div className="flex-grow"></div>
+                             <div className="absolute inset-0 flex items-center justify-center text-2xl font-display font-bold text-white drop-shadow-md z-10">{state.startPct}% <span className="text-slate-400 mx-2">➔</span> <span className="text-green-400">{state.targetPct}%</span></div>
+                        </div>
+                     </div>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Clock className="w-4 h-4"/> Tiempo Estimado</div><div className="text-3xl font-display font-bold text-white">{hours}h <span className="text-lg text-slate-500">{minutes}m</span></div><div className="text-[10px] text-slate-500 mt-1">a {state.power} kW de potencia</div></div>
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Euro className="w-4 h-4"/> Coste Recarga</div><div className="text-3xl font-display font-bold text-white">{formatDecimal(totalCost)}<span className="text-lg text-slate-500">€</span></div><div className="text-[10px] text-slate-500 mt-1">a {state.energyPrice} €/kWh</div></div>
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Zap className="w-4 h-4"/> Energía Añadida</div><div className="text-3xl font-display font-bold text-green-400">+{formatDecimal(energyAdded)} <span className="text-lg text-green-400/50">kWh</span></div><div className="text-[10px] text-slate-500 mt-1">del {state.startPct}% al {state.targetPct}%</div></div>
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.TrendingUp className="w-4 h-4"/> Km Añadidos</div><div className="text-3xl font-display font-bold text-blue-400">+{formatMoney(rangeAdded)} <span className="text-lg text-blue-400/50">km</span></div><div className="text-[10px] text-slate-500 mt-1 font-bold">Autonomía Total: <span className="text-white">{formatMoney(totalRangeAtTarget)} km</span></div></div>
+                     </div>
+                     <div className="mt-8 pt-6 border-t border-slate-800 animate-fade-in"><h3 className="text-lg font-display font-bold text-slate-300 mb-4 flex items-center gap-2"><Icons.Calendar /> Proyección de Costes</h3><div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center bg-slate-900/80 p-4 rounded-xl border border-slate-700"><div className="col-span-1"><label className="text-xs text-slate-500 block mb-2">Kilómetros Diarios</label><FormattedInput value={state.dailyKm} onChange={v => handleChange('dailyKm', v)} /></div><div className="col-span-3 grid grid-cols-3 gap-2"><div className="bg-slate-800/50 rounded p-3 text-center"><div className="text-[10px] text-slate-500 uppercase">Diario</div><div className="text-xl font-bold text-white">{formatDecimal(dailyCost)}€</div></div><div className="bg-slate-800/50 rounded p-3 text-center"><div className="text-[10px] text-slate-500 uppercase">Mensual</div><div className="text-xl font-bold text-white">{formatDecimal(monthlyCost)}€</div></div><div className="bg-slate-800/50 rounded p-3 text-center"><div className="text-[10px] text-slate-500 uppercase">Anual</div><div className="text-xl font-bold text-blue-400">{formatMoney(annualCost)}€</div></div></div></div></div>
+                </div>
+            </div>
+        );
+      };
       
       // --- NUEVA PESTAÑA: DRENAJE (VAMPIRE DRAIN) ---
       const DrainCalculator = () => {
@@ -508,85 +603,49 @@
             battery: 60,
             days: 15,
             startPct: 80,
-            
-            // Entradas específicas
             isGarage: true,
             temperature: 16,
             sentryMode: false,
-            sentryTraffic: 'low', // low, med, high
+            sentryTraffic: 'low',
             sentryHours: 24,
-            sentryDisablePct: 20, // NEW: Threshold to auto-disable sentry
+            sentryDisablePct: 20,
             preconditioning: false,
             appChecks: 7,
         });
 
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
 
-        // --- CÁLCULO DE CONSUMOS (AJUSTADO con Lógica de Desactivación) ---
-        
-        // 1. Tasas de Consumo por HORA/DÍA
-        // Base Drain Rate (Deep Sleep)
         let dailyBaseRate = state.isGarage ? 0.2 : 0.4;
         const tempDiff = Math.abs(state.temperature - 20);
-        dailyBaseRate += (tempDiff * 0.015); // Add thermal management
+        dailyBaseRate += (tempDiff * 0.015);
 
-        // Sentry Drain Rate (High Consumption)
-        // Base Sentry (24h potential): ~5.5 kWh/day
         let dailySentryPotential = 5.5; 
         if (state.sentryTraffic === 'med') dailySentryPotential += 0.3;
         if (state.sentryTraffic === 'high') dailySentryPotential += 0.8;
         
-        // Hourly Sentry Rate
         const hourlySentryRate = dailySentryPotential / 24;
-        
-        // Daily Drain ACTIVE (When Sentry is ON during its schedule)
-        // = Base (for 24h - active hours) + Sentry (active hours)
-        // Actually Sentry replaces Sleep. So:
-        // Hours Asleep = 24 - state.sentryHours
-        // Hours Awake = state.sentryHours
-        // Daily Mixed Rate (High) = (HoursAsleep * (dailyBaseRate/24)) + (HoursAwake * hourlySentryRate)
-        // But to keep it simple and consistent with previous logic where "Base" is added on top:
-        // Let's stick to: Base is always there (background), Sentry adds on top.
         const dailySentryAdded = hourlySentryRate * state.sentryHours; 
-
-        // Preconditioning Rate
         const dailyPrecon = state.preconditioning ? 1.5 : 0;
-
-        // App Checks (Total)
         const totalAppDrain = state.appChecks * 0.15;
-        const dailyAppDrain = totalAppDrain / state.days; // Distribute for daily calculation
+        const dailyAppDrain = totalAppDrain / state.days;
 
-        // --- DEFINIR LOS DOS ESTADOS DE CONSUMO ---
-        // STATE A: HIGH DRAIN (Sentry Enabled & Battery > Limit)
         const drainHigh = dailyBaseRate + dailySentryAdded + dailyPrecon + dailyAppDrain;
-        
-        // STATE B: LOW DRAIN (Sentry Disabled automatically OR User disabled)
         const drainLow = dailyBaseRate + dailyPrecon + dailyAppDrain;
 
-        // --- SIMULACIÓN DÍA A DÍA ---
-        // Instead of simple multiplication, we calculate how long we stay in High Drain
-        
         const startEnergy = state.battery * (state.startPct / 100);
         const disableEnergy = state.battery * (state.sentryDisablePct / 100);
-        
-        // Energía disponible para gastar en modo Alto Consumo antes de cortar
         const energyForHigh = Math.max(0, startEnergy - disableEnergy);
         
         let daysInHigh = 0;
         let daysInLow = 0;
 
         if (!state.sentryMode) {
-            // Si el usuario no lo activa, siempre es bajo
             daysInLow = state.days;
         } else {
-            // Si está activado, vemos cuánto dura antes de cortar
             const daysUntilDisable = drainHigh > 0 ? energyForHigh / drainHigh : 0;
-            
             if (daysUntilDisable >= state.days) {
-                // La batería aguanta todo el periodo con Sentry
                 daysInHigh = state.days;
             } else {
-                // El Sentry se corta a mitad
                 daysInHigh = daysUntilDisable;
                 daysInLow = state.days - daysUntilDisable;
             }
@@ -596,8 +655,6 @@
         const endEnergy = Math.max(0, startEnergy - totalDrain);
         const endPct = (endEnergy / state.battery) * 100;
 
-        // Días hasta morir (0%)
-        // Time to reach 20% (High) + Time from 20% to 0% (Low)
         let daysUntilDead = 0;
         if (state.sentryMode && startEnergy > disableEnergy) {
              const timeToDisable = energyForHigh / drainHigh;
@@ -612,220 +669,162 @@
 
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* Panel Izquierdo: Configuración */}
                 <div className="lg:col-span-5 space-y-6">
                      <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
-                        <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
-                           <Icons.Shield /> Variables de Consumo
-                        </h2>
-
+                        <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Icons.Shield /> Variables de Consumo</h2>
                         <div className="space-y-6">
-                             {/* Ubicación y Temp */}
                             <div className="grid grid-cols-2 gap-4">
-                                <button onClick={() => handleChange('isGarage', true)}
-                                    className={`p-3 rounded-lg border text-center transition-all ${state.isGarage ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
-                                    <div className="flex justify-center mb-1"><Icons.Home /></div>
-                                    <span className="text-xs font-bold">Garaje</span>
-                                </button>
-                                <button onClick={() => handleChange('isGarage', false)}
-                                    className={`p-3 rounded-lg border text-center transition-all ${!state.isGarage ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
-                                    <div className="flex justify-center mb-1"><Icons.Moon /></div>
-                                    <span className="text-xs font-bold">Calle</span>
-                                </button>
+                                <button onClick={() => handleChange('isGarage', true)} className={`p-3 rounded-lg border text-center transition-all ${state.isGarage ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}><div className="flex justify-center mb-1"><Icons.Home /></div><span className="text-xs font-bold">Garaje</span></button>
+                                <button onClick={() => handleChange('isGarage', false)} className={`p-3 rounded-lg border text-center transition-all ${!state.isGarage ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}><div className="flex justify-center mb-1"><Icons.Moon /></div><span className="text-xs font-bold">Calle</span></button>
                             </div>
-
-                            <div className="animate-fade-in">
-                                 <div className="flex justify-between mb-1">
-                                    <label className="text-xs text-slate-500">Temperatura Media</label>
-                                    <span className="text-xs font-bold text-white">{state.temperature}°C</span>
-                                </div>
-                                <input type="range" min="-10" max="45" value={state.temperature} onChange={e => handleChange('temperature', e.target.value)}
-                                    className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
+                            <div className="animate-fade-in"><div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Temperatura Media</label><span className="text-xs font-bold text-white">{state.temperature}°C</span></div><input type="range" min="-10" max="45" value={state.temperature} onChange={e => handleChange('temperature', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" /></div>
+                            <div className="border-t border-slate-800 pt-4"><div className="flex items-center justify-between mb-3"><label className="text-sm font-bold text-slate-300 flex items-center gap-2"><Icons.Eye /> Modo Centinela</label><button onClick={() => handleChange('sentryMode', !state.sentryMode)} className={`w-12 h-6 rounded-full p-1 transition-colors ${state.sentryMode ? 'bg-red-500' : 'bg-slate-700'}`}><div className={`w-4 h-4 rounded-full bg-white transition-transform ${state.sentryMode ? 'translate-x-6' : 'translate-x-0'}`}></div></button></div>
+                                {state.sentryMode && (<div className="space-y-4 animate-fade-in"><div className="grid grid-cols-3 gap-2">{['low', 'med', 'high'].map(lvl => (<button key={lvl} onClick={() => handleChange('sentryTraffic', lvl)} className={`py-1 px-2 rounded border text-[10px] uppercase font-bold ${state.sentryTraffic === lvl ? 'bg-red-900/50 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>{lvl === 'low' ? 'Tranquilo' : lvl === 'med' ? 'Normal' : 'Intenso'}</button>))}</div><div><div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Horas activo / día</label><span className="text-xs font-bold text-white">{state.sentryHours}h</span></div><input type="range" min="1" max="24" value={state.sentryHours} onChange={e => handleChange('sentryHours', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-500" /><p className="text-[10px] text-slate-500 mt-1 italic">Útil si lo tiene automatizado para que se active a ciertos horarios.</p></div><div><div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Desactivar si baja de:</label><span className="text-xs font-bold text-red-400">{state.sentryDisablePct}%</span></div><input type="range" min="5" max="50" value={state.sentryDisablePct} onChange={e => handleChange('sentryDisablePct', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-500" /></div></div>)}
                             </div>
-
-                            {/* Sentry Mode */}
-                            <div className="border-t border-slate-800 pt-4">
-                                <div className="flex items-center justify-between mb-3">
-                                    <label className="text-sm font-bold text-slate-300 flex items-center gap-2"><Icons.Eye /> Modo Centinela</label>
-                                    <button onClick={() => handleChange('sentryMode', !state.sentryMode)} 
-                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${state.sentryMode ? 'bg-red-500' : 'bg-slate-700'}`}>
-                                        <div className={`w-4 h-4 rounded-full bg-white transition-transform ${state.sentryMode ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                                    </button>
-                                </div>
-                                
-                                {state.sentryMode && (
-                                    <div className="space-y-4 animate-fade-in">
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {['low', 'med', 'high'].map(lvl => (
-                                                <button key={lvl} onClick={() => handleChange('sentryTraffic', lvl)}
-                                                    className={`py-1 px-2 rounded border text-[10px] uppercase font-bold ${state.sentryTraffic === lvl ? 'bg-red-900/50 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
-                                                    {lvl === 'low' ? 'Tranquilo' : lvl === 'med' ? 'Normal' : 'Intenso'}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        
-                                        {/* Slider de Horas Activo */}
-                                        <div>
-                                            <div className="flex justify-between mb-1">
-                                                <label className="text-xs text-slate-500">Horas activo / día</label>
-                                                <span className="text-xs font-bold text-white">{state.sentryHours}h</span>
-                                            </div>
-                                            <input type="range" min="1" max="24" value={state.sentryHours} onChange={e => handleChange('sentryHours', e.target.value)}
-                                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-500" />
-                                            <p className="text-[10px] text-slate-500 mt-1 italic">
-                                                Útil si lo tiene automatizado para que se active a ciertos horarios.
-                                            </p>
-                                        </div>
-
-                                        {/* Slider de Corte Automático */}
-                                        <div>
-                                            <div className="flex justify-between mb-1">
-                                                <label className="text-xs text-slate-500">Desactivar si baja de:</label>
-                                                <span className="text-xs font-bold text-red-400">{state.sentryDisablePct}%</span>
-                                            </div>
-                                            <input type="range" min="5" max="50" value={state.sentryDisablePct} onChange={e => handleChange('sentryDisablePct', e.target.value)}
-                                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-500" />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Otros */}
                             <div className="border-t border-slate-800 pt-4 space-y-4">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-xs text-slate-400 flex items-center gap-2"><Icons.Thermometer /> Pre-acondicionamiento (1/día)</label>
-                                    <button onClick={() => handleChange('preconditioning', !state.preconditioning)} 
-                                        className={`w-10 h-5 rounded-full p-0.5 transition-colors ${state.preconditioning ? 'bg-orange-500' : 'bg-slate-700'}`}>
-                                        <div className={`w-4 h-4 rounded-full bg-white transition-transform ${state.preconditioning ? 'translate-x-5' : 'translate-x-0'}`}></div>
-                                    </button>
-                                </div>
-
-                                <div>
-                                    <div className="flex justify-between mb-1">
-                                        <label className="text-xs text-slate-500 flex items-center gap-2"><Icons.Smartphone /> Consultas App (Total)</label>
-                                        <span className="text-xs font-bold text-white">{state.appChecks} veces</span>
-                                    </div>
-                                    <input type="range" min="0" max="100" value={state.appChecks} onChange={e => handleChange('appChecks', e.target.value)}
-                                        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500" />
-                                </div>
+                                <div className="flex items-center justify-between"><label className="text-xs text-slate-400 flex items-center gap-2"><Icons.Thermometer /> Pre-acondicionamiento (1/día)</label><button onClick={() => handleChange('preconditioning', !state.preconditioning)} className={`w-10 h-5 rounded-full p-0.5 transition-colors ${state.preconditioning ? 'bg-orange-500' : 'bg-slate-700'}`}><div className={`w-4 h-4 rounded-full bg-white transition-transform ${state.preconditioning ? 'translate-x-5' : 'translate-x-0'}`}></div></button></div>
+                                <div><div className="flex justify-between mb-1"><label className="text-xs text-slate-500 flex items-center gap-2"><Icons.Smartphone /> Consultas App (Total)</label><span className="text-xs font-bold text-white">{state.appChecks} veces</span></div><input type="range" min="0" max="100" value={state.appChecks} onChange={e => handleChange('appChecks', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500" /></div>
                             </div>
-                            
-                            {/* Batería y Tiempo */}
                             <div className="border-t border-slate-800 pt-4 space-y-4">
-                                <div>
-                                    <div className="flex justify-between mb-1">
-                                        <label className="text-xs text-slate-500">Capacidad Batería</label>
-                                        <span className="text-xs font-bold text-white">{state.battery} kWh</span>
-                                    </div>
-                                    <input type="range" min="40" max="100" value={state.battery} onChange={e => handleChange('battery', e.target.value)}
-                                        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500" />
-                                </div>
-                                
-                                <div>
-                                    <div className="flex justify-between mb-1">
-                                        <label className="text-xs text-slate-500">Días Aparcado</label>
-                                        <span className="text-xs font-bold text-white">{state.days} días</span>
-                                    </div>
-                                    <input type="range" min="1" max="90" value={state.days} onChange={e => handleChange('days', e.target.value)}
-                                        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500" />
-                                </div>
-
-                                <div>
-                                    <div className="flex justify-between mb-1">
-                                        <label className="text-xs text-slate-500">% Inicial</label>
-                                        <span className="text-xs font-bold text-yellow-400">{state.startPct}%</span>
-                                    </div>
-                                    <input type="range" min="0" max="100" value={state.startPct} onChange={e => handleChange('startPct', e.target.value)}
-                                        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-yellow-500" />
-                                </div>
+                                <div><div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Capacidad Batería</label><span className="text-xs font-bold text-white">{state.battery} kWh</span></div><input type="range" min="40" max="100" value={state.battery} onChange={e => handleChange('battery', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500" /></div>
+                                <div><div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Días Aparcado</label><span className="text-xs font-bold text-white">{state.days} días</span></div><input type="range" min="1" max="90" value={state.days} onChange={e => handleChange('days', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500" /></div>
+                                <div><div className="flex justify-between mb-1"><label className="text-xs text-slate-500">% Inicial</label><span className="text-xs font-bold text-yellow-400">{state.startPct}%</span></div><input type="range" min="0" max="100" value={state.startPct} onChange={e => handleChange('startPct', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-yellow-500" /></div>
                             </div>
-
                         </div>
                      </div>
                 </div>
-
-                {/* Panel Derecho: Resultados */}
                 <div className="lg:col-span-7 space-y-6">
-                    {/* Visual Batería */}
                     <div className="bg-black/40 border border-slate-800 rounded-xl p-8 flex items-center justify-center relative overflow-hidden h-48">
                         <div className="relative w-full max-w-md h-24 border-4 border-slate-600 rounded-2xl p-1 flex items-center">
                             <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-10 bg-slate-600 rounded-r-md"></div>
                             <div className="h-full bg-slate-800/50 rounded-l-lg absolute left-1" style={{width: `${state.startPct}%`}}></div>
-                            <div className={`h-full rounded-l-lg relative z-10 transition-all duration-500 ${isCritical ? 'bg-red-600' : isWarning ? 'bg-yellow-600' : 'bg-green-600'}`} 
-                                 style={{width: `${endPct}%`}}>
-                            </div>
-                             <div className="absolute inset-0 flex items-center justify-center text-2xl font-display font-bold text-white drop-shadow-md z-20">
-                                {state.startPct}% <span className="text-slate-400 mx-2">➔</span> <span className={isCritical ? 'text-red-500' : isWarning ? 'text-yellow-400' : 'text-green-400'}>{endPct.toFixed(1)}%</span>
-                             </div>
+                            <div className={`h-full rounded-l-lg relative z-10 transition-all duration-500 ${isCritical ? 'bg-red-600' : isWarning ? 'bg-yellow-600' : 'bg-green-600'}`} style={{width: `${endPct}%`}}></div>
+                             <div className="absolute inset-0 flex items-center justify-center text-2xl font-display font-bold text-white drop-shadow-md z-20">{state.startPct}% <span className="text-slate-400 mx-2">➔</span> <span className={isCritical ? 'text-red-500' : isWarning ? 'text-yellow-400' : 'text-green-400'}>{endPct.toFixed(1)}%</span></div>
                         </div>
                      </div>
-
                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center">
-                            <div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Zap className="w-4 h-4"/> Drenaje Total</div>
-                            <div className="text-3xl font-display font-bold text-red-400">
-                                -{formatDecimal(totalDrain)} <span className="text-lg text-slate-500">kWh</span>
-                            </div>
-                            <div className="text-[10px] text-slate-500 mt-1">en {state.days} días</div>
-                        </div>
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Zap className="w-4 h-4"/> Drenaje Total</div><div className="text-3xl font-display font-bold text-red-400">-{formatDecimal(totalDrain)} <span className="text-lg text-slate-500">kWh</span></div><div className="text-[10px] text-slate-500 mt-1">en {state.days} días</div></div>
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.AlertTriangle className="w-4 h-4"/> Días hasta 0%</div><div className="text-3xl font-display font-bold text-white">{daysUntilDead > 365 ? '>1 año' : Math.floor(daysUntilDead)} <span className="text-lg text-slate-500">días</span></div><div className="text-[10px] text-slate-500 mt-1">si mantienes este ritmo</div></div>
+                     </div>
+                     <div className="bg-slate-800/30 rounded-xl p-4 border border-slate-700"><h4 className="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">Desglose Estimado</h4><div className="space-y-2"><div className="flex justify-between text-xs"><span className="text-slate-400">Consumo Base (Sleep)</span><span className="text-white">{(dailyBaseRate * state.days).toFixed(1)} kWh</span></div>{state.sentryMode && (<div className="flex justify-between text-xs text-red-300"><span className="flex items-center gap-1"><Icons.Eye /> Modo Centinela ({state.sentryHours}h/día)</span><span className="font-bold">{(dailySentryAdded * daysInHigh).toFixed(1)} kWh</span></div>)}{state.sentryMode && daysInHigh < state.days && (<div className="text-[10px] text-orange-400 italic text-right">* Se desactivó tras {daysInHigh.toFixed(1)} días por batería baja ({state.sentryDisablePct}%)</div>)}{state.preconditioning && (<div className="flex justify-between text-xs text-orange-300"><span className="flex items-center gap-1"><Icons.Thermometer /> Climatización</span><span>{(dailyPrecon * state.days).toFixed(1)} kWh</span></div>)}<div className="flex justify-between text-xs text-purple-300"><span className="flex items-center gap-1"><Icons.Smartphone /> Consultas App</span><span>{totalAppDrain.toFixed(1)} kWh</span></div></div></div>
+                     <div className="bg-blue-900/20 border border-blue-900/50 rounded-xl p-4"><div className="flex gap-2 items-center mb-2"><div className="text-blue-400"><Icons.Shield /></div><h4 className="text-sm font-bold text-blue-300">Cómo reducir el consumo (Vampire Drain)</h4></div><div className="text-xs text-slate-400 space-y-2"><p><strong>1. El "Sueño Profundo" es la clave:</strong> Si el coche duerme, solo consume ~0.2-0.4 kWh/día. Si se mantiene despierto (Centinela ON), consume 250Wh + el consumo extra derivado del nº de eventos.</p><p><strong>2. Cómo desactivar correctamente:</strong></p><ul className="list-disc pl-4 space-y-1"><li><span className="text-white">Centinela:</span> App > Seguridad > Modo Centinela (OFF) o automatizarlo por hora.</li><li><span className="text-white">Clima:</span> App > Climatización > Desactivar "Mantener", "Mascota" o "Campamento". Revisar "Programación" para que no se encienda solo.</li><li><span className="text-white">Apps de terceros:</span> Si usas apps como Tessie, TeslaMate, Stats, etc., pueden despertar al coche.</li></ul></div></div>
+                </div>
+            </div>
+        );
+      };
 
-                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center">
-                            <div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.AlertTriangle className="w-4 h-4"/> Días hasta 0%</div>
-                            <div className="text-3xl font-display font-bold text-white">
-                                {daysUntilDead > 365 ? '>1 año' : Math.floor(daysUntilDead)} <span className="text-lg text-slate-500">días</span>
-                            </div>
-                            <div className="text-[10px] text-slate-500 mt-1">si mantienes este ritmo</div>
-                        </div>
-                     </div>
-                     
-                     {/* Desglose */}
-                     <div className="bg-slate-800/30 rounded-xl p-4 border border-slate-700">
-                        <h4 className="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">Desglose Estimado</h4>
-                        <div className="space-y-2">
-                             <div className="flex justify-between text-xs">
-                                <span className="text-slate-400">Consumo Base (Sleep)</span>
-                                <span className="text-white">{(dailyBaseRate * state.days).toFixed(1)} kWh</span>
-                             </div>
-                             {state.sentryMode && (
-                                 <div className="flex justify-between text-xs text-red-300">
-                                    <span className="flex items-center gap-1"><Icons.Eye /> Modo Centinela ({state.sentryHours}h/día)</span>
-                                    <span className="font-bold">{(dailySentryAdded * daysInHigh).toFixed(1)} kWh</span>
-                                 </div>
-                             )}
-                             {state.sentryMode && daysInHigh < state.days && (
-                                 <div className="text-[10px] text-orange-400 italic text-right">
-                                     * Se desactivó tras {daysInHigh.toFixed(1)} días por batería baja ({state.sentryDisablePct}%)
-                                 </div>
-                             )}
-                             {state.preconditioning && (
-                                 <div className="flex justify-between text-xs text-orange-300">
-                                    <span className="flex items-center gap-1"><Icons.Thermometer /> Climatización</span>
-                                    <span>{(dailyPrecon * state.days).toFixed(1)} kWh</span>
-                                 </div>
-                             )}
-                              <div className="flex justify-between text-xs text-purple-300">
-                                <span className="flex items-center gap-1"><Icons.Smartphone /> Consultas App</span>
-                                <span>{totalAppDrain.toFixed(1)} kWh</span>
-                             </div>
-                        </div>
-                     </div>
+      // --- PESTAÑA: CURVA DE CARGA ---
+      const ChargeCurveCalculator = () => {
+        const [state, setState] = useState({
+            batType: 'LFP', // 'LFP' or 'NCA'
+            capacity: 60,
+            startPct: 10,
+            endPct: 80,
+            costPerKwh: 0.45
+        });
 
-                     {/* Info Box */}
-                     <div className="bg-blue-900/20 border border-blue-900/50 rounded-xl p-4">
-                        <div className="flex gap-2 items-center mb-2">
-                            <div className="text-blue-400"><Icons.Shield /></div>
-                            <h4 className="text-sm font-bold text-blue-300">Cómo reducir el consumo (Vampire Drain)</h4>
+        // Profiles based on ~V3 supercharging
+        const getPowerAtSoC = (soc, type) => {
+            if (type === 'LFP') {
+                // LFP (Model 3 RWD) - Flatter but lower peak
+                if (soc < 10) return 170;
+                if (soc < 30) return 165;
+                if (soc < 50) return 130;
+                if (soc < 70) return 85;
+                if (soc < 90) return 50;
+                return 25;
+            } else {
+                // NCA (Model 3 LR/Perf) - High peak, fast taper
+                if (soc < 5) return 150; // Ramp up
+                if (soc < 25) return 250;
+                if (soc < 40) return 190;
+                if (soc < 60) return 130;
+                if (soc < 80) return 70;
+                return 35;
+            }
+        };
+
+        // Integration
+        let totalMinutes = 0;
+        const step = 1; // 1% steps
+        const kwhPerPercent = state.capacity / 100;
+
+        for (let i = state.startPct; i < state.endPct; i += step) {
+            const power = getPowerAtSoC(i, state.batType);
+            const energyStep = kwhPerPercent * step;
+            // Time = Energy / Power * 60
+            totalMinutes += (energyStep / power) * 60;
+        }
+        
+        const totalEnergy = (state.endPct - state.startPct) * kwhPerPercent;
+        const totalCost = totalEnergy * state.costPerKwh;
+
+        // Generate chart bars
+        const chartBars = [];
+        for (let i = 0; i <= 100; i+=5) {
+            chartBars.push({
+                pct: i,
+                power: getPowerAtSoC(i, state.batType),
+                active: i >= state.startPct && i < state.endPct
+            });
+        }
+
+        const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
+
+        return (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="lg:col-span-5 space-y-6">
+                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
+                        <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
+                           <Icons.Activity /> Curva de Carga
+                        </h2>
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-2 gap-2">
+                                <button onClick={() => handleChange('batType', 'LFP')} className={`p-3 rounded border text-center font-bold transition-all ${state.batType === 'LFP' ? 'bg-green-600 border-green-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>LFP (RWD)</button>
+                                <button onClick={() => handleChange('batType', 'NCA')} className={`p-3 rounded border text-center font-bold transition-all ${state.batType === 'NCA' ? 'bg-red-600 border-red-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>NCA (LR/Perf)</button>
+                            </div>
+                            
+                            <div><label className="text-xs text-slate-500 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.capacity} onChange={v => handleChange('capacity', v)} /></div>
+                            
+                            <div className="border-t border-slate-800 pt-4">
+                                <div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Rango de Carga</label><span className="text-xs font-bold text-white">{state.startPct}% - {state.endPct}%</span></div>
+                                <div className="flex gap-4 items-center">
+                                    <input type="range" min="0" max={state.endPct - 1} value={state.startPct} onChange={e => handleChange('startPct', parseInt(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-yellow-500" />
+                                    <input type="range" min={state.startPct + 1} max="100" value={state.endPct} onChange={e => handleChange('endPct', parseInt(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-green-500" />
+                                </div>
+                            </div>
+
+                            <div><label className="text-xs text-slate-500 block mb-1">Coste (€/kWh)</label><FormattedInput decimals={2} value={state.costPerKwh} onChange={v => handleChange('costPerKwh', v)} /></div>
                         </div>
-                        <div className="text-xs text-slate-400 space-y-2">
-                            <p><strong>1. El "Sueño Profundo" es la clave:</strong> Si el coche duerme, solo consume ~0.2-0.4 kWh/día. Si se mantiene despierto (Centinela ON), consume 250Wh + el consumo extra derivado del nº de eventos.</p>
-                            <p><strong>2. Cómo desactivar correctamente:</strong></p>
-                            <ul className="list-disc pl-4 space-y-1">
-                                <li><span className="text-white">Centinela:</span> App > Seguridad > Modo Centinela (OFF) o automatizarlo por hora.</li>
-                                <li><span className="text-white">Clima:</span> App > Climatización > Desactivar "Mantener", "Mascota" o "Campamento". Revisar "Programación" para que no se encienda solo.</li>
-                                <li><span className="text-white">Apps de terceros:</span> Si usas apps como Tessie, TeslaMate, Stats, etc., pueden despertar al coche.</li>
-                            </ul>
+                    </div>
+                </div>
+
+                <div className="lg:col-span-7 space-y-6">
+                    <div className="h-64 bg-slate-900/50 border border-slate-800 rounded-xl p-4 flex items-end gap-1 relative">
+                        <div className="absolute top-2 left-4 text-xs text-slate-500 font-bold uppercase tracking-widest">Perfil de Potencia (kW)</div>
+                        {chartBars.map((bar) => (
+                            <div key={bar.pct} className="flex-1 flex flex-col justify-end group relative">
+                                <div className={`w-full rounded-t transition-all duration-300 ${bar.active ? 'bg-blue-500' : 'bg-slate-700 opacity-30'}`} style={{height: `${(bar.power / 250) * 100}%`}}></div>
+                                <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] px-2 py-1 rounded border border-slate-700 pointer-events-none whitespace-nowrap z-10">{bar.pct}% : {bar.power}kW</div>
+                            </div>
+                        ))}
+                        <div className="absolute bottom-0 left-0 w-full h-px bg-slate-700"></div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                        <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
+                            <div className="text-xs text-slate-500 uppercase mb-1">Tiempo</div>
+                            <div className="text-2xl font-bold text-white">{Math.round(totalMinutes)} <span className="text-sm text-slate-400">min</span></div>
                         </div>
-                     </div>
+                        <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
+                            <div className="text-xs text-slate-500 uppercase mb-1">Energía</div>
+                            <div className="text-2xl font-bold text-green-400">+{totalEnergy.toFixed(1)} <span className="text-sm text-green-400/50">kWh</span></div>
+                        </div>
+                        <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
+                            <div className="text-xs text-slate-500 uppercase mb-1">Coste</div>
+                            <div className="text-2xl font-bold text-blue-400">{formatDecimal(totalCost)}€</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         );
@@ -834,20 +833,20 @@
       // --- PESTAÑA: BJORN NYLAND (Paradoja de Velocidad) ---
       const NylandCalculator = () => {
         const [state, setState] = useState({
-            distance: 500, // km
-            speedA: 110, // km/h
-            speedB: 140, // km/h
-            refConsumption: 15.0, // kWh/100km @ 110km/h reference (UPDATED)
-            startPct: 100, // % (UPDATED)
-            arrivalPct: 10, // %
-            battery: 60, // kWh (Usable) (UPDATED)
-            costPerKwh: 0.45, // €/kWh (Supercharger)
-            chargingStrategy: 'optimal' // 'optimal' (short stops) vs 'deep' (long stops)
+            distance: 500, 
+            speedA: 110, 
+            speedB: 140, 
+            refConsumption: 15.0, // Default 15
+            startPct: 100,
+            arrivalPct: 10,
+            battery: 60, 
+            costPerKwh: 0.45, 
+            chargingStrategy: 'optimal' 
         });
 
         // Physics helper
         const getConsumption = (speed, ref) => {
-            return ref * Math.pow(speed / 110, 1.5); // Exponential consumption
+            return ref * Math.pow(speed / 110, 1.5); 
         };
 
         const consA = getConsumption(state.speedA, state.refConsumption);
@@ -874,7 +873,7 @@
         const stopsB = netChargeNeededB > 0 ? Math.ceil(netChargeNeededB / energyPerStop) : 0;
 
         // Time
-        const timeDriveA = (state.distance / state.speedA) * 60; // minutes
+        const timeDriveA = (state.distance / state.speedA) * 60; 
         const timeDriveB = (state.distance / state.speedB) * 60;
 
         const timeChargeA = (netChargeNeededA / strategy.avgPower) * 60;
@@ -980,7 +979,6 @@
                             <div className="text-4xl"><Icons.Award /></div>
                         </div>
                         
-                        {/* Financial Winner */}
                         <div className="pt-4 border-t border-white/10 z-10">
                              <div className="text-xs uppercase tracking-widest text-slate-400 mb-1">Impacto Económico</div>
                              <div className="flex justify-between items-end">
@@ -998,7 +996,6 @@
                     <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
                         <h4 className="text-sm font-bold text-slate-300 mb-6">Comparativa Detallada</h4>
                         
-                        {/* Bar A */}
                         <div className="mb-6">
                             <div className="flex justify-between text-xs mb-2">
                                 <span className="text-blue-400 font-bold">Opción A ({state.speedA} km/h)</span>
@@ -1016,7 +1013,6 @@
                             </div>
                         </div>
 
-                        {/* Bar B */}
                         <div>
                             <div className="flex justify-between text-xs mb-2">
                                 <span className="text-red-400 font-bold">Opción B ({state.speedB} km/h)</span>
@@ -1064,22 +1060,6 @@
         );
       };
 
-      // --- COMPONENTE PLACEHOLDER ---
-      const PlaceholderTab = () => (
-        <div className="flex flex-col items-center justify-center h-96 bg-slate-900/30 rounded-3xl border border-slate-800 border-dashed p-8 text-center">
-            <div className="bg-slate-800 p-4 rounded-full mb-4 text-slate-400"><Icons.Construction /></div>
-            <h3 className="text-xl font-display font-bold text-white mb-2">En Construcción</h3>
-            <p className="text-slate-400 text-sm max-w-md mb-8">Esta funcionalidad estará disponible próximamente. Mientras tanto, puedes utilizar la versión completa en Excel.</p>
-            <a href="https://docs.google.com/spreadsheets/d/1bLZmgVGTBqg2bS2E45JpORjs9eK2nb05AWXYLLDY-RI/edit?usp=drivesdk" 
-               target="_blank"
-               className="bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-lg font-medium transition-all shadow-lg hover:shadow-green-900/20 flex items-center gap-2">
-                <Icons.Piggy />
-                VERSIÓN EN EXCEL de Google Drive
-            </a>
-            <p className="text-xs text-slate-600 mt-2">(haga un duplicado para su uso particular)</p>
-         </div>
-      );
-
       // --- APP PRINCIPAL ---
       const App = () => {
         const [activeTab, setActiveTab] = useState('simulator'); 
@@ -1094,37 +1074,18 @@
 
         const renderContent = () => {
             switch(activeTab) {
-                case 'simulator':
-                    return (
-                        <>
-                            <Visualizer params={simParams} />
-                            <ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} />
-                            <ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
-                        </>
-                    );
-                case 'amortization':
-                    return <AmortizationCalculator />;
-                case 'calculator':
-                    return <ChargingCalculator />;
-                case 'drain':
-                    return <DrainCalculator />;
-                case 'nyland':
-                    return <NylandCalculator />;
-                case 'tariff':
-                case 'charge':
-                    return <PlaceholderTab />;
-                default:
-                    return null;
+                case 'simulator': return <><Visualizer params={simParams} /><ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} /><ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} /></>;
+                case 'amortization': return <AmortizationCalculator />;
+                case 'calculator': return <ChargingCalculator />;
+                case 'drain': return <DrainCalculator />;
+                case 'nyland': return <NylandCalculator />;
+                case 'curve': return <ChargeCurveCalculator />;
+                default: return <PlaceholderTab />;
             }
         };
 
         const TabButton = ({ id, label }) => (
-            <button 
-                onClick={() => setActiveTab(id)}
-                className={`px-4 py-3 text-sm font-medium transition-all uppercase tracking-wider ${activeTab === id ? 'tab-active' : 'tab-inactive'}`}
-            >
-                {label}
-            </button>
+            <button onClick={() => setActiveTab(id)} className={`px-4 py-3 text-sm font-medium transition-all uppercase tracking-wider ${activeTab === id ? 'tab-active' : 'tab-inactive'}`}>{label}</button>
         );
 
         return (
@@ -1155,8 +1116,8 @@
                             <TabButton id="calculator" label="Calculadora" />
                             <TabButton id="drain" label="Drenaje" />
                             <TabButton id="nyland" label="Bjørn Nyland" />
-                            <TabButton id="tariff" label="Comparar Tarifas" />
-                            <TabButton id="charge" label="Carga" />
+                            <TabButton id="curve" label="Curva Carga" />
+                            <TabButton id="tariff" label="Tarifas" />
                         </div>
                     </header>
 
