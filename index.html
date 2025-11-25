@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -23,46 +22,26 @@
       ::-webkit-scrollbar-track { background: #1a1a1a; }
       ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
       
-      /* Animaciones de Carretera */
-      @keyframes road-move { 
-        0% { background-position: 0 0; } 
-        100% { background-position: -60px 0; }
-      }
+      /* Animaciones */
+      @keyframes road-move { 0% { background-position: 0 0; } 100% { background-position: -60px 0; } }
       .animate-road-move { animation-name: road-move; animation-timing-function: linear; animation-iteration-count: infinite; }
       
-      /* Animaciones de Viento */
-      @keyframes wind-flow-head { 
-        0% { transform: translateX(0%); opacity: 0; } 
-        10% { opacity: 0.6; } 
-        90% { opacity: 0.6; }
-        100% { transform: translateX(-200%); opacity: 0; } 
-      }
-      
-      @keyframes wind-flow-tail { 
-        0% { transform: translateX(0%); opacity: 0; } 
-        10% { opacity: 0.6; } 
-        90% { opacity: 0.6; }
-        100% { transform: translateX(200%); opacity: 0; } 
-      }
-
-      /* CLASES RESTAURADAS PARA EL VIENTO */
+      @keyframes wind-flow-head { 0% { transform: translateX(0%); opacity: 0; } 10% { opacity: 0.6; } 90% { opacity: 0.6; } 100% { transform: translateX(-200%); opacity: 0; } }
+      @keyframes wind-flow-tail { 0% { transform: translateX(0%); opacity: 0; } 10% { opacity: 0.6; } 90% { opacity: 0.6; } 100% { transform: translateX(200%); opacity: 0; } }
       .wind-particle-head { animation: wind-flow-head 1s linear infinite; }
       .wind-particle-tail { animation: wind-flow-tail 1s linear infinite; }
 
-      /* Animación Ruedas */
       @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
       .animate-spin-fast { animation: spin 0.3s linear infinite; }
 
-      /* Animación Pulso Carga */
       @keyframes charge-pulse { 0% { opacity: 0.5; } 50% { opacity: 1; } 100% { opacity: 0.5; } }
       .animate-charge { animation: charge-pulse 2s infinite ease-in-out; }
 
-      /* Efecto Glow para pestañas */
+      /* Estilos generales */
       .tab-active { border-bottom: 2px solid #3b82f6; color: #3b82f6; background: rgba(59, 130, 246, 0.1); }
       .tab-inactive { border-bottom: 2px solid transparent; color: #94a3b8; }
       .tab-inactive:hover { color: #e2e8f0; background: rgba(255, 255, 255, 0.05); }
       
-      /* Tabla */
       .custom-table th { padding: 0.75rem; text-align: left; font-size: 0.75rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #334155; }
       .custom-table td { padding: 0.75rem; font-size: 0.875rem; color: #cbd5e1; border-bottom: 1px solid #1e293b; font-family: monospace; text-align: right; }
       .custom-table tr:last-child td { border-bottom: none; }
@@ -94,46 +73,22 @@
       const FormattedInput = ({ value, onChange, decimals = 0 }) => {
         const format = (val) => {
             if (val === '' || val === null || isNaN(val)) return '';
-            return new Intl.NumberFormat('es-ES', { 
-                minimumFractionDigits: 0, 
-                maximumFractionDigits: decimals 
-            }).format(val);
+            return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: decimals }).format(val);
         };
-
         const [displayValue, setDisplayValue] = useState(format(value));
-
-        useEffect(() => {
-            setDisplayValue(format(value));
-        }, [value]);
-
+        useEffect(() => { setDisplayValue(format(value)); }, [value]);
         const handleChange = (e) => {
             const inputValue = e.target.value;
             if (!/^[\d.,-]*$/.test(inputValue)) return;
-
             setDisplayValue(inputValue);
-
             const cleanValue = inputValue.replace(/\./g, '').replace(',', '.');
             const numValue = parseFloat(cleanValue);
-
-            if (!isNaN(numValue)) {
-                onChange(numValue);
-            } else if (cleanValue === '' || cleanValue === '-') {
-                onChange(0);
-            }
+            if (!isNaN(numValue)) onChange(numValue); else if (cleanValue === '' || cleanValue === '-') onChange(0);
         };
-
-        const handleBlur = () => {
-            setDisplayValue(format(value));
-        };
-
+        const handleBlur = () => { setDisplayValue(format(value)); };
         return (
-            <input
-                type="text"
-                value={displayValue}
-                onChange={handleChange}
-                onBlur={handleBlur}
-                className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-2 text-yellow-300 font-mono font-bold focus:outline-none focus:border-yellow-500 text-sm placeholder-zinc-500 transition-colors text-right"
-            />
+            <input type="text" value={displayValue} onChange={handleChange} onBlur={handleBlur}
+                className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-2 text-yellow-300 font-mono font-bold focus:outline-none focus:border-yellow-500 text-sm placeholder-zinc-500 transition-colors text-right" />
         );
       };
 
@@ -154,7 +109,12 @@
         Wrench: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>,
         Clock: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
         BatteryCharging: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 18H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.19M15 6h2a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-3.19"/><line x1="23" y1="13" x2="23" y2="11"/><polyline points="11 6 7 12 13 12 9 18"/></svg>,
-        Calendar: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+        Calendar: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>,
+        Eye: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+        Smartphone: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>,
+        Sun: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>,
+        Home: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+        AlertTriangle: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
       };
 
       // --- FÍSICA (Simulador) ---
@@ -750,6 +710,247 @@
             </div>
         );
       };
+      
+      // --- NUEVA PESTAÑA: DRENAJE (VAMPIRE DRAIN) ---
+      const DrainCalculator = () => {
+        const [state, setState] = useState({
+            battery: 60,
+            days: 15,
+            startPct: 80,
+            
+            // Entradas específicas
+            isGarage: true,
+            temperature: 16,
+            sentryMode: false,
+            sentryTraffic: 'low', // low, med, high
+            preconditioning: false,
+            appChecks: 7, // asume 1 cada 2 días para 15 días aprox (15/2)
+        });
+
+        const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
+
+        // --- CÁLCULO DE CONSUMOS ---
+        
+        // 1. BASE DRAIN (Deep Sleep)
+        // Garaje: ~0.2 kWh/dia | Calle: ~0.4 kWh/dia + penalización temperatura
+        let dailyBase = state.isGarage ? 0.2 : 0.4;
+        // Si está en calle, cada grado de diferencia con 20°C añade un poco de consumo (gestión térmica)
+        if (!state.isGarage) {
+            const tempDiff = Math.abs(state.temperature - 20);
+            dailyBase += (tempDiff * 0.015); 
+        }
+
+        // 2. SENTRY MODE (El gran consumidor)
+        // Base Sentry: ~250W constantes -> 6.0 kWh/día
+        // Tráfico: Aumenta escritura en disco y procesamiento
+        let dailySentry = 0;
+        if (state.sentryMode) {
+            dailySentry = 6.0; 
+            if (state.sentryTraffic === 'med') dailySentry += 0.8;
+            if (state.sentryTraffic === 'high') dailySentry += 1.8;
+        }
+
+        // 3. PREACONDICIONAMIENTO
+        // Asumimos 1 ciclo al día si está activo. Un ciclo medio ~1.5 kWh (calentar/enfriar batería + habitáculo)
+        const dailyPrecon = state.preconditioning ? 1.5 : 0;
+
+        // 4. APP CHECKS
+        // Cada despertar consume unos 0.15 kWh (despierta ordenador 15-20 mins)
+        // Esto es un total, no diario
+        const totalAppDrain = state.appChecks * 0.15;
+
+        // --- TOTALES ---
+        const totalDailyDrain = dailyBase + dailySentry + dailyPrecon;
+        const totalDrain = (totalDailyDrain * state.days) + totalAppDrain;
+
+        const startEnergy = state.battery * (state.startPct / 100);
+        const endEnergy = Math.max(0, startEnergy - totalDrain);
+        const endPct = (endEnergy / state.battery) * 100;
+        const daysUntilDead = totalDailyDrain > 0 ? startEnergy / totalDailyDrain : 999;
+        
+        const isCritical = endPct <= 5;
+        const isWarning = endPct <= 20;
+
+        return (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Panel Izquierdo: Configuración */}
+                <div className="lg:col-span-5 space-y-6">
+                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
+                        <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
+                           <Icons.Shield /> Variables de Consumo
+                        </h2>
+
+                        <div className="space-y-6">
+                             {/* Ubicación y Temp */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <button onClick={() => handleChange('isGarage', true)}
+                                    className={`p-3 rounded-lg border text-center transition-all ${state.isGarage ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
+                                    <div className="flex justify-center mb-1"><Icons.Home /></div>
+                                    <span className="text-xs font-bold">Garaje</span>
+                                </button>
+                                <button onClick={() => handleChange('isGarage', false)}
+                                    className={`p-3 rounded-lg border text-center transition-all ${!state.isGarage ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
+                                    <div className="flex justify-center mb-1"><Icons.Moon /></div>
+                                    <span className="text-xs font-bold">Calle</span>
+                                </button>
+                            </div>
+
+                            {!state.isGarage && (
+                                <div className="animate-fade-in">
+                                     <div className="flex justify-between mb-1">
+                                        <label className="text-xs text-slate-500">Temperatura Media</label>
+                                        <span className="text-xs font-bold text-white">{state.temperature}°C</span>
+                                    </div>
+                                    <input type="range" min="-10" max="45" value={state.temperature} onChange={e => handleChange('temperature', e.target.value)}
+                                        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" />
+                                </div>
+                            )}
+
+                            {/* Sentry Mode */}
+                            <div className="border-t border-slate-800 pt-4">
+                                <div className="flex items-center justify-between mb-3">
+                                    <label className="text-sm font-bold text-slate-300 flex items-center gap-2"><Icons.Eye /> Modo Centinela</label>
+                                    <button onClick={() => handleChange('sentryMode', !state.sentryMode)} 
+                                        className={`w-12 h-6 rounded-full p-1 transition-colors ${state.sentryMode ? 'bg-red-500' : 'bg-slate-700'}`}>
+                                        <div className={`w-4 h-4 rounded-full bg-white transition-transform ${state.sentryMode ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                                    </button>
+                                </div>
+                                
+                                {state.sentryMode && (
+                                    <div className="grid grid-cols-3 gap-2 animate-fade-in">
+                                        {['low', 'med', 'high'].map(lvl => (
+                                            <button key={lvl} onClick={() => handleChange('sentryTraffic', lvl)}
+                                                className={`py-1 px-2 rounded border text-[10px] uppercase font-bold ${state.sentryTraffic === lvl ? 'bg-red-900/50 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>
+                                                {lvl === 'low' ? 'Tranquilo' : lvl === 'med' ? 'Normal' : 'Intenso'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Otros */}
+                            <div className="border-t border-slate-800 pt-4 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-xs text-slate-400 flex items-center gap-2"><Icons.Thermometer /> Pre-acondicionamiento (1/día)</label>
+                                    <button onClick={() => handleChange('preconditioning', !state.preconditioning)} 
+                                        className={`w-10 h-5 rounded-full p-0.5 transition-colors ${state.preconditioning ? 'bg-orange-500' : 'bg-slate-700'}`}>
+                                        <div className={`w-4 h-4 rounded-full bg-white transition-transform ${state.preconditioning ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                    </button>
+                                </div>
+
+                                <div>
+                                    <div className="flex justify-between mb-1">
+                                        <label className="text-xs text-slate-500 flex items-center gap-2"><Icons.Smartphone /> Consultas App (Total)</label>
+                                        <span className="text-xs font-bold text-white">{state.appChecks} veces</span>
+                                    </div>
+                                    <input type="range" min="0" max="100" value={state.appChecks} onChange={e => handleChange('appChecks', e.target.value)}
+                                        className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500" />
+                                </div>
+                            </div>
+                            
+                            {/* Batería y Tiempo */}
+                            <div className="border-t border-slate-800 pt-4 grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="text-[10px] text-slate-500 block mb-1">Batería (kWh)</label>
+                                    <FormattedInput value={state.battery} onChange={v => handleChange('battery', v)} />
+                                </div>
+                                <div>
+                                    <label className="text-[10px] text-slate-500 block mb-1">Días Aparcado</label>
+                                    <FormattedInput value={state.days} onChange={v => handleChange('days', v)} />
+                                </div>
+                            </div>
+                             <div className="flex justify-between mb-1">
+                                <label className="text-xs text-slate-500">% Inicial</label>
+                                <span className="text-xs font-bold text-yellow-400">{state.startPct}%</span>
+                            </div>
+                            <input type="range" min="0" max="100" value={state.startPct} onChange={e => handleChange('startPct', e.target.value)}
+                                className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-yellow-500" />
+
+                        </div>
+                     </div>
+                </div>
+
+                {/* Panel Derecho: Resultados */}
+                <div className="lg:col-span-7 space-y-6">
+                    {/* Visual Batería */}
+                    <div className="bg-black/40 border border-slate-800 rounded-xl p-8 flex items-center justify-center relative overflow-hidden h-48">
+                        <div className="relative w-full max-w-md h-24 border-4 border-slate-600 rounded-2xl p-1 flex items-center">
+                            <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-10 bg-slate-600 rounded-r-md"></div>
+                            <div className="h-full bg-slate-800/50 rounded-l-lg absolute left-1" style={{width: `${state.startPct}%`}}></div>
+                            <div className={`h-full rounded-l-lg relative z-10 transition-all duration-500 ${isCritical ? 'bg-red-600' : isWarning ? 'bg-yellow-600' : 'bg-green-600'}`} 
+                                 style={{width: `${endPct}%`}}>
+                            </div>
+                             <div className="absolute inset-0 flex items-center justify-center text-2xl font-display font-bold text-white drop-shadow-md z-20">
+                                {state.startPct}% <span className="text-slate-400 mx-2">➔</span> <span className={isCritical ? 'text-red-500' : isWarning ? 'text-yellow-400' : 'text-green-400'}>{endPct.toFixed(1)}%</span>
+                             </div>
+                        </div>
+                     </div>
+
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center">
+                            <div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Zap className="w-4 h-4"/> Drenaje Total</div>
+                            <div className="text-3xl font-display font-bold text-red-400">
+                                -{formatDecimal(totalDrain)} <span className="text-lg text-slate-500">kWh</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 mt-1">en {state.days} días</div>
+                        </div>
+
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center">
+                            <div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.AlertTriangle className="w-4 h-4"/> Días hasta 0%</div>
+                            <div className="text-3xl font-display font-bold text-white">
+                                {totalDailyDrain > 0 ? (daysUntilDead > 365 ? '>1 año' : Math.floor(daysUntilDead)) : '∞'} <span className="text-lg text-slate-500">días</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 mt-1">si mantienes este ritmo</div>
+                        </div>
+                     </div>
+                     
+                     {/* Desglose */}
+                     <div className="bg-slate-800/30 rounded-xl p-4 border border-slate-700">
+                        <h4 className="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">Desglose de Consumo</h4>
+                        <div className="space-y-2">
+                             <div className="flex justify-between text-xs">
+                                <span className="text-slate-400">Consumo Base (Sleep)</span>
+                                <span className="text-white">{(dailyBase * state.days).toFixed(1)} kWh</span>
+                             </div>
+                             {state.sentryMode && (
+                                 <div className="flex justify-between text-xs text-red-300">
+                                    <span className="flex items-center gap-1"><Icons.Eye /> Modo Centinela</span>
+                                    <span className="font-bold">{(dailySentry * state.days).toFixed(1)} kWh</span>
+                                 </div>
+                             )}
+                             {state.preconditioning && (
+                                 <div className="flex justify-between text-xs text-orange-300">
+                                    <span className="flex items-center gap-1"><Icons.Thermometer /> Climatización</span>
+                                    <span>{(dailyPrecon * state.days).toFixed(1)} kWh</span>
+                                 </div>
+                             )}
+                              <div className="flex justify-between text-xs text-purple-300">
+                                <span className="flex items-center gap-1"><Icons.Smartphone /> Consultas App</span>
+                                <span>{totalAppDrain.toFixed(1)} kWh</span>
+                             </div>
+                        </div>
+                     </div>
+
+                     {/* Info Box */}
+                     <div className="bg-blue-900/20 border border-blue-900/50 rounded-xl p-4">
+                        <div className="flex gap-2 items-center mb-2">
+                            <div className="text-blue-400"><Icons.Shield /></div>
+                            <h4 className="text-sm font-bold text-blue-300">Cómo reducir el consumo (Vampire Drain)</h4>
+                        </div>
+                        <div className="text-xs text-slate-400 space-y-2">
+                            <p><strong>1. El "Sueño Profundo" es la clave:</strong> Si el coche duerme, solo consume ~0.2-0.4 kWh/día. Si se mantiene despierto (Centinela ON), consume 20-30 veces más.</p>
+                            <p><strong>2. Cómo desactivar correctamente:</strong></p>
+                            <ul className="list-disc pl-4 space-y-1">
+                                <li><span className="text-white">Centinela:</span> App > Seguridad > Modo Centinela (OFF).</li>
+                                <li><span className="text-white">Clima:</span> App > Climatización > Desactivar "Mantener", "Mascota" o "Campamento". Revisar "Programación" para que no se encienda solo.</li>
+                                <li><span className="text-white">Apps de terceros:</span> Si usas apps como TeslaMate, Stats, etc., pueden despertar al coche.</li>
+                            </ul>
+                        </div>
+                     </div>
+                </div>
+            </div>
+        );
+      };
 
       // --- COMPONENTE PLACEHOLDER ---
       const PlaceholderTab = () => (
@@ -793,6 +994,8 @@
                     return <AmortizationCalculator />;
                 case 'calculator':
                     return <ChargingCalculator />;
+                case 'drain':
+                    return <DrainCalculator />;
                 case 'tariff':
                 case 'charge':
                     return <PlaceholderTab />;
@@ -836,6 +1039,7 @@
                             <TabButton id="simulator" label="Simulador" />
                             <TabButton id="amortization" label="Amortización" />
                             <TabButton id="calculator" label="Calculadora" />
+                            <TabButton id="drain" label="Drenaje" />
                             <TabButton id="tariff" label="Comparar Tarifas" />
                             <TabButton id="charge" label="Carga" />
                         </div>
