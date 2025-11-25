@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -588,12 +589,12 @@
 
         // CURVAS REALISTAS 2024
         const curvePoints = {
-            // LFP (Model 3 RWD 60kWh): Aguanta el pico hasta ~15%, luego baja suave hasta ~50% donde cae el escalon.
+            // LFP: Aguanta pico, cae escalonado.
             LFP: [
                 {p:0, v:170}, {p:10, v:168}, {p:20, v:155}, {p:30, v:135}, 
                 {p:45, v:110}, {p:55, v:85}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}
             ],
-            // NCA (Model 3 LR/Perf 75-80kWh): Pico muy alto al inicio pero efímero.
+            // NCA: Pico alto inicial, caída lineal.
             NCA: [
                 {p:0, v:200}, {p:5, v:250}, {p:15, v:250}, {p:25, v:210}, 
                 {p:40, v:150}, {p:60, v:100}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}
@@ -620,9 +621,8 @@
             return factor * scaleFactor;
         };
 
-        // Lógica para el Slider de Optimización de Tiempo
         const handleTimeOptimization = (minutes) => {
-            const idealStart = 10; // Asumimos llegada con 10% para optimizar
+            const idealStart = 10; 
             let accumMinutes = 0;
             let foundEnd = idealStart;
             const kwhPerPercent = state.capacity / 100;
@@ -637,7 +637,6 @@
                     foundEnd = i + 1;
                 }
             }
-            // Actualizar estado con el rango calculado
             setState(prev => ({ ...prev, startPct: idealStart, endPct: Math.min(100, foundEnd), optimizationTime: minutes }));
         };
 
@@ -669,15 +668,14 @@
         const totalCost = totalEnergy * state.costPerKwh;
         const peakGraphHeight = Math.max(state.chargerPower, 250); 
         
-        // Generar líneas de grid cada 50kW
+        // Intervalo de 20kW
         const gridLines = [];
-        for(let p = 50; p < peakGraphHeight; p += 50) {
+        for(let p = 20; p < peakGraphHeight; p += 20) {
             gridLines.push(p);
         }
 
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
 
-        // Handlers para botones que también cambian capacidad por defecto
         const setLFP = () => setState(prev => ({...prev, batType: 'LFP', capacity: 60}));
         const setNCA = () => setState(prev => ({...prev, batType: 'NCA', capacity: 75}));
 
@@ -705,20 +703,6 @@
                             </div>
 
                             <div><label className="text-xs text-slate-500 block mb-1">Coste (€/kWh)</label><FormattedInput decimals={2} value={state.costPerKwh} onChange={v => handleChange('costPerKwh', v)} /></div>
-                            
-                            {/* NUEVO SLIDER OPTIMIZADOR DE TIEMPO */}
-                            <div className="bg-purple-900/20 p-3 rounded-lg border border-purple-500/30">
-                                <div className="flex justify-between mb-2">
-                                    <label className="text-xs text-purple-300 font-bold">Optimizar por Tiempo</label>
-                                    <span className="text-xs font-bold text-white">{state.optimizationTime} min</span>
-                                </div>
-                                <input type="range" min="1" max="120" step="1" 
-                                    value={state.optimizationTime} 
-                                    onChange={e => handleTimeOptimization(parseInt(e.target.value))} 
-                                    className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-purple-500" />
-                                <div className="text-[10px] text-slate-400 mt-2 leading-tight">Desliza para calcular el mejor rango de carga para obtener la mayor carga posible en el tiempo indicado.</div>
-                            </div>
-
                         </div>
                     </div>
                 </div>
@@ -726,7 +710,7 @@
                 <div className="lg:col-span-8 space-y-6">
                     <div className="h-[550px] bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col relative shadow-2xl overflow-hidden">
                          
-                         {/* CABECERA INTEGRADA DE DATOS */}
+                         {/* CABECERA INTEGRADA */}
                          <div className="flex flex-col md:flex-row justify-between items-center mb-6 z-20 relative bg-slate-800/40 rounded-xl p-4 border border-slate-700/50 backdrop-blur-sm">
                              <div className="flex items-center gap-4 mb-2 md:mb-0">
                                  <div className="text-yellow-500 font-display font-bold text-sm bg-yellow-900/20 px-3 py-1 rounded border border-yellow-500/30">INICIO {safeStart}%</div>
@@ -752,35 +736,46 @@
                              </div>
                          </div>
                          
-                         {/* GRÁFICA */}
-                         <div className="flex-1 flex items-end gap-[1px] relative pt-2 pb-10 border-b border-slate-700">
-                            {/* Líneas de grid dinámicas */}
-                            <div className="absolute inset-0 flex flex-col justify-end pointer-events-none z-0">
+                         {/* GRÁFICA CON EJE Y EXTERNO */}
+                         <div className="flex-1 flex gap-2 relative pt-2 pb-10 border-b border-slate-700">
+                             
+                             {/* Columna Eje Y (Fuera) */}
+                             <div className="w-8 flex flex-col justify-end relative h-full">
                                 {gridLines.map(p => (
-                                    <div key={p} className="absolute w-full border-t border-slate-600/50" style={{bottom: `${(p / peakGraphHeight) * 100}%`}}>
-                                        <span className="text-[10px] font-bold text-white bg-slate-900/50 px-1 absolute -top-3 left-0">{p} kW</span>
+                                    <div key={p} className="absolute w-full text-right" style={{bottom: `${(p / peakGraphHeight) * 100}%`, transform: 'translateY(50%)'}}>
+                                        <span className="text-[10px] font-bold text-white">{p}</span>
                                     </div>
                                 ))}
-                            </div>
+                             </div>
 
-                            {chartBars.map((bar) => (
-                                <div key={bar.pct} className="flex-1 flex flex-col justify-end group relative h-full z-10">
-                                    <div 
-                                        className={`w-full rounded-t-sm transition-all duration-300 ${bar.active ? 'bg-gradient-to-t from-blue-600 to-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.3)]' : 'bg-slate-800'}`} 
-                                        style={{height: `${(bar.power / peakGraphHeight) * 100}%`}}
-                                    ></div>
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-black text-white text-[10px] p-1 rounded whitespace-nowrap z-30 border border-slate-600">
-                                        {bar.pct}% : {Math.round(bar.power)} kW
-                                    </div>
+                             {/* Área de Barras */}
+                             <div className="flex-1 flex items-end gap-[1px] relative h-full">
+                                {/* Líneas de grid horizontales */}
+                                <div className="absolute inset-0 flex flex-col justify-end pointer-events-none z-0">
+                                    {gridLines.map(p => (
+                                        <div key={p} className="absolute w-full border-t border-slate-700/50" style={{bottom: `${(p / peakGraphHeight) * 100}%`}}></div>
+                                    ))}
                                 </div>
-                            ))}
-                            
-                            <div className="absolute top-0 bottom-0 w-0.5 border-l-2 border-dashed border-yellow-500 transition-all duration-75 pointer-events-none z-20" style={{left: `${safeStart}%`}}></div>
-                            <div className="absolute top-0 bottom-0 w-0.5 border-l-2 border-dashed border-green-500 transition-all duration-75 pointer-events-none z-20" style={{left: `${safeEnd}%`}}></div>
+
+                                {chartBars.map((bar) => (
+                                    <div key={bar.pct} className="flex-1 flex flex-col justify-end group relative h-full z-10">
+                                        <div 
+                                            className={`w-full rounded-t-sm transition-all duration-300 ${bar.active ? 'bg-gradient-to-t from-blue-600 to-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.3)]' : 'bg-slate-800'}`} 
+                                            style={{height: `${(bar.power / peakGraphHeight) * 100}%`}}
+                                        ></div>
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-black text-white text-[10px] p-1 rounded whitespace-nowrap z-30 border border-slate-600">
+                                            {bar.pct}% : {Math.round(bar.power)} kW
+                                        </div>
+                                    </div>
+                                ))}
+                                
+                                <div className="absolute top-0 bottom-0 w-0.5 border-l-2 border-dashed border-yellow-500 transition-all duration-75 pointer-events-none z-20" style={{left: `${safeStart}%`}}></div>
+                                <div className="absolute top-0 bottom-0 w-0.5 border-l-2 border-dashed border-green-500 transition-all duration-75 pointer-events-none z-20" style={{left: `${safeEnd}%`}}></div>
+                            </div>
                          </div>
 
-                         {/* SLIDER */}
-                         <div className="relative h-12 mt-4 select-none">
+                         {/* SLIDER RANGO */}
+                         <div className="relative h-12 mt-4 select-none ml-10">
                              <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
                                  <div className="absolute top-0 bottom-0 bg-gradient-to-r from-yellow-500 via-blue-500 to-green-500 opacity-80" style={{left: `${safeStart}%`, right: `${100-safeEnd}%`}}></div>
                              </div>
@@ -809,6 +804,20 @@
                              </div>
                          </div>
                     </div>
+
+                    {/* NUEVO SLIDER OPTIMIZADOR DE TIEMPO (Debajo de la gráfica) */}
+                    <div className="bg-purple-900/20 p-4 rounded-xl border border-purple-500/30 shadow-lg">
+                        <div className="flex justify-between mb-2">
+                            <label className="text-sm text-purple-300 font-bold flex items-center gap-2"><Icons.Clock className="w-4 h-4"/> Optimizar por Tiempo</label>
+                            <span className="text-sm font-bold text-white bg-purple-500/20 px-2 py-1 rounded">{state.optimizationTime} min</span>
+                        </div>
+                        <input type="range" min="1" max="120" step="1" 
+                            value={state.optimizationTime} 
+                            onChange={e => handleTimeOptimization(parseInt(e.target.value))} 
+                            className="w-full h-3 bg-slate-700 rounded-lg cursor-pointer accent-purple-500" />
+                        <div className="text-xs text-slate-400 mt-2 italic">Desliza para calcular el mejor rango de carga para obtener la mayor carga posible en el tiempo indicado.</div>
+                    </div>
+
                 </div>
             </div>
         );
