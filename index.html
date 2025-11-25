@@ -582,103 +582,200 @@
         );
       };
 
-      // --- CURVA DE CARGA (REDISEÑADA) ---
+      // --- CURVA DE CARGA (REDISEÑADA & EXTRAPOLADA) ---
       const ChargeCurveCalculator = () => {
-        const [state, setState] = useState({ batType: 'LFP', capacity: 60, startPct: 10, endPct: 80, costPerKwh: 0.45, chargerPower: 140 });
+        const [state, setState] = useState({ batType: 'NCA', capacity: 75, startPct: 10, endPct: 80, costPerKwh: 0.45, chargerPower: 250 });
 
-        const getPowerAtSoC = (soc, type) => {
-            let maxP = 0;
-            if (type === 'LFP') {
-                if (soc < 10) maxP = 170; else if (soc < 30) maxP = 165; else if (soc < 50) maxP = 130; else if (soc < 70) maxP = 85; else if (soc < 90) maxP = 50; else maxP = 25;
-            } else {
-                if (soc < 5) maxP = 150; else if (soc < 25) maxP = 250; else if (soc < 40) maxP = 190; else if (soc < 60) maxP = 130; else if (soc < 80) maxP = 70; else maxP = 35;
-            }
-            return Math.min(maxP, state.chargerPower);
+        // Puntos de control normalizados (0.0 a 1.0) para definir la "forma" de la curva química
+        const curvePoints = {
+            // LFP: Muy plana, cae brusco al final, carga más lenta en frío/inicio
+            LFP: [
+                {p:0, v:0.2}, {p:5, v:0.95}, {p:10, v:1.0}, {p:40, v:0.98}, 
+                {p:50, v:0.70}, {p:70, v:0.45}, {p:90, v:0.25}, {p:100, v:0.1}
+            ],
+            // NCA/NMC: Pico alto inicial, caída progresiva más temprana
+            NCA: [
+                {p:0, v:0.2}, {p:5, v:0.85}, {p:10, v:1.0}, {p:20, v:1.0}, 
+                {p:30, v:0.80}, {p:50, v:0.55}, {p:70, v:0.35}, {p:90, v:0.15}, {p:100, v:0.05}
+            ]
         };
 
+        // Función para obtener la potencia máxima ADMITIDA por la batería en un % dado (Interpolación Lineal)
+        const getBatteryLimitAtSoC = (soc, type, chargerPowerInput) => {
+            const points = curvePoints[type];
+            // Extrapolación: Si el usuario pone 800kW, asumimos que la batería es de "futuro" y escala su capacidad de admisión
+            // Base de referencia: NCA ~250kW pico, LFP ~170kW pico.
+            const baseRef = type === 'NCA' ? 250 : 170; 
+            const techScaler = Math.max(baseRef, chargerPowerInput); 
+
+            // Buscar segmento de interpolación
+            const p2Index = points.findIndex(pt => pt.p >= soc);
+            if (p2Index === -1) return points[points.length-1].v * techScaler; 
+            if (p2Index === 0) return points[0].v * techScaler;
+
+            const p1 = points[p2Index - 1];
+            const p2 = points[p2Index];
+
+            // Interpolación
+            const range = p2.p - p1.p;
+            const dist = soc - p1.p;
+            const ratio = dist / range;
+            const factor = p1.v + (ratio * (p2.v - p1.v));
+
+            return factor * techScaler;
+        };
+
+        // Estilos inyectados para arreglar el Slider (Pointer Events)
+        const sliderStyle = `
+            .range-slider-input { pointer-events: none; -webkit-appearance: none; z-index: 10; }
+            .range-slider-input::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; position: relative; z-index: 20; box-shadow: 0 2px 6px rgba(0,0,0,0.5); }
+            .range-slider-input::-moz-range-thumb { pointer-events: auto; width: 24px; height: 24px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; position: relative; z-index: 20; }
+            /* Colores específicos para los tiradores */
+            #slider-start::-webkit-slider-thumb { border-color: #eab308; } 
+            #slider-end::-webkit-slider-thumb { border-color: #22c55e; }
+        `;
+
+        // Cálculo de totales
         let totalMinutes = 0;
         const kwhPerPercent = state.capacity / 100;
         const safeStart = Math.min(state.startPct, state.endPct - 1);
         const safeEnd = Math.max(state.endPct, state.startPct + 1);
 
-        for (let i = safeStart; i < safeEnd; i++) {
-            const power = getPowerAtSoC(i, state.batType);
-            totalMinutes += power > 0 ? (kwhPerPercent / power) * 60 : 0;
+        // Generar datos para la gráfica (Resolución de 1% para suavidad)
+        const chartBars = [];
+        for (let i = 0; i <= 100; i++) {
+            const batteryLimit = getBatteryLimitAtSoC(i, state.batType, state.chargerPower);
+            // La potencia real es el mínimo entre lo que da el cargador y lo que acepta el coche
+            const realPower = Math.min(state.chargerPower, batteryLimit);
+            
+            chartBars.push({ pct: i, power: realPower, active: i >= safeStart && i < safeEnd });
+
+            // Calcular tiempo solo en el rango activo
+            if (i >= safeStart && i < safeEnd) {
+                // Tiempo para cargar este 1% concreto
+                // kw = kwh / h -> h = kwh / kw
+                const hoursForThisStep = realPower > 0 ? kwhPerPercent / realPower : 0;
+                totalMinutes += hoursForThisStep * 60;
+            }
         }
         
         const totalEnergy = (safeEnd - safeStart) * kwhPerPercent;
         const totalCost = totalEnergy * state.costPerKwh;
+        const peakGraphHeight = Math.max(state.chargerPower, 250); // Para escalar visualmente la gráfica
 
-        const chartBars = [];
-        for (let i = 0; i <= 100; i+=2) {
-            const power = getPowerAtSoC(i, state.batType);
-            chartBars.push({ pct: i, power: power, active: i >= safeStart && i < safeEnd });
-        }
-        
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
 
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                <div className="lg:col-span-5 space-y-6">
-                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
-                        <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Icons.Activity /> Curva de Carga</h2>
+                <style>{sliderStyle}</style>
+                <div className="lg:col-span-4 space-y-6">
+                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 shadow-xl">
+                        <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Icons.Activity /> Parámetros de Carga</h2>
                         <div className="space-y-6">
                             <div className="grid grid-cols-2 gap-2">
-                                <button onClick={() => handleChange('batType', 'LFP')} className={`p-3 rounded border font-bold transition-all ${state.batType === 'LFP' ? 'bg-green-600 border-green-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>LFP (RWD)</button>
-                                <button onClick={() => handleChange('batType', 'NCA')} className={`p-3 rounded border font-bold transition-all ${state.batType === 'NCA' ? 'bg-red-600 border-red-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>NCA (LR/Perf)</button>
+                                <button onClick={() => handleChange('batType', 'LFP')} className={`p-3 rounded-lg border font-bold transition-all text-xs md:text-sm ${state.batType === 'LFP' ? 'bg-green-600 border-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)]' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>LFP (Model 3 RWD)</button>
+                                <button onClick={() => handleChange('batType', 'NCA')} className={`p-3 rounded-lg border font-bold transition-all text-xs md:text-sm ${state.batType === 'NCA' ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.4)]' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>NCA (Gran Autonomía)</button>
                             </div>
+                            
                             <div><label className="text-xs text-slate-500 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.capacity} onChange={v => handleChange('capacity', v)} /></div>
                             
-                            <div>
-                                <div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Potencia Máxima Cargador</label><span className="text-xs font-bold text-blue-400">{state.chargerPower} kW</span></div>
-                                <input type="range" min="10" max="350" step="10" value={state.chargerPower} onChange={e => handleChange('chargerPower', parseInt(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-blue-500" />
+                            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                                <div className="flex justify-between mb-2">
+                                    <label className="text-xs text-slate-400">Potencia Cargador</label>
+                                    <span className="text-xs font-bold text-blue-400 font-mono">{state.chargerPower} kW</span>
+                                </div>
+                                {/* Slider extendido hasta 800kW */}
+                                <input type="range" min="3" max="800" step="1" value={state.chargerPower} onChange={e => handleChange('chargerPower', parseInt(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-blue-500" />
+                                <div className="flex justify-between text-[10px] text-slate-600 mt-1"><span>3kW (Casa)</span><span>250kW (V3)</span><span>800kW (Futuro)</span></div>
                             </div>
 
                             <div><label className="text-xs text-slate-500 block mb-1">Coste (€/kWh)</label><FormattedInput decimals={2} value={state.costPerKwh} onChange={v => handleChange('costPerKwh', v)} /></div>
                         </div>
                     </div>
+                    
+                    {/* Resumen rápido vertical */}
+                    <div className="grid grid-cols-1 gap-4">
+                         <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                            <span className="text-xs text-slate-400 uppercase">Tiempo Total</span>
+                            <span className="text-2xl font-bold text-white">{Math.round(totalMinutes)} <span className="text-sm text-slate-500">min</span></span>
+                         </div>
+                         <div className="bg-slate-800/80 p-4 rounded-xl border border-slate-700 flex justify-between items-center">
+                            <span className="text-xs text-slate-400 uppercase">Coste Total</span>
+                            <span className="text-2xl font-bold text-blue-400">{formatDecimal(totalCost)}€</span>
+                         </div>
+                    </div>
                 </div>
-                <div className="lg:col-span-7 space-y-6">
-                    <div className="h-80 bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col relative">
-                         <div className="flex justify-between items-center mb-4 font-display font-bold">
-                             <div className="text-yellow-500 text-lg">INICIO {safeStart}%</div>
-                             <div className="text-white text-sm bg-slate-800 px-3 py-1 rounded-full">+{safeEnd - safeStart}% AÑADIDO</div>
-                             <div className="text-green-500 text-lg">FIN {safeEnd}%</div>
+
+                <div className="lg:col-span-8 space-y-6">
+                    <div className="h-[450px] bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col relative shadow-2xl overflow-hidden">
+                         {/* Cabecera Gráfica */}
+                         <div className="flex justify-between items-center mb-2 z-10 relative">
+                             <div className="text-yellow-500 font-display font-bold bg-yellow-900/20 px-3 py-1 rounded border border-yellow-500/30">INICIO {safeStart}%</div>
+                             <div className="text-green-500 font-display font-bold bg-green-900/20 px-3 py-1 rounded border border-green-500/30">FIN {safeEnd}%</div>
                          </div>
                          
-                         <div className="flex-1 flex items-end gap-0.5 relative pt-4 pb-8">
+                         {/* Área de Visualización de la Curva */}
+                         <div className="flex-1 flex items-end gap-[1px] relative pt-8 pb-10 border-b border-slate-700">
+                            {/* Líneas guía de fondo */}
+                            <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-20">
+                                <div className="border-t border-slate-500 w-full text-[10px] text-slate-500 pt-1">{peakGraphHeight} kW</div>
+                                <div className="border-t border-slate-500 w-full text-[10px] text-slate-500 pt-1">{Math.round(peakGraphHeight/2)} kW</div>
+                                <div className="border-t border-slate-500 w-full"></div>
+                            </div>
+
                             {chartBars.map((bar) => (
                                 <div key={bar.pct} className="flex-1 flex flex-col justify-end group relative h-full">
-                                    <div className={`w-full rounded-t transition-all duration-200 ${bar.active ? 'bg-blue-500 opacity-100 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'bg-slate-700 opacity-20'}`} style={{height: `${(bar.power / 260) * 100}%`}}></div>
+                                    {/* Barra del gráfico */}
+                                    <div 
+                                        className={`w-full rounded-t-sm transition-all duration-300 ${bar.active ? 'bg-gradient-to-t from-blue-600 to-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.3)]' : 'bg-slate-800'}`} 
+                                        style={{height: `${(bar.power / peakGraphHeight) * 100}%`}}
+                                    ></div>
+                                    
+                                    {/* Tooltip simple al hover */}
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-black text-white text-[10px] p-1 rounded whitespace-nowrap z-30 border border-slate-600">
+                                        {bar.pct}% : {Math.round(bar.power)} kW
+                                    </div>
                                 </div>
                             ))}
-                            {/* Visual Markers */}
-                            <div className="absolute bottom-8 top-4 border-l-2 border-dashed border-yellow-500 transition-all duration-200" style={{left: `${safeStart}%`}}></div>
-                            <div className="absolute bottom-8 top-4 border-l-2 border-dashed border-green-500 transition-all duration-200" style={{left: `${safeEnd}%`}}></div>
+                            
+                            {/* Marcadores verticales visuales para inicio/fin */}
+                            <div className="absolute top-0 bottom-0 w-0.5 border-l-2 border-dashed border-yellow-500 transition-all duration-75 pointer-events-none z-10" style={{left: `${safeStart}%`}}></div>
+                            <div className="absolute top-0 bottom-0 w-0.5 border-l-2 border-dashed border-green-500 transition-all duration-75 pointer-events-none z-10" style={{left: `${safeEnd}%`}}></div>
                          </div>
 
-                         {/* Dual Slider Area */}
-                         <div className="relative h-8 mt-2">
-                             <input type="range" min="0" max="99" value={safeStart} onChange={e => handleChange('startPct', parseInt(e.target.value))} className="absolute inset-0 w-full z-20 opacity-0 cursor-pointer" />
-                             <input type="range" min="1" max="100" value={safeEnd} onChange={e => handleChange('endPct', parseInt(e.target.value))} className="absolute inset-0 w-full z-20 opacity-0 cursor-pointer" />
-                             
-                             {/* Visible Track */}
-                             <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-2 bg-slate-700 rounded-full overflow-hidden">
-                                 <div className="absolute top-0 bottom-0 bg-gradient-to-r from-yellow-500 to-green-500" style={{left: `${safeStart}%`, right: `${100-safeEnd}%`}}></div>
+                         {/* SLIDER DE RANGO MEJORADO */}
+                         <div className="relative h-12 mt-4 select-none">
+                             {/* Pista de fondo */}
+                             <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                                 {/* Relleno activo con gradiente */}
+                                 <div className="absolute top-0 bottom-0 bg-gradient-to-r from-yellow-500 via-blue-500 to-green-500 opacity-80" style={{left: `${safeStart}%`, right: `${100-safeEnd}%`}}></div>
                              </div>
                              
-                             {/* Thumbs */}
-                             <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-yellow-500 rounded-full border-2 border-white shadow pointer-events-none" style={{left: `calc(${safeStart}% - 8px)`}}></div>
-                             <div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow pointer-events-none" style={{left: `calc(${safeEnd}% - 8px)`}}></div>
+                             {/* Inputs invisibles pero funcionales (con clase CSS corregida) */}
+                             <input 
+                                id="slider-start"
+                                type="range" min="0" max="99" 
+                                value={safeStart} 
+                                onChange={e => handleChange('startPct', parseInt(e.target.value))} 
+                                className="range-slider-input absolute inset-0 w-full opacity-0 sm:opacity-100 bg-transparent" // opacity hack para verlos si CSS falla, pero usaremos CSS class
+                             />
+                             <input 
+                                id="slider-end"
+                                type="range" min="1" max="100" 
+                                value={safeEnd} 
+                                onChange={e => handleChange('endPct', parseInt(e.target.value))} 
+                                className="range-slider-input absolute inset-0 w-full bg-transparent" 
+                             />
+                             
+                             {/* Eje X Etiquetas */}
+                             <div className="flex justify-between text-[10px] text-slate-500 mt-8 font-mono px-1">
+                                <span>0%</span>
+                                <span>25%</span>
+                                <span>50%</span>
+                                <span>75%</span>
+                                <span>100%</span>
+                             </div>
                          </div>
-                         
-                         <div className="flex justify-between text-[10px] text-slate-500 mt-2 font-mono px-1"><span>0%</span><span>50%</span><span>100%</span></div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-4">
-                        <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center"><div className="text-xs text-slate-500 uppercase mb-1">Tiempo</div><div className="text-2xl font-bold text-white">{Math.round(totalMinutes)} <span className="text-sm text-slate-400">min</span></div></div>
-                        <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center"><div className="text-xs text-slate-500 uppercase mb-1">Energía</div><div className="text-2xl font-bold text-green-400">+{totalEnergy.toFixed(1)} <span className="text-sm text-green-400/50">kWh</span></div></div>
-                        <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center"><div className="text-xs text-slate-500 uppercase mb-1">Coste</div><div className="text-2xl font-bold text-blue-400">{formatDecimal(totalCost)}€</div></div>
                     </div>
                 </div>
             </div>
