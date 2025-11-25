@@ -912,7 +912,7 @@
                         <div className="bg-cyan-900/20 p-4 rounded-xl border border-cyan-500/30 shadow-lg">
                             <div className="flex justify-between mb-2">
                                 <label className="text-sm text-cyan-300 font-bold flex items-center gap-2"><Icons.TrendingUp className="w-4 h-4"/> Autonomía Deseada</label>
-                                <span className="text-sm font-bold text-white bg-cyan-500/20 px-2 py-1 rounded">{state.targetRange} km</span>
+                                <span className="text-sm font-bold text-white bg-cyan-500/20 px-2 py-1 rounded">{Math.round(state.targetRange)} km</span>
                             </div>
                             <input type="range" min="50" max={maxPossibleRange} step="5" 
                                 value={Math.min(Math.max(50, state.targetRange), maxPossibleRange)} 
@@ -926,7 +926,64 @@
             </div>
         );
       };
-        const root = createRoot(document.getElementById('root'));
+
+      // --- APP PRINCIPAL ---
+      const App = () => {
+        const [activeTab, setActiveTab] = useState('curve'); 
+        const [simParams, setSimParams] = useState({ speed: 120, temperature: 20, gradient: 0, windSpeed: 0, electricConsumptionRef: 14, batteryCapacity: 60 });
+        const [simCosts, setSimCosts] = useState({ electricityPrice: 0.08, gasPrice: 1.45, gasConsumptionRef: 6.5 });
+        const [consumption, setConsumption] = useState(0);
+
+        useEffect(() => { setConsumption(calculateConsumption(simParams)); }, [simParams]);
+
+        const handleBack = () => { if (window.history.length > 1) window.history.back(); else window.close(); };
+
+        const renderContent = () => {
+            switch(activeTab) {
+                case 'simulator': return <><Visualizer params={simParams} /><ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} /><ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} /></>;
+                case 'amortization': return <AmortizationCalculator />;
+                case 'calculator': return <ChargingCalculator />;
+                case 'drain': return <DrainCalculator />;
+                case 'nyland': return <NylandCalculator />;
+                case 'curve': return <ChargeCurveCalculator />;
+                default: return <PlaceholderTab />;
+            }
+        };
+
+        const TabButton = ({ id, label }) => (
+            <button onClick={() => setActiveTab(id)} className={`px-4 py-3 text-sm font-medium transition-all uppercase tracking-wider ${activeTab === id ? 'tab-active' : 'tab-inactive'}`}>{label}</button>
+        );
+
+        return (
+            <div className="min-h-screen bg-[#0a0a0a] text-white p-4 md:p-8">
+                <div className="max-w-5xl mx-auto">
+                    <header className="mb-6">
+                        <div className="flex justify-between items-end border-b border-slate-800 pb-4">
+                            <div>
+                                <h1 className="text-4xl md:text-5xl font-display font-bold"><span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Boarding</span><span className="text-red-600">Gate</span></h1>
+                                <p className="text-slate-500 font-light tracking-widest text-sm mt-1">TESLA EFFICIENCY TOOLS</p>
+                                <p className="text-slate-600 font-light text-[10px] mt-1 opacity-70">Powered by React • TailwindCSS • Babel</p>
+                            </div>
+                            <button onClick={handleBack} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"><Icons.LogOut /> Volver</button>
+                        </div>
+                        <div className="flex overflow-x-auto gap-2 border-b border-slate-800/50 mt-4">
+                            <TabButton id="simulator" label="Simulador" />
+                            <TabButton id="amortization" label="Amortización" />
+                            <TabButton id="calculator" label="Calculadora" />
+                            <TabButton id="drain" label="Drenaje" />
+                            <TabButton id="nyland" label="Bjørn Nyland" />
+                            <TabButton id="curve" label="Curva Carga" />
+                            <TabButton id="tariff" label="Tarifas" />
+                            <TabButton id="charge" label="Carga" />
+                        </div>
+                    </header>
+                    <main className="animate-fade-in">{renderContent()}</main>
+                </div>
+            </div>
+        );
+      };
+
+      const root = createRoot(document.getElementById('root'));
       root.render(<App />);
     </script>
 </body>
