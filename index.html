@@ -839,17 +839,14 @@
             speedA: 110, // km/h
             speedB: 140, // km/h
             refConsumption: 17.5, // kWh/100km @ 110km/h reference
-            startPct: 90, // %
+            startPct: 100, // % (NEW DEFAULT)
             arrivalPct: 10, // %
-            battery: 75, // kWh (Usable)
+            battery: 60, // kWh (Usable) (NEW DEFAULT)
             costPerKwh: 0.45, // €/kWh (Supercharger)
             chargingStrategy: 'optimal' // 'optimal' (short stops) vs 'deep' (long stops)
         });
 
-        // Physics helper: Consumption increases with speed squared approx.
-        // Formula: RefCons * (Speed / RefSpeed)^2 (Aerodynamic drag dominance)
-        // But rolling resistance is linear. Let's use a mixed simple model closer to reality.
-        // Model: RefCons * ((Speed/110)^1.5) - simpler approximation for EV curve
+        // Physics helper
         const getConsumption = (speed, ref) => {
             return ref * Math.pow(speed / 110, 1.5); // Exponential consumption
         };
@@ -861,17 +858,11 @@
         const totalEnergyB = (consB * state.distance) / 100;
 
         // Charging Logic
-        // Strategy 'optimal': Charge 10% -> 60% (50% added). Avg Power ~130kW (Example V3 curve)
-        // Strategy 'deep': Charge 10% -> 90% (80% added). Avg Power ~75kW (Example V3 curve, slows down a lot >80%)
-        
         const strategy = state.chargingStrategy === 'optimal' 
             ? { label: "Cortas (10-60%)", avgPower: 130, addedPct: 50 } 
             : { label: "Largas (10-90%)", avgPower: 75, addedPct: 80 };
 
         // Calculate Net Energy Needed from Chargers
-        // Initial Energy = Battery * StartPct
-        // Buffer at Arrival = Battery * ArrivalPct
-        // Net Needed = TotalEnergy + Buffer - Initial
         const bufferEnergy = state.battery * (state.arrivalPct / 100);
         const initialEnergy = state.battery * (state.startPct / 100);
         
@@ -879,9 +870,7 @@
         const netChargeNeededB = Math.max(0, totalEnergyB + bufferEnergy - initialEnergy);
 
         // Stops Count
-        // Energy per stop = Battery * (addedPct / 100)
         const energyPerStop = state.battery * (strategy.addedPct / 100);
-        
         const stopsA = netChargeNeededA > 0 ? Math.ceil(netChargeNeededA / energyPerStop) : 0;
         const stopsB = netChargeNeededB > 0 ? Math.ceil(netChargeNeededB / energyPerStop) : 0;
 
@@ -896,8 +885,10 @@
         const totalTimeB = timeDriveB + timeChargeB;
 
         const timeDiff = totalTimeA - totalTimeB; 
-        const costA = totalEnergyA * state.costPerKwh; 
-        const costB = totalEnergyB * state.costPerKwh;
+        
+        // Cost Calculation (Only for the RECHARGED part)
+        const costA = netChargeNeededA * state.costPerKwh; 
+        const costB = netChargeNeededB * state.costPerKwh;
         const costDiff = costB - costA;
 
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v) || 0}));
@@ -964,6 +955,10 @@
                                 </div>
                                 <div className="mt-2 text-[10px] text-slate-500 text-center">
                                     Potencia media estimada: {strategy.avgPower} kW
+                                </div>
+                                <div className="mt-2">
+                                    <label className="text-[10px] text-slate-500 block mb-1">Coste Carga (€/kWh)</label>
+                                    <FormattedInput decimals={2} value={state.costPerKwh} onChange={v => handleChange('costPerKwh', v)} />
                                 </div>
                             </div>
                         </div>
@@ -1040,10 +1035,51 @@
                             </div>
                         </div>
                     </div>
+
+                    {/* Balance Energético */}
+                    <div className="bg-slate-800/30 rounded-xl border border-slate-700 overflow-hidden">
+                        <div className="bg-slate-800 px-4 py-2 text-xs font-bold text-slate-400 uppercase">Balance Energético</div>
+                        <div className="grid grid-cols-3 text-center divide-x divide-slate-700 border-b border-slate-700 bg-slate-900/50">
+                            <div className="p-2 text-[10px] text-slate-500 font-bold">CONCEPTO</div>
+                            <div className="p-2 text-[10px] text-blue-400 font-bold">OPCIÓN A</div>
+                            <div className="p-2 text-[10px] text-red-400 font-bold">OPCIÓN B</div>
+                        </div>
+                        <div className="grid grid-cols-3 text-center divide-x divide-slate-700 border-b border-slate-700">
+                            <div className="p-2 text-xs text-slate-400">Consumo Total</div>
+                            <div className="p-2 text-sm text-white">{totalEnergyA.toFixed(1)} kWh</div>
+                            <div className="p-2 text-sm text-white">{totalEnergyB.toFixed(1)} kWh</div>
+                        </div>
+                        <div className="grid grid-cols-3 text-center divide-x divide-slate-700 border-b border-slate-700">
+                            <div className="p-2 text-xs text-slate-400">Energía Recargada</div>
+                            <div className="p-2 text-sm text-white font-bold">{netChargeNeededA.toFixed(1)} kWh</div>
+                            <div className="p-2 text-sm text-white font-bold">{netChargeNeededB.toFixed(1)} kWh</div>
+                        </div>
+                        <div className="grid grid-cols-3 text-center divide-x divide-slate-700">
+                            <div className="p-2 text-xs text-slate-400">Coste Recarga</div>
+                            <div className="p-2 text-sm text-green-400">{formatDecimal(costA)}€</div>
+                            <div className="p-2 text-sm text-green-400">{formatDecimal(costB)}€</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         );
       };
+
+      // --- COMPONENTE PLACEHOLDER ---
+      const PlaceholderTab = () => (
+        <div className="flex flex-col items-center justify-center h-96 bg-slate-900/30 rounded-3xl border border-slate-800 border-dashed p-8 text-center">
+            <div className="bg-slate-800 p-4 rounded-full mb-4 text-slate-400"><Icons.Construction /></div>
+            <h3 className="text-xl font-display font-bold text-white mb-2">En Construcción</h3>
+            <p className="text-slate-400 text-sm max-w-md mb-8">Esta funcionalidad estará disponible próximamente. Mientras tanto, puedes utilizar la versión completa en Excel.</p>
+            <a href="https://docs.google.com/spreadsheets/d/1bLZmgVGTBqg2bS2E45JpORjs9eK2nb05AWXYLLDY-RI/edit?usp=drivesdk" 
+               target="_blank"
+               className="bg-green-600 hover:bg-green-500 text-white px-6 py-3 rounded-lg font-medium transition-all shadow-lg hover:shadow-green-900/20 flex items-center gap-2">
+                <Icons.Piggy />
+                VERSIÓN EN EXCEL de Google Drive
+            </a>
+            <p className="text-xs text-slate-600 mt-2">(haga un duplicado para su uso particular)</p>
+         </div>
+      );
 
       // --- APP PRINCIPAL ---
       const App = () => {
