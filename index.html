@@ -1,5 +1,3 @@
-
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -81,12 +79,10 @@
       const { createRoot } = ReactDOM;
       
       // --- CUSTOM HOOK: PERSISTENT STATE ---
-      // Guarda y recupera automáticamente los datos del localStorage
       const usePersistentState = (key, initialValue) => {
         const [state, setState] = useState(() => {
             try {
                 const item = window.localStorage.getItem(key);
-                // Si existe, mezclamos con initialValue para asegurar que nuevos campos no rompan la app
                 return item ? { ...initialValue, ...JSON.parse(item) } : initialValue;
             } catch (error) {
                 console.warn(`Error reading localStorage key "${key}":`, error);
@@ -1248,7 +1244,7 @@
 
       // --- TARIFF COMPARATOR (ENHANCED A vs B) ---
       const TariffComparator = () => {
-        const [tState, setTState] = usePersistentState('tariffCompV2', {
+        const [tState, setTState] = usePersistentState('tariffCompV3', {
             // Shared Data
             days: 30,
             potP1: 4.6, potP2: 7.4,
@@ -1338,17 +1334,21 @@
             const withIEE = baseImp * (1 + tState.impuestoElec / 100);
             const beforeIVA = withIEE + fixedCosts;
             const total = beforeIVA * (1 + tState.iva / 100);
+            
+            const pricePerKwh = tState.consTotal > 0 ? total / tState.consTotal : 0;
 
-            return { total, termPotDisc, termEnNet, fixedCosts };
+            return { total, termPotDisc, termEnNet, fixedCosts, taxes: total - (termPotDisc + termEnNet + fixedCosts), pricePerKwh };
         };
 
         const billA = calculateBill(tState.propA);
         const billB = calculateBill(tState.propB);
         const diff = billB.total - billA.total;
+        const diffPot = billB.termPotDisc - billA.termPotDisc;
+        const diffEn = billB.termEnNet - billA.termEnNet;
 
         // Sub-component for a Proposal Column
         const ProposalColumn = ({ propKey, title, data, onChange }) => (
-            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-700/50">
+            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-700/50 h-full">
                 <input type="text" value={data.name} onChange={(e) => onChange(propKey, 'name', e.target.value)} 
                     className="bg-transparent text-sm font-bold text-center w-full mb-4 border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none text-blue-300" />
                 
@@ -1411,8 +1411,8 @@
                         </div>
                         <div className="w-px h-8 bg-slate-700"></div>
                         <div className="flex gap-4">
-                             <div><label className="text-[9px] text-slate-500 block">Alquiler/día</label><div className="w-16"><FormattedInput value={tState.alquiler} onChange={v => setTState({...tState, alquiler: v})} decimals={3}/></div></div>
-                             <div><label className="text-[9px] text-slate-500 block">Bono Soc/día</label><div className="w-16"><FormattedInput value={tState.bonoSocial} onChange={v => setTState({...tState, bonoSocial: v})} decimals={3}/></div></div>
+                             <div><label className="text-[9px] text-slate-500 block">Alquiler/día</label><div className="w-24"><FormattedInput value={tState.alquiler} onChange={v => setTState({...tState, alquiler: v})} decimals={4}/></div></div>
+                             <div><label className="text-[9px] text-slate-500 block">Bono Soc/día</label><div className="w-24"><FormattedInput value={tState.bonoSocial} onChange={v => setTState({...tState, bonoSocial: v})} decimals={4}/></div></div>
                         </div>
                     </div>
 
@@ -1457,33 +1457,82 @@
 
                 {/* RESULTADOS */}
                 <div className="lg:col-span-6 space-y-4">
-                    <div className="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 rounded-xl p-6 h-full flex flex-col justify-center">
-                        <h3 className="text-center text-sm uppercase tracking-widest text-slate-400 mb-6 font-bold">Resultado Comparativa</h3>
+                    <div className="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 rounded-xl p-6 h-full flex flex-col">
+                        <h3 className="text-center text-sm uppercase tracking-widest text-slate-400 mb-4 font-bold">Resultado Comparativa</h3>
                         
-                        <div className="flex justify-between items-center mb-8 px-4">
-                            <div className={`text-center transition-all ${diff > 0 ? 'scale-110 opacity-100' : 'opacity-60 grayscale'}`}>
-                                <div className="text-xs text-slate-500 mb-1">{tState.propA.name}</div>
-                                <div className={`text-3xl font-display font-bold ${diff > 0 ? 'text-green-400' : 'text-slate-200'}`}>{formatDecimal(billA.total)}€</div>
-                            </div>
-                            
-                            <div className="text-xs text-slate-600 font-bold">VS</div>
-
-                            <div className={`text-center transition-all ${diff < 0 ? 'scale-110 opacity-100' : 'opacity-60 grayscale'}`}>
-                                <div className="text-xs text-slate-500 mb-1">{tState.propB.name}</div>
-                                <div className={`text-3xl font-display font-bold ${diff < 0 ? 'text-green-400' : 'text-slate-200'}`}>{formatDecimal(billB.total)}€</div>
-                            </div>
-                        </div>
-
-                        <div className={`text-center p-4 rounded-xl border ${diff !== 0 ? 'bg-green-900/20 border-green-500/30' : 'bg-slate-800 border-slate-700'}`}>
+                        {/* WINNER CARD */}
+                        <div className={`text-center p-4 rounded-xl border mb-6 ${diff !== 0 ? 'bg-green-900/20 border-green-500/30' : 'bg-slate-800 border-slate-700'}`}>
                              {diff === 0 ? (
                                 <div className="text-slate-400">Coste idéntico</div>
                              ) : (
                                 <>
                                     <div className="text-xs text-green-400 uppercase font-bold mb-1">Opción Ganadora: {diff > 0 ? tState.propA.name : tState.propB.name}</div>
-                                    <div className="text-2xl font-bold text-white">Ahorras {formatDecimal(Math.abs(diff))} € <span className="text-sm font-normal text-slate-400">/ factura</span></div>
+                                    <div className="text-3xl font-bold text-white">Ahorras {formatDecimal(Math.abs(diff))} € <span className="text-sm font-normal text-slate-400">/ factura</span></div>
                                     <div className="text-xs text-slate-500 mt-1">Proyección anual: ~{formatDecimal(Math.abs(diff) * (365/tState.days))} €</div>
                                 </>
                              )}
+                        </div>
+
+                        {/* ORIGEN DEL AHORRO */}
+                        {diff !== 0 && (
+                            <div className="mb-6 bg-slate-800/50 p-3 rounded-lg text-xs">
+                                <div className="font-bold text-slate-400 uppercase mb-2 text-[10px]">Desglose del Ahorro</div>
+                                <div className="flex justify-between mb-1">
+                                    <span>En Potencia:</span>
+                                    <span className={diffPot > 0 ? "text-green-400 font-bold" : "text-red-400 font-bold"}>{diffPot > 0 ? 'Ahorras' : 'Pierdes'} {formatDecimal(Math.abs(diffPot))} €</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span>En Energía:</span>
+                                    <span className={diffEn > 0 ? "text-green-400 font-bold" : "text-red-400 font-bold"}>{diffEn > 0 ? 'Ahorras' : 'Pierdes'} {formatDecimal(Math.abs(diffEn))} €</span>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* COMPARATIVA CARA A CARA */}
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-xs border-collapse">
+                                <thead className="border-b border-slate-700">
+                                    <tr>
+                                        <th className="text-left py-2 text-slate-500">Concepto</th>
+                                        <th className="text-right py-2 text-blue-300">{tState.propA.name}</th>
+                                        <th className="text-right py-2 text-blue-300">{tState.propB.name}</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    <tr>
+                                        <td className="py-2 text-slate-400">Potencia</td>
+                                        <td className={`py-2 text-right font-mono ${billA.termPotDisc < billB.termPotDisc ? 'text-green-400' : 'text-slate-300'}`}>{formatDecimal(billA.termPotDisc)} €</td>
+                                        <td className={`py-2 text-right font-mono ${billB.termPotDisc < billA.termPotDisc ? 'text-green-400' : 'text-slate-300'}`}>{formatDecimal(billB.termPotDisc)} €</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="py-2 text-slate-400">Energía</td>
+                                        <td className={`py-2 text-right font-mono ${billA.termEnNet < billB.termEnNet ? 'text-green-400' : 'text-slate-300'}`}>{formatDecimal(billA.termEnNet)} €</td>
+                                        <td className={`py-2 text-right font-mono ${billB.termEnNet < billA.termEnNet ? 'text-green-400' : 'text-slate-300'}`}>{formatDecimal(billB.termEnNet)} €</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="py-2 text-slate-400">Fijos (Alq+Bono+Com)</td>
+                                        <td className="py-2 text-right font-mono text-slate-300">{formatDecimal(billA.fixedCosts)} €</td>
+                                        <td className="py-2 text-right font-mono text-slate-300">{formatDecimal(billB.fixedCosts)} €</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="py-2 text-slate-400">Impuestos (IEE+IVA)</td>
+                                        <td className="py-2 text-right font-mono text-slate-300">{formatDecimal(billA.taxes)} €</td>
+                                        <td className="py-2 text-right font-mono text-slate-300">{formatDecimal(billB.taxes)} €</td>
+                                    </tr>
+                                </tbody>
+                                <tfoot className="border-t border-slate-600 bg-slate-800/30">
+                                    <tr>
+                                        <td className="py-3 font-bold text-white">TOTAL FACTURA</td>
+                                        <td className={`py-3 text-right font-bold text-lg ${diff > 0 ? 'text-green-400' : 'text-white'}`}>{formatDecimal(billA.total)} €</td>
+                                        <td className={`py-3 text-right font-bold text-lg ${diff < 0 ? 'text-green-400' : 'text-white'}`}>{formatDecimal(billB.total)} €</td>
+                                    </tr>
+                                    <tr>
+                                        <td className="py-2 text-[10px] text-slate-500 uppercase tracking-widest">Precio Real kWh</td>
+                                        <td className="py-2 text-right font-bold text-sm text-blue-200">{formatDecimal(billA.pricePerKwh, 4)} €</td>
+                                        <td className="py-2 text-right font-bold text-sm text-blue-200">{formatDecimal(billB.pricePerKwh, 4)} €</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -1539,8 +1588,8 @@
                             <TabButton id="nyland" label="Bjørn Nyland" />
                             <TabButton id="curve" label="Curva Carga" />
                             <TabButton id="equiv" label="Equivalencia" />
-                            <TabButton id="tariff" label="Tarifa Real" />
-                            <TabButton id="charge" label="Carga" />
+                            <TabButton id="tariff" label="COMPARADOR TARIFAS" />
+                            <TabButton id="charge" label="+EXCEL" />
                         </div>
                     </header>
                     <main className="animate-fade-in">{renderContent()}</main>
