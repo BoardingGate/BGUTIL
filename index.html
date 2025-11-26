@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -433,13 +434,64 @@
 
       // --- CALCULADORA DE CARGA (RESTORED) ---
       const ChargingCalculator = () => {
-        const [state, setState] = useState({ capacity: 60, startPct: 20, targetPct: 80, power: 7.4, consumption: 14.5, energyPrice: 0.07, dailyKm: 50 });
+        const [state, setState] = useState({ 
+            capacity: 60, 
+            startPct: 20, 
+            targetPct: 80, 
+            power: 7.4, 
+            consumption: 14.5, 
+            energyPrice: 0.07, 
+            dailyKm: 50,
+            batType: 'LFP' // Default
+        });
+
+        // CURVE DATA (DUPLICATED FOR SAFETY)
+        const curvePoints = {
+            LFP: [{p:0, v:170}, {p:10, v:168}, {p:20, v:155}, {p:30, v:135}, {p:45, v:110}, {p:55, v:85}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}],
+            NCA: [{p:0, v:200}, {p:5, v:250}, {p:15, v:250}, {p:25, v:210}, {p:40, v:150}, {p:60, v:100}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}]
+        };
+
+        const getBatteryLimitAtSoC = (soc, type, chargerPowerInput) => {
+            const points = curvePoints[type];
+            const baseRef = type === 'NCA' ? 250 : 170; 
+            const techScaler = Math.max(baseRef, chargerPowerInput) / baseRef; 
+            const scaleFactor = Math.max(1, techScaler);
+            const p2Index = points.findIndex(pt => pt.p >= soc);
+            if (p2Index === -1) return points[points.length-1].v * scaleFactor; 
+            if (p2Index === 0) return points[0].v * scaleFactor;
+            const p1 = points[p2Index - 1];
+            const p2 = points[p2Index];
+            const range = p2.p - p1.p;
+            const dist = soc - p1.p;
+            const ratio = dist / range;
+            return (p1.v + (ratio * (p2.v - p1.v))) * scaleFactor;
+        };
+
+        // Helper Time Format
+        const formatTime = (min) => {
+            if(!min || !isFinite(min)) return "00:00";
+            const h = Math.floor(min / 60);
+            const m = Math.round(min % 60);
+            return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
+        };
+
         const validTarget = Math.max(state.startPct, state.targetPct);
         const percentAdded = validTarget - state.startPct;
         const energyAdded = state.capacity * (percentAdded / 100);
-        const timeHours = state.power > 0 ? energyAdded / state.power : 0;
-        const hours = Math.floor(timeHours);
-        const minutes = Math.round((timeHours - hours) * 60);
+        
+        // LINEAR CALC
+        const timeHoursLin = state.power > 0 ? energyAdded / state.power : 0;
+        const minutesLin = timeHoursLin * 60;
+        
+        // CURVE CALC
+        let minutesCurve = 0;
+        const kwhPerPercent = state.capacity / 100;
+        for (let i = state.startPct; i < validTarget; i++) {
+            const limit = getBatteryLimitAtSoC(i, state.batType, state.power);
+            const realPower = Math.min(state.power, limit);
+            if (realPower > 0) minutesCurve += (kwhPerPercent / realPower) * 60;
+        }
+
         const rangeAdded = state.consumption > 0 ? (energyAdded / state.consumption) * 100 : 0;
         const totalCost = energyAdded * state.energyPrice;
         const totalRangeAtTarget = state.consumption > 0 ? (state.capacity * (validTarget/100) / state.consumption) * 100 : 0;
@@ -463,6 +515,13 @@
                 <div className="lg:col-span-5 space-y-6">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                         <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Icons.BatteryCharging /> Parámetros de Carga</h2>
+                        
+                        {/* Battery Type Selector */}
+                        <div className="flex gap-2 mb-4 bg-slate-800/50 p-1 rounded-lg border border-slate-700">
+                             <button onClick={() => setState(p => ({...p, batType: 'LFP'}))} className={`flex-1 py-2 text-xs font-bold rounded-md transition-colors ${state.batType === 'LFP' ? 'bg-green-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}>LFP (RWD)</button>
+                             <button onClick={() => setState(p => ({...p, batType: 'NCA'}))} className={`flex-1 py-2 text-xs font-bold rounded-md transition-colors ${state.batType === 'NCA' ? 'bg-red-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}>NCA (LR)</button>
+                        </div>
+
                         <div className="space-y-6">
                             <div><label className="text-xs text-slate-500 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.capacity} onChange={v => handleChange('capacity', v)} decimals={1}/></div>
                             <div><div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Porcentaje de Inicio</label><span className="text-xs font-bold text-white">{state.startPct}%</span></div><input type="range" min="0" max="100" value={state.startPct} onChange={e => { const val = parseInt(e.target.value); setState(prev => ({...prev, startPct: val, targetPct: Math.max(val, prev.targetPct)})); }} className="w-full h-2 bg-slate-700 rounded-lg accent-yellow-500" /></div>
@@ -483,7 +542,11 @@
                         </div>
                      </div>
                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Clock className="w-4 h-4"/> Tiempo Estimado</div><div className="text-3xl font-display font-bold text-white">{hours}h <span className="text-lg text-slate-500">{minutes}m</span></div><div className="text-[10px] text-slate-500 mt-1">a {state.power} kW de potencia</div></div>
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center">
+                            <div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Clock className="w-4 h-4"/> Tiempo Estimado</div>
+                            <div className="text-3xl font-display font-bold text-white">{formatTime(minutesCurve)}</div>
+                            <div className="text-[10px] text-slate-500 mt-1">Teórico: {formatTime(minutesLin)} (a {state.power} kW)</div>
+                        </div>
                         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Euro className="w-4 h-4"/> Coste Recarga</div><div className="text-3xl font-display font-bold text-white">{formatDecimal(totalCost)}<span className="text-lg text-slate-500">€</span></div><div className="text-[10px] text-slate-500 mt-1">a {state.energyPrice} €/kWh</div></div>
                         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Zap className="w-4 h-4"/> Energía Añadida</div><div className="text-3xl font-display font-bold text-green-400">+{formatDecimal(energyAdded)} <span className="text-lg text-green-400/50">kWh</span></div><div className="text-[10px] text-slate-500 mt-1">del {state.startPct}% al {state.targetPct}%</div></div>
                         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.TrendingUp className="w-4 h-4"/> Km Añadidos</div><div className="text-3xl font-display font-bold text-blue-400">+{formatMoney(rangeAdded)} <span className="text-lg text-blue-400/50">km</span></div><div className="text-[10px] text-slate-500 mt-1 font-bold">Autonomía Total: <span className="text-white">{formatMoney(totalRangeAtTarget)} km</span></div></div>
@@ -579,17 +642,15 @@
         const costA = netChargeNeededA * state.costPerKwh; 
         const costB = netChargeNeededB * state.costPerKwh;
         const costDiff = costB - costA;
-
-        // Helper to format minutes to hh:mm
+        const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v) || 0}));
+        const handleStrategy = (val) => setState(prev => ({...prev, chargingStrategy: val}));
+        
         const formatTime = (min) => {
             if(!min || !isFinite(min)) return "00:00";
             const h = Math.floor(min / 60);
             const m = Math.round(min % 60);
             return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
         };
-
-        const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v) || 0}));
-        const handleStrategy = (val) => setState(prev => ({...prev, chargingStrategy: val}));
 
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
