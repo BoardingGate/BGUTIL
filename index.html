@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -57,9 +58,6 @@
 
       .btn-step { @apply w-8 h-8 flex items-center justify-center rounded bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white active:bg-blue-600 transition-colors font-bold text-lg select-none; }
       .btn-preset { @apply px-2 py-1 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-400 hover:bg-blue-600 hover:text-white hover:border-blue-500 transition-all; }
-      .toggle-btn { @apply px-3 py-1 rounded border text-xs font-bold transition-all; }
-      .toggle-btn-active { @apply bg-blue-600 border-blue-500 text-white; }
-      .toggle-btn-inactive { @apply bg-slate-800 border-slate-700 text-slate-500 hover:bg-slate-700; }
     </style>
 </head>
 <body>
@@ -67,7 +65,6 @@
 
     <script>
       window.onerror = function(message, source, lineno, colno, error) {
-        // Suprimir errores de script genéricos de CDN en móviles
         if (message && message.indexOf('Script error') > -1) return;
         console.error(error);
         const root = document.getElementById('root');
@@ -88,6 +85,7 @@
                 const item = window.localStorage.getItem(key);
                 return item ? { ...initialValue, ...JSON.parse(item) } : initialValue;
             } catch (error) {
+                console.warn(`Error reading localStorage key "${key}":`, error);
                 return initialValue;
             }
         });
@@ -95,7 +93,9 @@
         useEffect(() => {
             try {
                 window.localStorage.setItem(key, JSON.stringify(state));
-            } catch (error) {}
+            } catch (error) {
+                console.warn(`Error setting localStorage key "${key}":`, error);
+            }
         }, [key, state]);
 
         return [state, setState];
@@ -103,6 +103,7 @@
 
       const formatMoney = (val) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
       const formatDecimal = (val, digits = 2) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(val);
+      
       const formatTime = (min) => {
         if(!min || !isFinite(min)) return "00:00:00";
         const h = Math.floor(min / 60);
@@ -131,7 +132,8 @@
         const range = p2.p - p1.p;
         const dist = soc - p1.p;
         const ratio = dist / range;
-        return (p1.v + (ratio * (p2.v - p1.v))) * scaleFactor;
+        const factor = p1.v + (ratio * (p2.v - p1.v));
+        return factor * scaleFactor;
       };
 
       const calculateConsumption = (params) => {
@@ -223,7 +225,7 @@
         Link: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
       };
 
-      // --- 5. SUB-COMPONENTS (DEFINED GLOBALLY TO FIX SCOPE ISSUES) ---
+      // --- 5. SHARED SUB-COMPONENTS ---
       
       const PlaceholderTab = () => (
         <div className="flex flex-col items-center justify-center h-96 bg-slate-900/30 rounded-3xl border border-slate-800 border-dashed p-8 text-center">
@@ -235,11 +237,10 @@
          </div>
       );
 
-      // ProposalColumn extracted to fix focus issue
       const ProposalColumn = ({ propKey, title, data, onChange }) => (
             <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-700/50 h-full">
                 <input type="text" value={data.name} onChange={(e) => onChange(propKey, 'name', e.target.value)} 
-                    className="bg-slate-800 text-sm font-bold text-center w-full mb-4 border border-slate-600 rounded px-2 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-blue-300 placeholder-slate-600 transition-all" 
+                    className="bg-slate-800 text-sm font-bold text-center w-full mb-4 border border-slate-500 rounded px-2 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-blue-200 placeholder-slate-500 transition-all shadow-inner" 
                     placeholder="Nombre Compañía"
                 />
                 
@@ -314,7 +315,7 @@
             );
       };
 
-      // --- 6. MAIN CALCULATORS ---
+      // --- 6. MAIN TABS ---
 
       const ControlPanel = ({ params, setParams, costs, setCosts }) => {
         const handleChange = (key, value) => setParams(prev => ({ ...prev, [key]: parseFloat(value) }));
@@ -381,7 +382,7 @@
             </div>
         );
       };
-      
+
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV5', { days: 30, potP1: 4.6, potP2: 7.4, impuestoElec: 5.11, iva: 21, alquiler: 0.027, bonoSocial: 0.006, consTotal: 635, p1Kwh: 80, p2Kwh: 60, p3Kwh: 170, p3VeKwh: 325, p4Kwh: 0, solarExp: 0, propA: { name: "Compañía A", pricePotP1: 0.108, pricePotP2: 0.024, priceEnP1: 0.206, priceEnP2: 0.206, priceEnP3: 0.065, priceEnP3Ve: 0.065, priceEnP4: 0.065, discPot: 0, discEn: 0, comision: 0, solarPrice: 0.08, virtualBat: false }, propB: { name: "Compañía B", pricePotP1: 0.11, pricePotP2: 0.03, priceEnP1: 0.15, priceEnP2: 0.15, priceEnP3: 0.15, priceEnP3Ve: 0.15, priceEnP4: 0.15, discPot: 0, discEn: 0, comision: 0, solarPrice: 0.05, virtualBat: false } });
         const handleConsChange = (key, val) => { if (key === 'consTotal') { const currentTotal = tState.p1Kwh + tState.p2Kwh + tState.p3Kwh + tState.p3VeKwh + tState.p4Kwh || 1; const ratio1 = tState.p1Kwh / currentTotal; const ratio2 = tState.p2Kwh / currentTotal; const ratio3 = tState.p3Kwh / currentTotal; const ratio3ve = tState.p3VeKwh / currentTotal; const ratio4 = tState.p4Kwh / currentTotal; setTState(prev => ({ ...prev, consTotal: val, p1Kwh: val * ratio1, p2Kwh: val * ratio2, p3Kwh: val * ratio3, p3VeKwh: val * ratio3ve, p4Kwh: val * ratio4 })); } else { setTState(prev => { const newState = { ...prev, [key]: val }; newState.consTotal = newState.p1Kwh + newState.p2Kwh + newState.p3Kwh + newState.p3VeKwh + newState.p4Kwh; return newState; }); } };
@@ -405,17 +406,13 @@
         );
       };
 
-      // --- 7. APP PRINCIPAL ---
       const App = () => {
         const [activeTab, setActiveTab] = usePersistentState('activeTab', 'curve'); 
         const [simParams, setSimParams] = usePersistentState('simParams', { speed: 120, temperature: 20, gradient: 0, windSpeed: 0, electricConsumptionRef: 14, batteryCapacity: 60 });
         const [simCosts, setSimCosts] = usePersistentState('simCosts', { electricityPrice: 0.08, gasPrice: 1.45, gasConsumptionRef: 6.5 });
         const [consumption, setConsumption] = useState(0);
-
         useEffect(() => { setConsumption(calculateConsumption(simParams)); }, [simParams]);
-
         const handleBack = () => { if (window.history.length > 1) window.history.back(); else window.close(); };
-
         const renderContent = () => {
             switch(activeTab) {
                 case 'curve': return <ChargeCurveCalculator />;
@@ -430,34 +427,11 @@
                 default: return <PlaceholderTab />;
             }
         };
-
-        const TabButton = ({ id, label }) => (
-            <button onClick={() => setActiveTab(id)} className={`px-4 py-3 text-sm font-medium transition-all uppercase tracking-wider whitespace-nowrap ${activeTab === id ? 'tab-active' : 'tab-inactive'}`}>{label}</button>
-        );
-
+        const TabButton = ({ id, label }) => (<button onClick={() => setActiveTab(id)} className={`px-4 py-3 text-sm font-medium transition-all uppercase tracking-wider whitespace-nowrap ${activeTab === id ? 'tab-active' : 'tab-inactive'}`}>{label}</button>);
         return (
             <div className="min-h-screen bg-[#0a0a0a] text-white p-4 md:p-8">
                 <div className="max-w-5xl mx-auto">
-                    <header className="mb-6">
-                        <div className="flex justify-between items-end border-b border-slate-800 pb-4">
-                            <div>
-                                <h1 className="text-4xl md:text-5xl font-display font-bold"><span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Boarding</span><span className="text-red-600">Gate</span></h1>
-                                <p className="text-slate-500 font-light tracking-widest text-sm mt-1">TESLA EFFICIENCY TOOLS</p>
-                            </div>
-                            <button onClick={handleBack} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"><Icons.LogOut /> Volver</button>
-                        </div>
-                        <div className="flex overflow-x-auto gap-2 border-b border-slate-800/50 mt-4 pb-1">
-                            <TabButton id="curve" label="Curva Carga" />
-                            <TabButton id="tariff" label="COMPARADOR TARIFAS" />
-                            <TabButton id="drain" label="Drenaje" />
-                            <TabButton id="simulator" label="Simulador" />
-                            <TabButton id="amortization" label="Amortización" />
-                            <TabButton id="calculator" label="Calculadora" />
-                            <TabButton id="nyland" label="Bjørn Nyland" />
-                            <TabButton id="equiv" label="Equivalencia" />
-                            <TabButton id="charge" label="+EXCEL" />
-                        </div>
-                    </header>
+                    <header className="mb-6"><div className="flex justify-between items-end border-b border-slate-800 pb-4"><div><h1 className="text-4xl md:text-5xl font-display font-bold"><span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Boarding</span><span className="text-red-600">Gate</span></h1><p className="text-slate-500 font-light tracking-widest text-sm mt-1">TESLA EFFICIENCY TOOLS</p></div><button onClick={handleBack} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"><Icons.LogOut /> Volver</button></div><div className="flex overflow-x-auto gap-2 border-b border-slate-800/50 mt-4 pb-1"><TabButton id="curve" label="Curva Carga" /><TabButton id="tariff" label="COMPARADOR TARIFAS" /><TabButton id="drain" label="Drenaje" /><TabButton id="simulator" label="Simulador" /><TabButton id="amortization" label="Amortización" /><TabButton id="calculator" label="Calculadora" /><TabButton id="nyland" label="Bjørn Nyland" /><TabButton id="equiv" label="Equivalencia" /><TabButton id="charge" label="+EXCEL" /></div></header>
                     <main className="animate-fade-in">{renderContent()}</main>
                 </div>
             </div>
