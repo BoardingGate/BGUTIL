@@ -47,9 +47,10 @@
       .custom-table tr:last-child td { border-bottom: none; }
       .custom-table tr:hover td { background-color: rgba(30, 41, 59, 0.5); }
       
-      /* Slider Styles for Range Inputs */
       .slider-thumb::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #3b82f6; cursor: pointer; border: 2px solid #1e293b; box-shadow: 0 0 10px rgba(59, 130, 246, 0.5); }
       .slider-thumb::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #3b82f6; cursor: pointer; border: 2px solid #1e293b; box-shadow: 0 0 10px rgba(59, 130, 246, 0.5); }
+      
+      .btn-step { @apply w-8 h-8 flex items-center justify-center rounded bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white active:bg-blue-600 transition-colors font-bold text-lg select-none; }
     </style>
 </head>
 <body>
@@ -71,7 +72,7 @@
       
       // --- FORMATTERS & COMPONENTS ---
       const formatMoney = (val) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
-      const formatDecimal = (val) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: 1, maximumFractionDigits: 2 }).format(val);
+      const formatDecimal = (val, digits = 2) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(val);
 
       const FormattedInput = ({ value, onChange, decimals = 0 }) => {
         const format = (val) => {
@@ -932,115 +933,66 @@
         );
       };
 
-      // --- EQUIVALENCE CALCULATOR ---
+      // --- EQUIVALENCE CALCULATOR (OPTIMIZED) ---
       const EquivalenceCalculator = () => {
-        // Initial State
         const [staticParams, setStaticParams] = useState({
             capacity: 60, 
             consumption: 14.5, 
             price: 0.45
         });
 
-        const [dynamicParams, setDynamicParams] = useState({
-            power: 7.4,
-            amps: 32,
-            distance: 400,
-            time: 30,
-            kmPerMin: 1,
-            kwPerMin: 1,
-            costPerMin: 1
-        });
+        // Master values (Source of Truth)
+        const [power, setPower] = useState(7.4);
+        const [time, setTime] = useState(30);
 
-        // Calculation Logic (Helper)
-        const calculateDerived = (source, value, currentStatic, currentDynamic) => {
-            const s = currentStatic;
-            let p = currentDynamic.power;
-            let t = currentDynamic.time;
+        // Helper to round properly
+        const r = (num, precision = 100) => Math.round(num * precision) / precision;
 
-            // 1. Determine Master Variables (Power & Time) based on input
-            if (source === 'power') {
-                p = value;
-                // Time constant
-            } else if (source === 'amps') {
-                p = (value * 230) / 1000;
-                // Time constant
-            } else if (source === 'time') {
-                t = value;
-                // Power constant
-            } else if (source === 'distance') {
-                // Dist = Speed * Time -> Time = Dist / Speed
-                // Speed (km/min) = (Power / (Consumption/100)) / 60
-                const speed = (p / (s.consumption / 100)) / 60;
-                if (speed > 0) t = value / speed;
-                // Power constant
-            } else if (source === 'kmPerMin') {
-                // Speed = value -> Power = Speed * 60 * (Consumption/100)
-                p = value * 60 * (s.consumption / 100);
-                // Time constant
-            } else if (source === 'kwPerMin') {
-                // kW/min = Power / 60 -> Power = value * 60
-                p = value * 60;
-                // Time constant
-            } else if (source === 'costPerMin') {
-                // Cost/min = (Power * Price) / 60 -> Power = (value * 60) / Price
-                if (s.price > 0) p = (value * 60) / s.price;
-                // Time constant
-            }
+        // Derived Values based on Master
+        const amps = (power * 1000) / 230;
+        const kwPerMin = power / 60;
+        const kmPerMin = kwPerMin / (staticParams.consumption / 100);
+        const costPerMin = kwPerMin * staticParams.price;
+        const distance = kmPerMin * time;
 
-            // 2. Recalculate Derived Values based on new P and T
-            const amps = (p * 1000) / 230;
-            const kwMin = p / 60;
-            const kmMin = kwMin / (s.consumption / 100);
-            const costMin = kwMin * s.price;
-            
-            // Determine Distance based on new/current P & T (unless source was distance)
-            const dist = source === 'distance' ? value : kmMin * t;
-            
-            // Special check for 'time' source to avoid circular logic drift? No, pure calc is fine.
-            
-            return {
-                power: p,
-                amps: amps,
-                distance: dist,
-                time: t,
-                kmPerMin: kmMin,
-                kwPerMin: kwMin,
-                costPerMin: costMin
+        // Specific Handlers for "Bi-directional" flow
+        const updatePower = (val) => setPower(Math.max(0, parseFloat(val)));
+        const updateTime = (val) => setTime(Math.max(0, parseFloat(val)));
+        
+        // When these change, we update Master Power/Time to match
+        const handleAmpsChange = (val) => setPower((val * 230) / 1000);
+        const handleDistChange = (val) => setTime(val / kmPerMin); // Keep power, change time
+        const handleKmMinChange = (val) => setPower((val * staticParams.consumption) / 100 * 60);
+        const handleKwMinChange = (val) => setPower(val * 60);
+        const handleCostMinChange = (val) => setPower((val / staticParams.price) * 60);
+
+        // Slider Component with Buttons
+        const EquivSlider = ({ label, value, min, max, step, onChange, unit, highlight, digits=2 }) => {
+            const handleStep = (direction) => {
+                const newVal = parseFloat(value) + (step * direction);
+                onChange(Math.min(max, Math.max(min, newVal)));
             };
-        };
-
-        // Handle Change Wrapper
-        const handleDynamicChange = (key, val) => {
-            const numericVal = parseFloat(val) || 0;
-            const newState = calculateDerived(key, numericVal, staticParams, dynamicParams);
-            setDynamicParams(newState);
-        };
-
-        const handleStaticChange = (key, val) => {
-            const numericVal = parseFloat(val) || 0;
-            const newStatic = { ...staticParams, [key]: numericVal };
-            setStaticParams(newStatic);
-            // Trigger a recalculation based on current power/time but new static multipliers
-            const newState = calculateDerived('power', dynamicParams.power, newStatic, dynamicParams);
-            setDynamicParams(newState);
-        };
-
-        // Helper Component for Sliders
-        const EquivSlider = ({ label, value, min, max, step, onChange, unit, highlight }) => (
-            <div className={`bg-slate-900/50 border ${highlight ? 'border-blue-500/50 bg-blue-900/10' : 'border-slate-800'} rounded-xl p-4`}>
-                <div className="flex justify-between mb-2">
-                    <label className={`text-xs font-bold uppercase tracking-wider ${highlight ? 'text-blue-300' : 'text-slate-400'}`}>{label}</label>
-                    <span className={`font-mono font-bold ${highlight ? 'text-white' : 'text-slate-300'}`}>{formatDecimal(value)} <span className="text-xs text-slate-500">{unit}</span></span>
+            
+            return (
+                <div className={`bg-slate-900/50 border ${highlight ? 'border-blue-500/50 bg-blue-900/10' : 'border-slate-800'} rounded-xl p-4`}>
+                    <div className="flex justify-between mb-2">
+                        <label className={`text-xs font-bold uppercase tracking-wider ${highlight ? 'text-blue-300' : 'text-slate-400'}`}>{label}</label>
+                        <span className={`font-mono font-bold ${highlight ? 'text-white' : 'text-slate-300'}`}>{formatDecimal(value, digits)} <span className="text-xs text-slate-500">{unit}</span></span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <button onClick={() => handleStep(-1)} className="btn-step">-</button>
+                        <input 
+                            type="range" 
+                            min={min} max={max} step={step} 
+                            value={value || 0} 
+                            onChange={(e) => onChange(e.target.value)}
+                            className={`flex-grow h-2 rounded-lg appearance-none cursor-pointer slider-thumb ${highlight ? 'bg-blue-900' : 'bg-slate-700'}`}
+                        />
+                        <button onClick={() => handleStep(1)} className="btn-step">+</button>
+                    </div>
                 </div>
-                <input 
-                    type="range" 
-                    min={min} max={max} step={step} 
-                    value={value || 0} 
-                    onChange={(e) => onChange(e.target.value)}
-                    className={`w-full h-2 rounded-lg appearance-none cursor-pointer ${highlight ? 'bg-blue-900 accent-blue-500' : 'bg-slate-700 accent-slate-500'}`}
-                />
-            </div>
-        );
+            );
+        };
 
         return (
             <div className="space-y-8">
@@ -1051,24 +1003,24 @@
                     
                     {/* Static Inputs */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 pb-8 border-b border-slate-800">
-                        <div><label className="text-xs text-slate-500 block mb-1">Capacidad Batería (kWh)</label><input type="range" min="30" max="300" value={staticParams.capacity} onChange={e => handleStaticChange('capacity', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg accent-green-500 mb-2"/><div className="text-right text-green-400 font-bold">{staticParams.capacity} kWh</div></div>
-                        <div><label className="text-xs text-slate-500 block mb-1">Consumo Medio (kWh/100)</label><input type="range" min="1" max="60" step="0.1" value={staticParams.consumption} onChange={e => handleStaticChange('consumption', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg accent-green-500 mb-2"/><div className="text-right text-green-400 font-bold">{staticParams.consumption} kWh/100</div></div>
-                        <div><label className="text-xs text-slate-500 block mb-1">Precio Energía (€/kWh)</label><input type="range" min="0" max="2" step="0.01" value={staticParams.price} onChange={e => handleStaticChange('price', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg accent-green-500 mb-2"/><div className="text-right text-green-400 font-bold">{staticParams.price} €/kWh</div></div>
+                        <EquivSlider label="Capacidad Batería" value={staticParams.capacity} min="30" max="300" step="1" unit="kWh" onChange={v => setStaticParams({...staticParams, capacity: v})} digits={0} />
+                        <EquivSlider label="Consumo Medio" value={staticParams.consumption} min="1" max="60" step="0.1" unit="kWh/100" onChange={v => setStaticParams({...staticParams, consumption: v})} digits={1} />
+                        <EquivSlider label="Precio Energía" value={staticParams.price} min="0" max="2" step="0.01" unit="€/kWh" onChange={v => setStaticParams({...staticParams, price: v})} digits={2} />
                     </div>
 
                     {/* Dynamic Sliders Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <EquivSlider label="Potencia" value={dynamicParams.power} min="1" max="1000" step="0.1" unit="kW" onChange={(v) => handleDynamicChange('power', v)} highlight />
-                        <EquivSlider label="Amperaje (230V)" value={dynamicParams.amps} min="0" max="2000" step="1" unit="A" onChange={(v) => handleDynamicChange('amps', v)} highlight />
+                        <EquivSlider label="Potencia" value={power} min="1" max="1000" step="0.01" unit="kW" onChange={updatePower} highlight digits={2} />
+                        <EquivSlider label="Amperaje (230V)" value={amps} min="0" max="2000" step="1" unit="A" onChange={handleAmpsChange} highlight digits={0} />
                         
-                        <EquivSlider label="Tiempo Carga" value={dynamicParams.time} min="0" max="250" step="1" unit="min" onChange={(v) => handleDynamicChange('time', v)} />
-                        <EquivSlider label="Rango Añadido" value={dynamicParams.distance} min="0" max="1500" step="1" unit="km" onChange={(v) => handleDynamicChange('distance', v)} />
+                        <EquivSlider label="Tiempo Carga" value={time} min="0" max="250" step="1" unit="min" onChange={updateTime} digits={0} />
+                        <EquivSlider label="Rango Añadido" value={distance} min="0" max="1500" step="1" unit="km" onChange={handleDistChange} digits={0} />
                         
-                        <EquivSlider label="Velocidad (Km)" value={dynamicParams.kmPerMin} min="0" max="50" step="0.1" unit="km/min" onChange={(v) => handleDynamicChange('kmPerMin', v)} />
-                        <EquivSlider label="Velocidad (Energía)" value={dynamicParams.kwPerMin} min="0" max="50" step="0.1" unit="kW/min" onChange={(v) => handleDynamicChange('kwPerMin', v)} />
+                        <EquivSlider label="Velocidad (Km)" value={kmPerMin} min="0" max="50" step="0.1" unit="km/min" onChange={handleKmMinChange} digits={1} />
+                        <EquivSlider label="Velocidad (Energía)" value={kwPerMin} min="0" max="50" step="0.1" unit="kW/min" onChange={handleKwMinChange} digits={1} />
                         
                         <div className="md:col-span-2">
-                             <EquivSlider label="Importe Carga" value={dynamicParams.costPerMin} min="0" max="30" step="0.01" unit="€/min" onChange={(v) => handleDynamicChange('costPerMin', v)} />
+                             <EquivSlider label="Importe Carga" value={costPerMin} min="0" max="30" step="0.01" unit="€/min" onChange={handleCostMinChange} digits={2} />
                         </div>
                     </div>
 
@@ -1078,7 +1030,7 @@
                         <div>
                             <h4 className="text-sm font-bold text-blue-300 mb-1">Modo Interactivo</h4>
                             <p className="text-xs text-slate-400 leading-relaxed">
-                                Esta herramienta funciona como un sistema de vasos comunicantes. Al deslizar <strong>cualquier</strong> control azul (Potencia, Amperios, Velocidades), el sistema recalcula automáticamente todos los valores equivalentes para mantener la coherencia física. Si modificas el Tiempo o la Distancia, se ajustará la variable complementaria manteniendo la potencia fija. Los parámetros verdes superiores son fijos para el cálculo.
+                                Esta herramienta funciona como un sistema de vasos comunicantes. Al deslizar <strong>cualquier</strong> control azul (Potencia, Amperios, Velocidades), el sistema recalcula automáticamente todos los valores equivalentes para mantener la coherencia física. Si modificas el Tiempo o la Distancia, se ajustará la variable complementaria manteniendo la potencia fija. Los parámetros superiores son fijos para el cálculo.
                             </p>
                         </div>
                     </div>
@@ -1123,7 +1075,6 @@
                             <div>
                                 <h1 className="text-4xl md:text-5xl font-display font-bold"><span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Boarding</span><span className="text-red-600">Gate</span></h1>
                                 <p className="text-slate-500 font-light tracking-widest text-sm mt-1">TESLA EFFICIENCY TOOLS</p>
-                                <p className="text-slate-600 font-light text-[10px] mt-1 opacity-70">Powered by React • TailwindCSS • Babel</p>
                             </div>
                             <button onClick={handleBack} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"><Icons.LogOut /> Volver</button>
                         </div>
