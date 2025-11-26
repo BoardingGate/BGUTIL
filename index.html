@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -995,6 +994,15 @@
             return (p1.v + (ratio * (p2.v - p1.v))) * scaleFactor;
         };
 
+        // Helper format time string
+        const formatTime = (min) => {
+            if(!min || !isFinite(min)) return "00:00:00";
+            const h = Math.floor(min / 60);
+            const m = Math.floor(min % 60);
+            const s = Math.round((min * 60) % 60);
+            return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+        };
+
         // Linear vs Curve Calculations
         const voltage = power < 11 ? 230 : 400;
         const amps = (power * 1000) / voltage;
@@ -1022,12 +1030,20 @@
         const costPerMin = kwPerMinCurve * staticParams.price; // Cost depends on delivered energy
 
         // Dual Data Display Component
-        const DualDisplay = ({ label, linearVal, curveVal, unit, digits=2 }) => (
+        const DualDisplay = ({ label, linearVal, curveVal, unit, digits=2, isTime=false }) => (
             <div className="flex justify-between items-center text-xs">
                 <span className="text-slate-400 uppercase font-bold">{label}</span>
                 <div className="text-right">
-                    <div className="text-white font-mono">{formatDecimal(linearVal, digits)} <span className="text-[9px] text-slate-500">{unit} (Teórico)</span></div>
-                    <div className="text-orange-400 font-mono">{formatDecimal(curveVal, digits)} <span className="text-[9px] text-orange-500/70">{unit} (Real)</span></div>
+                    <div className="text-white font-mono">
+                        {isTime ? formatTime(linearVal) : formatDecimal(linearVal, digits)} 
+                        {!isTime && <span className="text-[9px] text-slate-500">{unit} (Teórico)</span>}
+                        {isTime && <span className="text-[9px] text-slate-500"> (Teórico)</span>}
+                    </div>
+                    <div className="text-orange-400 font-mono">
+                        {isTime ? formatTime(curveVal) : formatDecimal(curveVal, digits)} 
+                        {!isTime && <span className="text-[9px] text-orange-500/70">{unit} (Real)</span>}
+                        {isTime && <span className="text-[9px] text-orange-500/70"> (Real)</span>}
+                    </div>
                 </div>
             </div>
         );
@@ -1091,7 +1107,7 @@
                         
                         {/* Potencia con Presets */}
                         <div className="md:col-span-2 space-y-4">
-                            <EquivSlider label="Potencia (MAESTRO)" value={power} min="1" max="800" step="0.01" unit="kW" onChange={v => setPower(Math.max(0, parseFloat(v)))} highlight digits={2} isMaster={true} showButtons={true} />
+                            <EquivSlider label="POTENCIA CARGA (A CALCULAR)" value={power} min="1" max="800" step="0.01" unit="kW" onChange={v => setPower(Math.max(0, parseFloat(v)))} highlight digits={2} isMaster={true} showButtons={true} />
                             <div className="flex flex-wrap gap-2 justify-center bg-slate-800/50 p-3 rounded-xl border border-slate-700">
                                 {powerPresets.map(p => (
                                     <button key={p} onClick={() => setPower(p)} className={`btn-preset ${Math.abs(power - p) < 0.1 ? 'bg-blue-600 text-white border-blue-500 shadow-[0_0_10px_rgba(37,99,235,0.5)]' : ''}`}>{p} kW</button>
@@ -1105,7 +1121,7 @@
                             label="" 
                             value={timeToFullMinLin} min="0" max={1440} step="1" 
                             readOnly={true} 
-                            dualData={<DualDisplay label="Tiempo 0-100%" linearVal={timeToFullMinLin} curveVal={totalMinutesCurve} unit="min" digits={0} />}
+                            dualData={<DualDisplay label="Tiempo 0-100%" linearVal={timeToFullMinLin} curveVal={totalMinutesCurve} isTime={true} />}
                         />
                         
                         <EquivSlider 
