@@ -105,22 +105,24 @@
       const formatMoney = (val) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
       const formatDecimal = (val, digits = 2) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(val);
 
-      // --- ROBUST INPUT COMPONENT (FIXED FOCUS & DECIMAL) ---
+      // --- ROBUST INPUT COMPONENT (FIXED PRECISION & FOCUS) ---
       const FormattedInput = ({ value, onChange, decimals = 0 }) => {
         const [localValue, setLocalValue] = useState("");
         const [isFocused, setIsFocused] = useState(false);
 
-        // Sync with parent value when not editing
+        // Sincronizar solo cuando no está en foco
         useEffect(() => {
             if (!isFocused) {
                 if (value === null || value === undefined || value === '') {
                     setLocalValue('');
                 } else {
-                    // Format for display: 1234.5 -> "1.234,5" (ES locale)
+                    // Mostrar con formato bonito, pero respetando decimales pasados
+                    // Si decimals es bajo (ej: 0 o 2) para display, NO limitamos para edición
+                    // Usamos 'maximumFractionDigits: 6' para asegurar que no se corta info al visualizar
                     setLocalValue(new Intl.NumberFormat('es-ES', { 
                         minimumFractionDigits: 0, 
-                        maximumFractionDigits: decimals,
-                        useGrouping: false // Avoid thousands separator while compact
+                        maximumFractionDigits: Math.max(decimals, 6), 
+                        useGrouping: false 
                     }).format(value));
                 }
             }
@@ -128,20 +130,18 @@
 
         const handleChange = (e) => {
             const inputVal = e.target.value;
-            setLocalValue(inputVal); // Always update UI immediately
+            setLocalValue(inputVal); // UI update immediate
 
-            // Allow empty or minus
-            if (inputVal === '' || inputVal === '-') {
-                return; 
-            }
+            // Allow cleaning
+            if (inputVal === '' || inputVal === '-') return;
 
-            // Validate pattern: numbers, comma or dot
+            // Validate regex (numbers, dots, commas)
             if (!/^[\d.,-]+$/.test(inputVal)) return;
 
-            // Normalize for parsing: replace comma with dot
+            // Normalize (comma to dot)
             const normalized = inputVal.replace(/,/g, '.');
             
-            // If it ends in dot, don't parse yet (user is typing decimal)
+            // If ending with dot/comma, just wait
             if (normalized.endsWith('.')) return;
 
             const num = parseFloat(normalized);
@@ -152,15 +152,14 @@
 
         const handleFocus = () => {
             setIsFocused(true);
-            // Show raw value for editing (replace dot with comma for ES user habit)
             if (value !== null && value !== undefined) {
+                // Show raw value with comma for editing
                 setLocalValue(value.toString().replace('.', ','));
             }
         };
 
         const handleBlur = () => {
             setIsFocused(false);
-            // useEffect will re-format on next render
         };
 
         return (
@@ -1045,8 +1044,12 @@
         const billB = calculateBill(tState.propB);
         const diff = billB.total - billA.total;
         const diffPercent = Math.min(billA.total, billB.total) > 0 ? (Math.abs(diff) / Math.max(billA.total, billB.total)) * 100 : 0;
+        
         const diffPot = billB.termPotDisc - billA.termPotDisc;
+        const diffPotPct = Math.min(billA.termPotDisc, billB.termPotDisc) > 0 ? (Math.abs(diffPot) / Math.max(billA.termPotDisc, billB.termPotDisc)) * 100 : 0;
+        
         const diffEn = billB.termEnNet - billA.termEnNet;
+        const diffEnPct = Math.min(billA.termEnNet, billB.termEnNet) > 0 ? (Math.abs(diffEn) / Math.max(billA.termEnNet, billB.termEnNet)) * 100 : 0;
 
         // Sub-component for a Proposal Column
         const ProposalColumn = ({ propKey, title, data, onChange }) => (
@@ -1192,21 +1195,6 @@
                              )}
                         </div>
 
-                        {/* ORIGEN DEL AHORRO */}
-                        {diff !== 0 && (
-                            <div className="mb-6 bg-slate-800/50 p-3 rounded-lg text-xs">
-                                <div className="font-bold text-slate-400 uppercase mb-2 text-[10px]">Desglose del Ahorro</div>
-                                <div className="flex justify-between mb-1">
-                                    <span>En Potencia:</span>
-                                    <span className={diffPot > 0 ? "text-green-400 font-bold" : "text-red-400 font-bold"}>{diffPot > 0 ? 'Ahorras' : 'Pierdes'} {formatDecimal(Math.abs(diffPot))} €</span>
-                                </div>
-                                <div className="flex justify-between">
-                                    <span>En Energía:</span>
-                                    <span className={diffEn > 0 ? "text-green-400 font-bold" : "text-red-400 font-bold"}>{diffEn > 0 ? 'Ahorras' : 'Pierdes'} {formatDecimal(Math.abs(diffEn))} €</span>
-                                </div>
-                            </div>
-                        )}
-
                         {/* COMPARATIVA CARA A CARA */}
                         <div className="overflow-x-auto">
                             <table className="w-full text-xs border-collapse">
@@ -1247,21 +1235,34 @@
                                     </tr>
                                 </tbody>
                                 <tfoot className="border-t border-slate-600 bg-slate-800/30">
-                                    <tr>
-                                        <td colSpan="3" className="py-2 text-center">
-                                            {diff !== 0 && (
-                                                <div className="flex justify-center gap-2 items-baseline mb-1">
-                                                    <span className="text-[10px] text-slate-400 uppercase">Diferencia:</span>
-                                                    <span className={`font-bold ${diff > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                        {formatDecimal(Math.abs(diff))} €
+                                    {diff !== 0 && (
+                                        <>
+                                            <tr className="text-[10px] text-slate-400">
+                                                <td className="py-1">Dif. Potencia</td>
+                                                <td colSpan="2" className="text-center py-1">
+                                                    <span className={diffPot > 0 ? "text-green-400" : "text-red-400"}>
+                                                        {diffPot > 0 ? '-' : '+'}{formatDecimal(Math.abs(diffPot))} € <span className="opacity-70">({formatDecimal(diffPotPct)}%)</span>
                                                     </span>
-                                                    <span className="text-[10px] text-slate-500">
-                                                        ({formatDecimal(diffPercent)}%)
+                                                </td>
+                                            </tr>
+                                            <tr className="text-[10px] text-slate-400">
+                                                <td className="py-1">Dif. Energía</td>
+                                                <td colSpan="2" className="text-center py-1">
+                                                    <span className={diffEn > 0 ? "text-green-400" : "text-red-400"}>
+                                                        {diffEn > 0 ? '-' : '+'}{formatDecimal(Math.abs(diffEn))} € <span className="opacity-70">({formatDecimal(diffEnPct)}%)</span>
                                                     </span>
-                                                </div>
-                                            )}
-                                        </td>
-                                    </tr>
+                                                </td>
+                                            </tr>
+                                            <tr className="text-xs font-bold text-white bg-slate-700/30">
+                                                <td className="py-2">DIFERENCIA TOTAL</td>
+                                                <td colSpan="2" className="text-center py-2">
+                                                    <span className={diff > 0 ? "text-green-400" : "text-red-400"}>
+                                                        {diff > 0 ? 'Ahorras' : 'Pierdes'} {formatDecimal(Math.abs(diff))} € <span className="opacity-70">({formatDecimal(diffPercent)}%)</span>
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        </>
+                                    )}
                                     <tr>
                                         <td className="py-3 font-bold text-white">TOTAL FACTURA</td>
                                         <td className={`py-3 text-right font-bold text-lg ${diff > 0 ? 'text-green-400' : 'text-white'}`}>{formatDecimal(billA.total)} €</td>
