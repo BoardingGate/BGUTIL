@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>BoardingGate - Ecosistema Tesla</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
@@ -16,7 +16,7 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-      body { font-family: 'Inter', sans-serif; background-color: #0a0a0a; color: #e5e5e5; }
+      body { font-family: 'Inter', sans-serif; background-color: #0a0a0a; color: #e5e5e5; -webkit-tap-highlight-color: transparent; }
       .font-display { font-family: 'Orbitron', sans-serif; }
       ::-webkit-scrollbar { width: 8px; }
       ::-webkit-scrollbar-track { background: #1a1a1a; }
@@ -65,9 +65,14 @@
     <div id="root"></div>
 
     <script>
+      // Error handling robusto para móviles
       window.onerror = function(message, source, lineno, colno, error) {
+        // Ignorar "Script error." genérico que ocurre por CDNs en algunos navegadores móviles
+        if (message && message.indexOf('Script error') > -1) return;
+        
         console.error(error);
         const root = document.getElementById('root');
+        // Solo mostrar el error en pantalla si la app no ha cargado nada
         if(root && root.innerHTML === "") {
            document.body.innerHTML = '<div style="color:#ff9999; padding:20px; background:#330000; font-family:monospace;"><h2>⚠️ Error de inicialización:</h2><p>' + message + '</p><p>Intenta recargar la página.</p></div>';
         }
@@ -105,44 +110,61 @@
       const formatMoney = (val) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
       const formatDecimal = (val, digits = 2) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(val);
 
-      // --- ROBUST INPUT COMPONENT (UPDATE ON BLUR) ---
+      // --- ROBUST INPUT COMPONENT (MOBILE OPTIMIZED) ---
       const FormattedInput = ({ value, onChange, decimals = 0 }) => {
         // Generate display string from value
         const getDisplayString = (val) => {
             if (val === null || val === undefined || val === '') return '';
             return new Intl.NumberFormat('es-ES', { 
                 minimumFractionDigits: 0, 
-                maximumFractionDigits: Math.max(decimals, 6), // Allow up to 6 decimals for precision
+                maximumFractionDigits: Math.max(decimals, 6), 
                 useGrouping: false 
             }).format(val);
         };
 
         const [localValue, setLocalValue] = useState(() => getDisplayString(value));
+        const [isFocused, setIsFocused] = useState(false);
 
         // Sync with external changes only if meaningful change (avoids cursor jump loops)
         useEffect(() => {
-            setLocalValue(getDisplayString(value));
-        }, [value]);
+            if (!isFocused) {
+                setLocalValue(getDisplayString(value));
+            }
+        }, [value, isFocused, decimals]);
 
         const handleChange = (e) => {
-            // Allow free typing
-            setLocalValue(e.target.value);
+            const inputVal = e.target.value;
+            setLocalValue(inputVal); // Always update UI immediately to allow typing
+
+            // Allow empty or minus
+            if (inputVal === '' || inputVal === '-') return;
+
+            // Validate pattern: numbers, comma, dot, minus
+            if (!/^[\d.,-]+$/.test(inputVal)) return;
+
+            // Normalize (comma to dot)
+            const normalized = inputVal.replace(/,/g, '.');
+            
+            // If ending with dot/comma, just wait
+            if (normalized.endsWith('.')) return;
+
+            const num = parseFloat(normalized);
+            if (!isNaN(num)) {
+                onChange(num);
+            }
+        };
+
+        const handleFocus = () => {
+            setIsFocused(true);
+            if (value !== null && value !== undefined) {
+                // Show raw value with comma for editing on mobile
+                setLocalValue(value.toString().replace('.', ','));
+            }
         };
 
         const handleBlur = () => {
-            if (!localValue) return;
-            
-            // Replace comma with dot for parsing
-            const cleanVal = localValue.replace(/\./g, '').replace(',', '.');
-            const num = parseFloat(cleanVal);
-
-            if (!isNaN(num)) {
-                onChange(num); // Commit change to parent
-                setLocalValue(getDisplayString(num)); // Reformat properly
-            } else {
-                // Revert if invalid
-                setLocalValue(getDisplayString(value));
-            }
+            setIsFocused(false);
+             // Reformat on blur is handled by useEffect when isFocused becomes false
         };
         
         const handleKeyDown = (e) => {
@@ -154,8 +176,10 @@
         return (
             <input
                 type="text"
+                inputMode="decimal" 
                 value={localValue}
                 onChange={handleChange}
+                onFocus={handleFocus}
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
                 className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-2 text-yellow-300 font-mono font-bold focus:outline-none focus:border-yellow-500 text-sm placeholder-zinc-500 transition-colors text-right"
@@ -731,6 +755,360 @@
         );
       };
 
+      // --- CURVA DE CARGA (REDISEÑADA & EXTRAPOLADA) ---
+      const ChargeCurveCalculator = () => {
+        const [state, setState] = usePersistentState('curveState', { 
+            batType: 'LFP', 
+            capacity: 60, 
+            startPct: 10, 
+            endPct: 80, 
+            costPerKwh: 0.45, 
+            chargerPower: 150, 
+            optimizationTime: 20,
+            consumption: 15.0, 
+            targetRange: 300
+        });
+
+        // CURVAS REALISTAS 2024
+        const curvePoints = {
+            // LFP (Model 3 RWD 60kWh):
+            LFP: [
+                {p:0, v:170}, {p:10, v:168}, {p:20, v:155}, {p:30, v:135}, 
+                {p:45, v:110}, {p:55, v:85}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}
+            ],
+            // NCA (Model 3 LR/Perf 75-80kWh):
+            NCA: [
+                {p:0, v:200}, {p:5, v:250}, {p:15, v:250}, {p:25, v:210}, 
+                {p:40, v:150}, {p:60, v:100}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}
+            ]
+        };
+
+        const getBatteryLimitAtSoC = (soc, type, chargerPowerInput) => {
+            const points = curvePoints[type];
+            const baseRef = type === 'NCA' ? 250 : 170; 
+            const techScaler = Math.max(baseRef, chargerPowerInput) / baseRef; 
+            const scaleFactor = Math.max(1, techScaler);
+
+            const p2Index = points.findIndex(pt => pt.p >= soc);
+            if (p2Index === -1) return points[points.length-1].v * scaleFactor; 
+            if (p2Index === 0) return points[0].v * scaleFactor;
+
+            const p1 = points[p2Index - 1];
+            const p2 = points[p2Index];
+            const range = p2.p - p1.p;
+            const dist = soc - p1.p;
+            const ratio = dist / range;
+            const factor = p1.v + (ratio * (p2.v - p1.v));
+
+            return factor * scaleFactor;
+        };
+
+        // Helper format time string
+        const formatTime = (min) => {
+            if(!min || !isFinite(min)) return "00:00:00";
+            const h = Math.floor(min / 60);
+            const m = Math.floor(min % 60);
+            const s = Math.round((min * 60) % 60);
+            return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+        };
+
+        // HELPER: Calculate Time & Range for a given window
+        const calculateMetrics = (start, end) => {
+            let minutes = 0;
+            const kwhPerPercent = state.capacity / 100;
+            const safeStart = Math.min(start, end - 1);
+            const safeEnd = Math.max(end, start + 1);
+
+            for (let i = safeStart; i < safeEnd; i++) {
+                const batteryLimit = getBatteryLimitAtSoC(i, state.batType, state.chargerPower);
+                const realPower = Math.min(state.chargerPower, batteryLimit);
+                if (realPower > 0) {
+                    minutes += (kwhPerPercent / realPower) * 60;
+                }
+            }
+            
+            const totalEnergy = (safeEnd - safeStart) * kwhPerPercent;
+            // Range Added = Energy * (100 / Consumption)
+            const rangeAdded = state.consumption > 0 ? (totalEnergy / state.consumption) * 100 : 0;
+            // Total Range = (Capacity * End% / 100) / Consumption * 100
+            const totalRange = state.consumption > 0 ? ((state.capacity * (safeEnd/100)) / state.consumption) * 100 : 0;
+
+            return { minutes, rangeAdded, totalRange };
+        };
+
+        // HANDLER: Chart Sliders Changed -> Sync Bottom Sliders
+        const handleChartChange = (key, value) => {
+            const val = parseInt(value);
+            const newStart = key === 'startPct' ? Math.min(val, state.endPct - 1) : state.startPct;
+            const newEnd = key === 'endPct' ? Math.max(val, state.startPct + 1) : state.endPct;
+            
+            const metrics = calculateMetrics(newStart, newEnd);
+            
+            setState(prev => ({
+                ...prev, 
+                startPct: newStart, 
+                endPct: newEnd,
+                optimizationTime: Math.round(metrics.minutes),
+                targetRange: Math.round(metrics.totalRange)
+            }));
+        };
+
+        // HANDLER: Time Slider Changed -> Sync Chart & Range Slider
+        const handleTimeOptimization = (minutes) => {
+            const idealStart = 10; 
+            let accumMinutes = 0;
+            let foundEnd = idealStart;
+            const kwhPerPercent = state.capacity / 100;
+
+            for(let i = idealStart; i < 100; i++) {
+                const limit = getBatteryLimitAtSoC(i, state.batType, state.chargerPower);
+                const realPower = Math.min(state.chargerPower, limit);
+                if(realPower > 0) {
+                    const minPerPct = (kwhPerPercent / realPower) * 60;
+                    if (accumMinutes + minPerPct > minutes) break;
+                    accumMinutes += minPerPct;
+                    foundEnd = i + 1;
+                }
+            }
+            const finalEnd = Math.min(100, foundEnd);
+            const metrics = calculateMetrics(idealStart, finalEnd);
+
+            setState(prev => ({ 
+                ...prev, 
+                startPct: idealStart, 
+                endPct: finalEnd, 
+                optimizationTime: minutes, 
+                targetRange: Math.round(metrics.totalRange) 
+            }));
+        };
+
+        // HANDLER: Range Slider Changed -> Sync Chart & Time Slider
+        const handleRangeOptimization = (km) => {
+            // Target % = (TargetKm / 100 * Consumption) * 100 / Capacity
+            // Simplifies to: (TargetKm * Consumption) / Capacity
+            let targetPct = (km * state.consumption) / state.capacity;
+            targetPct = Math.ceil(targetPct);
+            
+            // Enforce bounds relative to Start %
+            const safeEnd = Math.max(state.startPct + 1, Math.min(100, targetPct));
+            
+            const metrics = calculateMetrics(state.startPct, safeEnd);
+
+            setState(prev => ({
+                ...prev, 
+                endPct: safeEnd, 
+                targetRange: km,
+                optimizationTime: Math.round(metrics.minutes)
+            }));
+        };
+
+        const sliderStyle = `
+            .range-slider-input { pointer-events: none; -webkit-appearance: none; z-index: 10; }
+            .range-slider-input::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; position: relative; z-index: 20; box-shadow: 0 2px 6px rgba(0,0,0,0.5); }
+            .range-slider-input::-moz-range-thumb { pointer-events: auto; width: 24px; height: 24px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; position: relative; z-index: 20; }
+            #slider-start::-webkit-slider-thumb { border-color: #eab308; } 
+            #slider-end::-webkit-slider-thumb { border-color: #22c55e; }
+        `;
+
+        // Prepare Display Data
+        const metrics = calculateMetrics(state.startPct, state.endPct);
+        const totalCost = ((state.endPct - state.startPct) / 100 * state.capacity) * state.costPerKwh;
+        const maxPossibleRange = state.consumption > 0 ? (state.capacity / state.consumption) * 100 : 0;
+        const peakGraphHeight = Math.max(state.chargerPower, 250); 
+
+        // Intervalo de 20kW
+        const gridLines = [];
+        for(let p = 20; p < peakGraphHeight; p += 20) {
+            gridLines.push(p);
+        }
+
+        // Chart Bars
+        const chartBars = [];
+        for (let i = 0; i <= 100; i++) {
+            const batteryLimit = getBatteryLimitAtSoC(i, state.batType, state.chargerPower);
+            const realPower = Math.min(state.chargerPower, batteryLimit);
+            const active = i >= state.startPct && i < state.endPct;
+            chartBars.push({ pct: i, power: realPower, active });
+        }
+
+        const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
+        const setLFP = () => setState(prev => ({...prev, batType: 'LFP', capacity: 60}));
+        const setNCA = () => setState(prev => ({...prev, batType: 'NCA', capacity: 75}));
+
+        return (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <style>{sliderStyle}</style>
+                <div className="lg:col-span-4 space-y-6">
+                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 shadow-xl">
+                        <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Icons.Activity /> Parámetros de Carga</h2>
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-2 gap-2">
+                                <button onClick={setLFP} className={`p-3 rounded-lg border font-bold transition-all text-xs md:text-sm ${state.batType === 'LFP' ? 'bg-green-600 border-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)]' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>LFP (Model 3 RWD)</button>
+                                <button onClick={setNCA} className={`p-3 rounded-lg border font-bold transition-all text-xs md:text-sm ${state.batType === 'NCA' ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.4)]' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>NCA (Gran Autonomía)</button>
+                            </div>
+                            
+                            <div><label className="text-xs text-slate-500 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.capacity} onChange={v => handleChange('capacity', v)} /></div>
+                            <div><label className="text-xs text-slate-500 block mb-1">Consumo Medio (kWh/100km)</label><FormattedInput value={state.consumption} decimals={1} onChange={v => handleChange('consumption', v)} /></div>
+                            
+                            <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                                <div className="flex justify-between mb-2">
+                                    <label className="text-xs text-slate-400">Potencia Cargador</label>
+                                    <span className="text-xs font-bold text-blue-400 font-mono">{state.chargerPower} kW</span>
+                                </div>
+                                <input type="range" min="3" max="800" step="1" value={state.chargerPower} onChange={e => handleChange('chargerPower', parseInt(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-blue-500" />
+                                
+                                <div className="relative w-full h-4 mt-1">
+                                    <span className="absolute left-0 text-[9px] text-slate-500">Home (3)</span>
+                                    <span className="absolute text-[9px] text-slate-500 -translate-x-1/2" style={{left: '18.4%'}}>V2 (150)</span>
+                                    <span className="absolute text-[9px] text-slate-500 -translate-x-1/2" style={{left: '31%'}}>V3 (250)</span>
+                                    <span className="absolute right-0 text-[9px] text-slate-500">800kW</span>
+                                </div>
+                            </div>
+
+                            <div><label className="text-xs text-slate-500 block mb-1">Coste (€/kWh)</label><FormattedInput decimals={2} value={state.costPerKwh} onChange={v => handleChange('costPerKwh', v)} /></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="lg:col-span-8 space-y-6">
+                    <div className="h-[550px] bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col relative shadow-2xl overflow-hidden">
+                         
+                         {/* CABECERA INTEGRADA */}
+                         <div className="flex flex-col md:flex-row justify-between items-center mb-6 z-20 relative bg-slate-800/40 rounded-xl p-4 border border-slate-700/50 backdrop-blur-sm">
+                             <div className="flex items-center gap-4 mb-2 md:mb-0">
+                                 <div className="text-yellow-500 font-display font-bold text-sm bg-yellow-900/20 px-3 py-1 rounded border border-yellow-500/30">INICIO {state.startPct}%</div>
+                                 <div className="text-slate-500 text-xs">➜</div>
+                                 <div className="text-white font-bold text-xs bg-white/10 px-2 py-1 rounded border border-white/20">+{state.endPct - state.startPct}%</div>
+                                 <div className="text-slate-500 text-xs">➜</div>
+                                 <div className="text-green-500 font-display font-bold text-sm bg-green-900/20 px-3 py-1 rounded border border-green-500/30">FIN {state.endPct}%</div>
+                             </div>
+                             
+                             <div className="flex gap-4 md:gap-6 text-center overflow-x-auto">
+                                 <div>
+                                     <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">+Km</div>
+                                     <div className="text-xl font-bold text-green-400">+{Math.round(metrics.rangeAdded)}</div>
+                                 </div>
+                                 <div className="w-px bg-slate-600 h-8 self-center"></div>
+                                 <div>
+                                     <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Total</div>
+                                     <div className="text-xl font-bold text-white">{Math.round(metrics.totalRange)} <span className="text-xs text-slate-500">km</span></div>
+                                 </div>
+                                 <div className="w-px bg-slate-600 h-8 self-center"></div>
+                                 <div>
+                                     <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Tiempo</div>
+                                     <div className="text-xl font-bold text-white">{formatTime(metrics.minutes)}</div>
+                                 </div>
+                                 <div className="w-px bg-slate-600 h-8 self-center"></div>
+                                 <div>
+                                     <div className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Coste</div>
+                                     <div className="text-xl font-bold text-blue-400">{formatDecimal(totalCost)}€</div>
+                                 </div>
+                             </div>
+                         </div>
+                         
+                         {/* GRÁFICA CON EJE Y EXTERNO */}
+                         <div className="flex-1 flex gap-2 relative pt-2 pb-10 border-b border-slate-700">
+                             
+                             {/* Columna Eje Y (Fuera) */}
+                             <div className="w-8 flex flex-col justify-end relative h-full">
+                                {gridLines.map(p => (
+                                    <div key={p} className="absolute w-full text-right" style={{bottom: `${(p / peakGraphHeight) * 100}%`, transform: 'translateY(50%)'}}>
+                                        <span className="text-[10px] font-bold text-white">{p}</span>
+                                    </div>
+                                ))}
+                             </div>
+
+                             {/* Área de Barras */}
+                             <div className="flex-1 flex items-end gap-[1px] relative h-full">
+                                {/* Líneas de grid horizontales */}
+                                <div className="absolute inset-0 flex flex-col justify-end pointer-events-none z-0">
+                                    {gridLines.map(p => (
+                                        <div key={p} className="absolute w-full border-t border-slate-700/50" style={{bottom: `${(p / peakGraphHeight) * 100}%`}}></div>
+                                    ))}
+                                </div>
+
+                                {chartBars.map((bar) => (
+                                    <div key={bar.pct} className="flex-1 flex flex-col justify-end group relative h-full z-10">
+                                        <div 
+                                            className={`w-full rounded-t-sm transition-all duration-300 ${bar.active ? 'bg-gradient-to-t from-blue-600 to-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.3)]' : 'bg-slate-800'}`} 
+                                            style={{height: `${(bar.power / peakGraphHeight) * 100}%`}}
+                                        ></div>
+                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block bg-black text-white text-[10px] p-1 rounded whitespace-nowrap z-30 border border-slate-600">
+                                            {bar.pct}% : {Math.round(bar.power)} kW
+                                        </div>
+                                    </div>
+                                ))}
+                                
+                                <div className="absolute top-0 bottom-0 w-0.5 border-l-2 border-dashed border-yellow-500 transition-all duration-75 pointer-events-none z-20" style={{left: `${state.startPct}%`}}></div>
+                                <div className="absolute top-0 bottom-0 w-0.5 border-l-2 border-dashed border-green-500 transition-all duration-75 pointer-events-none z-20" style={{left: `${state.endPct}%`}}></div>
+                            </div>
+                         </div>
+
+                         {/* SLIDER RANGO */}
+                         <div className="relative h-12 mt-4 select-none ml-10">
+                             <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                                 <div className="absolute top-0 bottom-0 bg-gradient-to-r from-yellow-500 via-blue-500 to-green-500 opacity-80" style={{left: `${state.startPct}%`, right: `${100-state.endPct}%`}}></div>
+                             </div>
+                             
+                             <input 
+                                id="slider-start"
+                                type="range" min="0" max="99" 
+                                value={state.startPct} 
+                                onChange={e => handleChartChange('startPct', e.target.value)} 
+                                className="range-slider-input absolute inset-0 w-full opacity-0 sm:opacity-100 bg-transparent" 
+                             />
+                             <input 
+                                id="slider-end"
+                                type="range" min="1" max="100" 
+                                value={state.endPct} 
+                                onChange={e => handleChartChange('endPct', e.target.value)} 
+                                className="range-slider-input absolute inset-0 w-full bg-transparent" 
+                             />
+                             
+                             <div className="flex justify-between text-[10px] text-slate-500 mt-8 font-mono px-1">
+                                <span>0%</span>
+                                <span>25%</span>
+                                <span>50%</span>
+                                <span>75%</span>
+                                <span>100%</span>
+                             </div>
+                         </div>
+                    </div>
+
+                    {/* OPTIMIZADORES */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Slider Tiempo */}
+                        <div className="bg-purple-900/20 p-4 rounded-xl border border-purple-500/30 shadow-lg">
+                            <div className="flex justify-between mb-2">
+                                <label className="text-sm text-purple-300 font-bold flex items-center gap-2"><Icons.Clock className="w-4 h-4"/> Optimizar Tiempo</label>
+                                <span className="text-sm font-bold text-white bg-purple-500/20 px-2 py-1 rounded">{state.optimizationTime} min</span>
+                            </div>
+                            <input type="range" min="1" max="120" step="1" 
+                                value={state.optimizationTime} 
+                                onChange={e => handleTimeOptimization(parseInt(e.target.value))} 
+                                className="w-full h-3 bg-slate-700 rounded-lg cursor-pointer accent-purple-500" />
+                            <div className="text-xs text-slate-400 mt-2 italic">Desliza para ver la mejor carga posible en este tiempo.</div>
+                        </div>
+
+                        {/* Slider Autonomía */}
+                        <div className="bg-cyan-900/20 p-4 rounded-xl border border-cyan-500/30 shadow-lg">
+                            <div className="flex justify-between mb-2">
+                                <label className="text-sm text-cyan-300 font-bold flex items-center gap-2"><Icons.TrendingUp className="w-4 h-4"/> Autonomía Deseada</label>
+                                <span className="text-sm font-bold text-white bg-cyan-500/20 px-2 py-1 rounded">{Math.round(state.targetRange)} km</span>
+                            </div>
+                            <input type="range" min="50" max={maxPossibleRange} step="5" 
+                                value={Math.min(Math.max(50, state.targetRange), maxPossibleRange)} 
+                                onChange={e => handleRangeOptimization(parseInt(e.target.value))} 
+                                className="w-full h-3 bg-slate-700 rounded-lg cursor-pointer accent-cyan-500" />
+                            <div className="text-xs text-slate-400 mt-2 italic">Ajusta el % final para tener estos km totales.</div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        );
+      };
+
       // --- EQUIVALENCE CALCULATOR (FINAL OPTIMIZED) ---
       const EquivalenceCalculator = () => {
         const [staticParams, setStaticParams] = usePersistentState('equivStatic', {
@@ -933,11 +1311,11 @@
 
       // --- TARIFF COMPARATOR (ENHANCED A vs B) ---
       const TariffComparator = () => {
-        const [tState, setTState] = usePersistentState('tariffCompV4', {
+        const [tState, setTState] = usePersistentState('tariffCompV5', {
             // Shared Data
             days: 30,
             potP1: 4.6, potP2: 7.4,
-            impuestoElec: 2.5, iva: 21,
+            impuestoElec: 5.11, iva: 21,
             alquiler: 0.027, bonoSocial: 0.006,
             
             // Shared Consumption
@@ -1226,34 +1604,35 @@
                                 <tfoot className="border-t border-slate-600 bg-slate-800/30">
                                     {diff !== 0 && (
                                         <>
-                                            <tr className="text-[10px] text-slate-400">
-                                                <td className="py-1">Dif. Potencia</td>
-                                                <td className="text-right py-1 pr-2 font-mono">
-                                                     <span className={diffPot > 0 ? "text-green-400" : "text-red-400"}>
-                                                        {diffPot > 0 ? '-' : '+'}{formatDecimal(Math.abs(diffPot))} €
-                                                     </span>
+                                            <tr className="text-[10px] text-slate-400 bg-slate-800/50">
+                                                <td className="py-2 pl-2 font-bold uppercase tracking-wide">Diferencial</td>
+                                                <td colSpan="2" className="py-0"></td>
+                                            </tr>
+                                            <tr className="text-[10px]">
+                                                <td className="py-1 pl-4 text-slate-500">En Potencia</td>
+                                                <td className={`text-right py-1 pr-2 font-mono ${diffPot > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {diffPot > 0 ? '-' : '+'}{formatDecimal(Math.abs(diffPot))} €
                                                 </td>
-                                                <td className="text-left py-1 pl-2 font-mono text-[9px] text-slate-500">
-                                                     ({formatDecimal(diffPotPct)}%)
+                                                <td className="text-left py-1 pl-2 text-[9px] text-slate-500">
+                                                    ({formatDecimal(diffPotPct)}%)
                                                 </td>
                                             </tr>
-                                            <tr className="text-[10px] text-slate-400">
-                                                <td className="py-1">Dif. Energía</td>
-                                                <td className="text-right py-1 pr-2 font-mono">
-                                                    <span className={diffEn > 0 ? "text-green-400" : "text-red-400"}>
-                                                        {diffEn > 0 ? '-' : '+'}{formatDecimal(Math.abs(diffEn))} €
-                                                    </span>
+                                            <tr className="text-[10px] border-b border-slate-700">
+                                                <td className="py-1 pl-4 text-slate-500">En Energía</td>
+                                                <td className={`text-right py-1 pr-2 font-mono ${diffEn > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {diffEn > 0 ? '-' : '+'}{formatDecimal(Math.abs(diffEn))} €
                                                 </td>
-                                                 <td className="text-left py-1 pl-2 font-mono text-[9px] text-slate-500">
-                                                     ({formatDecimal(diffEnPct)}%)
+                                                 <td className="text-left py-1 pl-2 text-[9px] text-slate-500">
+                                                    ({formatDecimal(diffEnPct)}%)
                                                 </td>
                                             </tr>
                                             <tr className="text-xs font-bold text-white bg-slate-700/30">
-                                                <td className="py-2">DIFERENCIA TOTAL</td>
-                                                <td colSpan="2" className="text-center py-2">
-                                                    <span className={diff > 0 ? "text-green-400" : "text-red-400"}>
-                                                        {diff > 0 ? 'Ahorras' : 'Pierdes'} {formatDecimal(Math.abs(diff))} € <span className="opacity-70">({formatDecimal(diffPercent)}%)</span>
-                                                    </span>
+                                                <td className="py-2 pl-2">AHORRO TOTAL</td>
+                                                <td className={`text-right py-2 pr-2 font-mono ${diff > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {formatDecimal(Math.abs(diff))} €
+                                                </td>
+                                                <td className="text-left py-2 pl-2 text-[10px] opacity-70">
+                                                    ({formatDecimal(diffPercent)}%)
                                                 </td>
                                             </tr>
                                         </>
