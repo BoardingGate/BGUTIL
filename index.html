@@ -1095,207 +1095,63 @@
         );
       };
 
-      // --- EQUIVALENCE CALCULATOR (FINAL OPTIMIZED) ---
-      const EquivalenceCalculator = () => {
-        const [staticParams, setStaticParams] = usePersistentState('equivStatic', {
-            capacity: 60, 
-            consumption: 14.5, 
-            price: 0.45,
-            batType: 'LFP'
-        });
-
-        // Master values
-        const [power, setPower] = usePersistentState('equivPower', 7.4);
-
-        const powerPresets = [3.3, 4, 4.5, 6, 7.4, 11, 22, 40, 50, 60, 80, 100, 120, 140, 150, 180, 200, 250, 300, 400, 500, 800];
-        const curvePoints = {
-            LFP: [{p:0, v:170}, {p:10, v:168}, {p:20, v:155}, {p:30, v:135}, {p:45, v:110}, {p:55, v:85}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}],
-            NCA: [{p:0, v:200}, {p:5, v:250}, {p:15, v:250}, {p:25, v:210}, {p:40, v:150}, {p:60, v:100}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}]
-        };
-
-        // Helper Functions
-        const getBatteryLimitAtSoC = (soc, type, chargerPowerInput) => {
-            const points = curvePoints[type];
-            const baseRef = type === 'NCA' ? 250 : 170; 
-            const techScaler = Math.max(baseRef, chargerPowerInput) / baseRef; 
-            const scaleFactor = Math.max(1, techScaler);
-            const p2Index = points.findIndex(pt => pt.p >= soc);
-            if (p2Index === -1) return points[points.length-1].v * scaleFactor; 
-            if (p2Index === 0) return points[0].v * scaleFactor;
-            const p1 = points[p2Index - 1];
-            const p2 = points[p2Index];
-            const range = p2.p - p1.p;
-            const dist = soc - p1.p;
-            const ratio = dist / range;
-            return (p1.v + (ratio * (p2.v - p1.v))) * scaleFactor;
-        };
-
-        // Helper format time string
-        const formatTime = (min) => {
-            if(!min || !isFinite(min)) return "00:00:00";
-            const h = Math.floor(min / 60);
-            const m = Math.floor(min % 60);
-            const s = Math.round((min * 60) % 60);
-            return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
-        };
-
-        // Linear vs Curve Calculations
-        const voltage = power < 11 ? 230 : 400;
-        const amps = (power * 1000) / voltage;
-        
-        // Linear Values
-        const kwPerMinLin = power / 60;
-        const kmPerMinLin = kwPerMinLin / (staticParams.consumption / 100);
-        const timeToFullMinLin = power > 0 ? (staticParams.capacity / power) * 60 : 0;
-        
-        // Curve Values (Simulation 0-100%)
-        let totalMinutesCurve = 0;
-        const kwhPerPercent = staticParams.capacity / 100;
-        for(let i=0; i<100; i++) {
-            const limit = getBatteryLimitAtSoC(i, staticParams.batType, power);
-            const realPower = Math.min(power, limit);
-            if(realPower > 0) {
-                totalMinutesCurve += (kwhPerPercent / realPower) * 60;
-            }
-        }
-        
-        // Averages based on Curve
-        const avgPowerCurve = totalMinutesCurve > 0 ? staticParams.capacity / (totalMinutesCurve/60) : 0;
-        const kwPerMinCurve = avgPowerCurve / 60;
-        const kmPerMinCurve = kwPerMinCurve / (staticParams.consumption / 100);
-        const costPerMin = kwPerMinCurve * staticParams.price; // Cost depends on delivered energy
-
-        // Dual Data Display Component
-        const DualDisplay = ({ label, linearVal, curveVal, unit, digits=2, isTime=false }) => (
-            <div className="flex justify-between items-center text-xs">
-                <span className="text-slate-400 uppercase font-bold">{label}</span>
-                <div className="text-right">
-                    <div className="text-white font-mono">
-                        {isTime ? formatTime(linearVal) : formatDecimal(linearVal, digits)} 
-                        {!isTime && <span className="text-[9px] text-slate-500">{unit} (Teórico)</span>}
-                        {isTime && <span className="text-[9px] text-slate-500"> (Teórico)</span>}
-                    </div>
-                    <div className="text-orange-400 font-mono">
-                        {isTime ? formatTime(curveVal) : formatDecimal(curveVal, digits)} 
-                        {!isTime && <span className="text-[9px] text-orange-500/70">{unit} (Real)</span>}
-                        {isTime && <span className="text-[9px] text-orange-500/70"> (Real)</span>}
-                    </div>
-                </div>
-            </div>
-        );
-
-        // Slider Component
-        const EquivSlider = ({ label, value, min, max, step, onChange, unit, highlight, digits=2, isMaster=false, showButtons=false, readOnly=false, dualData }) => {
-            const handleStep = (direction) => {
-                const newVal = parseFloat(value) + (step * direction);
-                onChange(Math.min(max, Math.max(min, newVal)));
-            };
-            
-            return (
-                <div className={`bg-slate-900/50 border ${highlight ? 'border-blue-500/50 bg-blue-900/10' : 'border-slate-800'} rounded-xl p-4 transition-colors`}>
-                    <div className="flex justify-between mb-2">
-                        <label className={`text-xs font-bold uppercase tracking-wider ${highlight ? 'text-blue-300' : 'text-slate-400'}`}>{label}</label>
-                        {!dualData && <span className={`font-mono font-bold ${highlight ? 'text-white' : 'text-slate-300'}`}>{formatDecimal(value, digits)} <span className="text-xs text-slate-500">{unit}</span></span>}
-                    </div>
-                    
-                    {dualData && <div className="mb-3 space-y-1">{dualData}</div>}
-
-                    <div className="flex items-center gap-3">
-                        {showButtons && <button onClick={() => handleStep(-1)} className="btn-step">-</button>}
-                        <input 
-                            type="range" 
-                            min={min} max={max} step={step} 
-                            value={value || 0} 
-                            onChange={(e) => !readOnly && onChange && onChange(e.target.value)}
-                            className={`flex-grow h-2 rounded-lg appearance-none ${readOnly ? 'slider-readonly pointer-events-none bg-slate-800' : 'cursor-pointer slider-thumb'} ${!readOnly && highlight ? 'bg-blue-900' : 'bg-slate-700'} ${readOnly ? 'h-1' : ''}`}
-                            disabled={readOnly}
-                        />
-                        {readOnly && <div className="flex-grow h-2 bg-slate-800 rounded-full overflow-hidden relative"><div className="absolute top-0 left-0 h-full bg-blue-500/50 transition-all duration-300" style={{width: `${Math.min(100, (value/max)*100)}%`}}></div></div>}
-                        {showButtons && <button onClick={() => handleStep(1)} className="btn-step">+</button>}
-                    </div>
-                </div>
-            );
-        };
-
-        return (
-            <div className="space-y-8 animate-fade-in">
-                <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
-                    <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
-                        <Icons.Link /> Calculadora de Equivalencias
-                    </h2>
-                    
-                    {/* Static Inputs */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 pb-8 border-b border-slate-800 items-end">
-                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-3">
-                            <label className="text-xs text-slate-500 font-bold block mb-2 uppercase">Tipo Batería</label>
-                            <div className="flex gap-2">
-                                <button onClick={() => setStaticParams({...staticParams, batType:'LFP'})} className={`flex-1 py-1 text-xs font-bold rounded ${staticParams.batType==='LFP' ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-400'}`}>LFP</button>
-                                <button onClick={() => setStaticParams({...staticParams, batType:'NCA'})} className={`flex-1 py-1 text-xs font-bold rounded ${staticParams.batType==='NCA' ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-400'}`}>NCA</button>
-                            </div>
-                        </div>
-                        <EquivSlider label="Capacidad Batería" value={staticParams.capacity} min="30" max="300" step="1" unit="kWh" onChange={v => setStaticParams({...staticParams, capacity: v})} digits={0} isMaster={true} showButtons={true} />
-                        <EquivSlider label="Consumo Medio" value={staticParams.consumption} min="1" max="60" step="0.1" unit="kWh/100" onChange={v => setStaticParams({...staticParams, consumption: v})} digits={1} isMaster={true} showButtons={true} />
-                        <EquivSlider label="Precio Energía" value={staticParams.price} min="0" max="2" step="0.01" unit="€/kWh" onChange={v => setStaticParams({...staticParams, price: v})} digits={2} isMaster={true} showButtons={true} />
-                    </div>
-
-                    {/* Dynamic Sliders Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        
-                        {/* Potencia con Presets */}
-                        <div className="md:col-span-2 space-y-4">
-                            <EquivSlider label="POTENCIA CARGA (A CALCULAR)" value={power} min="1" max="800" step="0.01" unit="kW" onChange={v => setPower(Math.max(0, parseFloat(v)))} highlight digits={2} isMaster={true} showButtons={true} />
-                            <div className="flex flex-wrap gap-2 justify-center bg-slate-800/50 p-3 rounded-xl border border-slate-700">
-                                {powerPresets.map(p => (
-                                    <button key={p} onClick={() => setPower(p)} className={`btn-preset ${Math.abs(power - p) < 0.1 ? 'bg-blue-600 text-white border-blue-500 shadow-[0_0_10px_rgba(37,99,235,0.5)]' : ''}`}>{p} kW</button>
-                                ))}
-                            </div>
-                        </div>
-
-                        <EquivSlider label={`Amperaje (${voltage}V)`} value={amps} min="0" max="2000" step="1" unit="A" highlight digits={0} readOnly={true} />
-                        
-                        <EquivSlider 
-                            label="" 
-                            value={timeToFullMinLin} min="0" max={1440} step="1" 
-                            readOnly={true} 
-                            dualData={<DualDisplay label="Tiempo 0-100%" linearVal={timeToFullMinLin} curveVal={totalMinutesCurve} isTime={true} />}
-                        />
-                        
-                        <EquivSlider 
-                            label="" 
-                            value={kmPerMinLin} min="0" max="50" step="0.1" 
-                            readOnly={true}
-                            dualData={<DualDisplay label="Velocidad (Km)" linearVal={kmPerMinLin} curveVal={kmPerMinCurve} unit="km/min" digits={1} />}
-                        />
-
-                        <EquivSlider 
-                            label="" 
-                            value={kwPerMinLin} min="0" max="50" step="0.1" 
-                            readOnly={true}
-                            dualData={<DualDisplay label="Velocidad (Energía)" linearVal={kwPerMinLin} curveVal={kwPerMinCurve} unit="kW/min" digits={1} />}
-                        />
-                        
-                        <div className="md:col-span-2">
-                             <EquivSlider label="Importe Medio Carga" value={costPerMin} min="0" max="30" step="0.01" unit="€/min" digits={2} readOnly={true} highlight />
-                        </div>
-                    </div>
-
-                    <div className="mt-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-xl flex items-start gap-3">
-                        <div className="mt-1 text-blue-400"><Icons.Activity /></div>
-                        <div>
-                            <h4 className="text-sm font-bold text-blue-300 mb-1">Modo Interactivo</h4>
-                            <p className="text-xs text-slate-400 leading-relaxed">
-                                <strong>Teórico (Lineal):</strong> Valores ideales si la carga fuera constante al 100% de potencia.<br/>
-                                <strong>Real (Curva):</strong> Valores promedio simulando una sesión completa 0-100% aplicando la curva física de la batería seleccionada.<br/>
-                                Solo el control de Potencia es deslizable para garantizar la precisión.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-      };
-
       // --- TARIFF COMPARATOR (ENHANCED A vs B) ---
+      // MOVED OUTSIDE to fix focus issue
+      const ProposalColumn = ({ propKey, title, data, onChange }) => (
+            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-700/50 h-full">
+                <input type="text" value={data.name} onChange={(e) => onChange(propKey, 'name', e.target.value)} 
+                    className="bg-transparent text-sm font-bold text-center w-full mb-4 border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none text-blue-300" />
+                
+                <h4 className="text-[10px] uppercase font-bold text-slate-500 mb-2">Potencia (€/kW/día)</h4>
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                    <div><label className="text-[9px] text-slate-600 block">P1</label><FormattedInput value={data.pricePotP1} onChange={v => onChange(propKey, 'pricePotP1', v)} decimals={6}/></div>
+                    <div><label className="text-[9px] text-slate-600 block">P2</label><FormattedInput value={data.pricePotP2} onChange={v => onChange(propKey, 'pricePotP2', v)} decimals={6}/></div>
+                </div>
+
+                <h4 className="text-[10px] uppercase font-bold text-slate-500 mb-2">Energía (€/kWh)</h4>
+                <div className="space-y-2 mb-4">
+                    <div className="grid grid-cols-5 gap-1 items-center">
+                         <span className="text-[9px] text-red-400 font-bold">P1</span>
+                         <span className="col-span-4"><FormattedInput value={data.priceEnP1} onChange={v => onChange(propKey, 'priceEnP1', v)} decimals={6}/></span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1 items-center">
+                         <span className="text-[9px] text-orange-400 font-bold">P2</span>
+                         <span className="col-span-4"><FormattedInput value={data.priceEnP2} onChange={v => onChange(propKey, 'priceEnP2', v)} decimals={6}/></span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1 items-center">
+                         <span className="text-[9px] text-green-400 font-bold">P3</span>
+                         <span className="col-span-4"><FormattedInput value={data.priceEnP3} onChange={v => onChange(propKey, 'priceEnP3', v)} decimals={6}/></span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1 items-center">
+                         <span className="text-[9px] text-blue-400 font-bold whitespace-nowrap">P3 VE</span>
+                         <span className="col-span-4"><FormattedInput value={data.priceEnP3Ve} onChange={v => onChange(propKey, 'priceEnP3Ve', v)} decimals={6}/></span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1 items-center">
+                         <span className="text-[9px] text-purple-400 font-bold">P4</span>
+                         <span className="col-span-4"><FormattedInput value={data.priceEnP4} onChange={v => onChange(propKey, 'priceEnP4', v)} decimals={6}/></span>
+                    </div>
+                </div>
+
+                <h4 className="text-[10px] uppercase font-bold text-slate-500 mb-2">Descuentos y Extras</h4>
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                    <div><label className="text-[9px] text-slate-600 block">% Dto Pot</label><FormattedInput value={data.discPot} onChange={v => onChange(propKey, 'discPot', v)} decimals={1}/></div>
+                    <div><label className="text-[9px] text-slate-600 block">% Dto Ener</label><FormattedInput value={data.discEn} onChange={v => onChange(propKey, 'discEn', v)} decimals={1}/></div>
+                    <div className="col-span-2"><label className="text-[9px] text-slate-600 block">Comisión Mensual (€)</label><FormattedInput value={data.comision} onChange={v => onChange(propKey, 'comision', v)} decimals={2}/></div>
+                </div>
+
+                <h4 className="text-[10px] uppercase font-bold text-yellow-600 mb-2">Solar / Excedentes</h4>
+                <div className="grid grid-cols-2 gap-2 items-end">
+                    <div><label className="text-[9px] text-slate-600 block">Precio (€/kWh)</label><FormattedInput value={data.solarPrice} onChange={v => onChange(propKey, 'solarPrice', v)} decimals={3}/></div>
+                    <button 
+                        onClick={() => onChange(propKey, 'virtualBat', !data.virtualBat)} 
+                        className={`text-[9px] py-2 px-1 border rounded transition-colors h-[38px] ${data.virtualBat ? 'bg-blue-900 border-blue-500 text-blue-100' : 'bg-slate-800 border-slate-600 text-slate-500'}`}
+                    >
+                        {data.virtualBat ? 'Batería Virtual ON' : 'Batería Virtual OFF'}
+                    </button>
+                </div>
+            </div>
+        );
+
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV5', {
             // Shared Data
@@ -1404,62 +1260,6 @@
         const diffEn = billB.termEnNet - billA.termEnNet;
         const diffEnPct = Math.min(billA.termEnNet, billB.termEnNet) > 0 ? (Math.abs(diffEn) / Math.max(billA.termEnNet, billB.termEnNet)) * 100 : 0;
 
-        // Sub-component for a Proposal Column
-        const ProposalColumn = ({ propKey, title, data, onChange }) => (
-            <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-700/50 h-full">
-                <input type="text" value={data.name} onChange={(e) => onChange(propKey, 'name', e.target.value)} 
-                    className="bg-transparent text-sm font-bold text-center w-full mb-4 border-b border-transparent hover:border-slate-600 focus:border-blue-500 outline-none text-blue-300" />
-                
-                <h4 className="text-[10px] uppercase font-bold text-slate-500 mb-2">Potencia (€/kW/día)</h4>
-                <div className="grid grid-cols-2 gap-2 mb-4">
-                    <div><label className="text-[9px] text-slate-600 block">P1</label><FormattedInput value={data.pricePotP1} onChange={v => onChange(propKey, 'pricePotP1', v)} decimals={6}/></div>
-                    <div><label className="text-[9px] text-slate-600 block">P2</label><FormattedInput value={data.pricePotP2} onChange={v => onChange(propKey, 'pricePotP2', v)} decimals={6}/></div>
-                </div>
-
-                <h4 className="text-[10px] uppercase font-bold text-slate-500 mb-2">Energía (€/kWh)</h4>
-                <div className="space-y-2 mb-4">
-                    <div className="grid grid-cols-5 gap-1 items-center">
-                         <span className="text-[9px] text-red-400 font-bold">P1</span>
-                         <span className="col-span-4"><FormattedInput value={data.priceEnP1} onChange={v => onChange(propKey, 'priceEnP1', v)} decimals={6}/></span>
-                    </div>
-                    <div className="grid grid-cols-5 gap-1 items-center">
-                         <span className="text-[9px] text-orange-400 font-bold">P2</span>
-                         <span className="col-span-4"><FormattedInput value={data.priceEnP2} onChange={v => onChange(propKey, 'priceEnP2', v)} decimals={6}/></span>
-                    </div>
-                    <div className="grid grid-cols-5 gap-1 items-center">
-                         <span className="text-[9px] text-green-400 font-bold">P3</span>
-                         <span className="col-span-4"><FormattedInput value={data.priceEnP3} onChange={v => onChange(propKey, 'priceEnP3', v)} decimals={6}/></span>
-                    </div>
-                    <div className="grid grid-cols-5 gap-1 items-center">
-                         <span className="text-[9px] text-blue-400 font-bold whitespace-nowrap">P3 VE</span>
-                         <span className="col-span-4"><FormattedInput value={data.priceEnP3Ve} onChange={v => onChange(propKey, 'priceEnP3Ve', v)} decimals={6}/></span>
-                    </div>
-                    <div className="grid grid-cols-5 gap-1 items-center">
-                         <span className="text-[9px] text-purple-400 font-bold">P4</span>
-                         <span className="col-span-4"><FormattedInput value={data.priceEnP4} onChange={v => onChange(propKey, 'priceEnP4', v)} decimals={6}/></span>
-                    </div>
-                </div>
-
-                <h4 className="text-[10px] uppercase font-bold text-slate-500 mb-2">Descuentos y Extras</h4>
-                <div className="grid grid-cols-2 gap-2 mb-4">
-                    <div><label className="text-[9px] text-slate-600 block">% Dto Pot</label><FormattedInput value={data.discPot} onChange={v => onChange(propKey, 'discPot', v)} decimals={1}/></div>
-                    <div><label className="text-[9px] text-slate-600 block">% Dto Ener</label><FormattedInput value={data.discEn} onChange={v => onChange(propKey, 'discEn', v)} decimals={1}/></div>
-                    <div className="col-span-2"><label className="text-[9px] text-slate-600 block">Comisión Mensual (€)</label><FormattedInput value={data.comision} onChange={v => onChange(propKey, 'comision', v)} decimals={2}/></div>
-                </div>
-
-                <h4 className="text-[10px] uppercase font-bold text-yellow-600 mb-2">Solar / Excedentes</h4>
-                <div className="grid grid-cols-2 gap-2 items-end">
-                    <div><label className="text-[9px] text-slate-600 block">Precio (€/kWh)</label><FormattedInput value={data.solarPrice} onChange={v => onChange(propKey, 'solarPrice', v)} decimals={3}/></div>
-                    <button 
-                        onClick={() => onChange(propKey, 'virtualBat', !data.virtualBat)} 
-                        className={`text-[9px] py-2 px-1 border rounded transition-colors h-[38px] ${data.virtualBat ? 'bg-blue-900 border-blue-500 text-blue-100' : 'bg-slate-800 border-slate-600 text-slate-500'}`}
-                    >
-                        {data.virtualBat ? 'Batería Virtual ON' : 'Batería Virtual OFF'}
-                    </button>
-                </div>
-            </div>
-        );
-
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
                 {/* CONFIGURACIÓN SUPERIOR (Full Width) */}
@@ -1547,6 +1347,21 @@
                                 </>
                              )}
                         </div>
+
+                        {/* ORIGEN DEL AHORRO */}
+                        {diff !== 0 && (
+                            <div className="mb-6 bg-slate-800/50 p-3 rounded-lg text-xs">
+                                <div className="font-bold text-slate-400 uppercase mb-2 text-[10px]">Desglose del Ahorro</div>
+                                <div className="flex justify-between mb-1">
+                                    <span>En Potencia:</span>
+                                    <span className={diffPot > 0 ? "text-green-400 font-bold" : "text-red-400 font-bold"}>{diffPot > 0 ? 'Ahorras' : 'Pierdes'} {formatDecimal(Math.abs(diffPot))} €</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span>En Energía:</span>
+                                    <span className={diffEn > 0 ? "text-green-400 font-bold" : "text-red-400 font-bold"}>{diffEn > 0 ? 'Ahorras' : 'Pierdes'} {formatDecimal(Math.abs(diffEn))} €</span>
+                                </div>
+                            </div>
+                        )}
 
                         {/* COMPARATIVA CARA A CARA */}
                         <div className="overflow-x-auto">
