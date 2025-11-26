@@ -65,14 +65,10 @@
     <div id="root"></div>
 
     <script>
-      // Error handling robusto para móviles
       window.onerror = function(message, source, lineno, colno, error) {
-        // Ignorar "Script error." genérico que ocurre por CDNs en algunos navegadores móviles
         if (message && message.indexOf('Script error') > -1) return;
-        
         console.error(error);
         const root = document.getElementById('root');
-        // Solo mostrar el error en pantalla si la app no ha cargado nada
         if(root && root.innerHTML === "") {
            document.body.innerHTML = '<div style="color:#ff9999; padding:20px; background:#330000; font-family:monospace;"><h2>⚠️ Error de inicialización:</h2><p>' + message + '</p><p>Intenta recargar la página.</p></div>';
         }
@@ -110,9 +106,8 @@
       const formatMoney = (val) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
       const formatDecimal = (val, digits = 2) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(val);
 
-      // --- ROBUST INPUT COMPONENT (MOBILE OPTIMIZED) ---
+      // --- ROBUST INPUT COMPONENT ---
       const FormattedInput = ({ value, onChange, decimals = 0 }) => {
-        // Generate display string from value
         const getDisplayString = (val) => {
             if (val === null || val === undefined || val === '') return '';
             return new Intl.NumberFormat('es-ES', { 
@@ -125,7 +120,6 @@
         const [localValue, setLocalValue] = useState(() => getDisplayString(value));
         const [isFocused, setIsFocused] = useState(false);
 
-        // Sync with external changes only if meaningful change (avoids cursor jump loops)
         useEffect(() => {
             if (!isFocused) {
                 setLocalValue(getDisplayString(value));
@@ -134,18 +128,12 @@
 
         const handleChange = (e) => {
             const inputVal = e.target.value;
-            setLocalValue(inputVal); // Always update UI immediately to allow typing
+            setLocalValue(inputVal); 
 
-            // Allow empty or minus
             if (inputVal === '' || inputVal === '-') return;
-
-            // Validate pattern: numbers, comma, dot, minus
             if (!/^[\d.,-]+$/.test(inputVal)) return;
 
-            // Normalize (comma to dot)
             const normalized = inputVal.replace(/,/g, '.');
-            
-            // If ending with dot/comma, just wait
             if (normalized.endsWith('.')) return;
 
             const num = parseFloat(normalized);
@@ -157,14 +145,12 @@
         const handleFocus = () => {
             setIsFocused(true);
             if (value !== null && value !== undefined) {
-                // Show raw value with comma for editing on mobile
                 setLocalValue(value.toString().replace('.', ','));
             }
         };
 
         const handleBlur = () => {
             setIsFocused(false);
-             // Reformat on blur is handled by useEffect when isFocused becomes false
         };
         
         const handleKeyDown = (e) => {
@@ -176,7 +162,7 @@
         return (
             <input
                 type="text"
-                inputMode="decimal" 
+                inputMode="decimal"
                 value={localValue}
                 onChange={handleChange}
                 onFocus={handleFocus}
@@ -1479,7 +1465,7 @@
                 {/* CONFIGURACIÓN SUPERIOR (Full Width) */}
                 <div className="lg:col-span-12 space-y-4">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-wrap gap-6 items-center">
-                        <h2 className="text-lg font-display font-bold text-white flex items-center gap-2"><Icons.Euro /> DATOS COMUNES</h2>
+                        <h3 className="text-xs text-slate-400 font-bold uppercase flex items-center gap-2"><Icons.Euro /> DATOS COMUNES</h3>
                         <div className="w-px h-8 bg-slate-700"></div>
                         
                         <div className="flex gap-4">
@@ -1610,29 +1596,32 @@
                                             </tr>
                                             <tr className="text-[10px]">
                                                 <td className="py-1 pl-4 text-slate-500">En Potencia</td>
-                                                <td className={`text-right py-1 pr-2 font-mono ${diffPot > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                    {diffPot > 0 ? '-' : '+'}{formatDecimal(Math.abs(diffPot))} €
+                                                <td className="text-right py-1 pr-2 font-mono">
+                                                     <span className={diffPot > 0 ? "text-green-400" : "text-red-400"}>
+                                                        {diffPot > 0 ? '-' : '+'}{formatDecimal(Math.abs(diffPot))} €
+                                                     </span>
                                                 </td>
-                                                <td className="text-left py-1 pl-2 text-[9px] text-slate-500">
-                                                    ({formatDecimal(diffPotPct)}%)
+                                                <td className="text-left py-1 pl-2 font-mono text-[9px] text-slate-500">
+                                                     ({formatDecimal(diffPotPct)}%)
                                                 </td>
                                             </tr>
                                             <tr className="text-[10px] border-b border-slate-700">
                                                 <td className="py-1 pl-4 text-slate-500">En Energía</td>
-                                                <td className={`text-right py-1 pr-2 font-mono ${diffEn > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                    {diffEn > 0 ? '-' : '+'}{formatDecimal(Math.abs(diffEn))} €
+                                                <td className="text-right py-1 pr-2 font-mono">
+                                                    <span className={diffEn > 0 ? "text-green-400" : "text-red-400"}>
+                                                        {diffEn > 0 ? '-' : '+'}{formatDecimal(Math.abs(diffEn))} €
+                                                    </span>
                                                 </td>
-                                                 <td className="text-left py-1 pl-2 text-[9px] text-slate-500">
+                                                 <td className="text-left py-1 pl-2 font-mono text-[9px] text-slate-500">
                                                     ({formatDecimal(diffEnPct)}%)
                                                 </td>
                                             </tr>
                                             <tr className="text-xs font-bold text-white bg-slate-700/30">
                                                 <td className="py-2 pl-2">AHORRO TOTAL</td>
-                                                <td className={`text-right py-2 pr-2 font-mono ${diff > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                                    {formatDecimal(Math.abs(diff))} €
-                                                </td>
-                                                <td className="text-left py-2 pl-2 text-[10px] opacity-70">
-                                                    ({formatDecimal(diffPercent)}%)
+                                                <td colSpan="2" className="text-center py-2">
+                                                    <span className={diff > 0 ? "text-green-400" : "text-red-400"}>
+                                                        {diff > 0 ? 'Ahorras' : 'Pierdes'} {formatDecimal(Math.abs(diff))} € <span className="opacity-70">({formatDecimal(diffPercent)}%)</span>
+                                                    </span>
                                                 </td>
                                             </tr>
                                         </>
