@@ -105,25 +105,82 @@
       const formatMoney = (val) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
       const formatDecimal = (val, digits = 2) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(val);
 
+      // --- NEW ROBUST INPUT COMPONENT ---
       const FormattedInput = ({ value, onChange, decimals = 0 }) => {
-        const format = (val) => {
+        // Función para formatear visualmente cuando no se edita
+        const formatDisplay = (val) => {
             if (val === '' || val === null || isNaN(val)) return '';
-            return new Intl.NumberFormat('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: decimals }).format(val);
+            return new Intl.NumberFormat('es-ES', { 
+                minimumFractionDigits: 0, 
+                maximumFractionDigits: decimals,
+                useGrouping: false 
+            }).format(val);
         };
-        const [displayValue, setDisplayValue] = useState(format(value));
-        useEffect(() => { setDisplayValue(format(value)); }, [value]);
+
+        const [localVal, setLocalVal] = useState('');
+        const [active, setActive] = useState(false);
+
+        // Sincronizar desde el padre solo si no estamos editando
+        useEffect(() => {
+            if (!active) {
+                setLocalVal(formatDisplay(value));
+            }
+        }, [value, active]);
+
         const handleChange = (e) => {
-            const inputValue = e.target.value;
-            if (!/^[\d.,-]*$/.test(inputValue)) return;
-            setDisplayValue(inputValue);
-            const cleanValue = inputValue.replace(/\./g, '').replace(',', '.');
-            const numValue = parseFloat(cleanValue);
-            if (!isNaN(numValue)) onChange(numValue); else if (cleanValue === '' || cleanValue === '-') onChange(0);
+            let val = e.target.value;
+            
+            // Permitir dígitos, comas, puntos y guiones
+            if (!/^[\d.,-]*$/.test(val)) return;
+
+            // Actualizar estado local visual
+            setLocalVal(val);
+
+            // Normalizar para JS (coma a punto)
+            let cleanVal = val.replace(/,/g, '.');
+            
+            // Casos borde: cadena vacía o solo guión
+            if (cleanVal === '' || cleanVal === '-') {
+                // No enviamos 0 todavía para permitir borrar todo
+                return;
+            }
+
+            // Si termina en punto, es un decimal en progreso "0."
+            if (cleanVal.endsWith('.')) {
+                // Parseamos la parte entera pero no forzamos update visual desde padre
+                const num = parseFloat(cleanVal);
+                if(!isNaN(num)) onChange(num);
+                return;
+            }
+
+            const num = parseFloat(cleanVal);
+            if (!isNaN(num)) {
+                onChange(num);
+            }
         };
-        const handleBlur = () => { setDisplayValue(format(value)); };
+
+        const handleFocus = () => {
+            setActive(true);
+            // Mostrar valor raw para edición fácil (0.25 -> "0,25")
+            if (value !== null && value !== undefined) {
+                setLocalVal(value.toString().replace('.', ','));
+            }
+        };
+
+        const handleBlur = () => {
+            setActive(false);
+            // El useEffect se encargará de reformatear
+        };
+
         return (
-            <input type="text" value={displayValue} onChange={handleChange} onBlur={handleBlur}
-                className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-2 text-yellow-300 font-mono font-bold focus:outline-none focus:border-yellow-500 text-sm placeholder-zinc-500 transition-colors text-right" />
+            <input 
+                type="text" 
+                value={localVal}
+                onChange={handleChange}
+                onFocus={handleFocus}
+                onBlur={handleBlur}
+                className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-2 text-yellow-300 font-mono font-bold focus:outline-none focus:border-yellow-500 text-sm placeholder-zinc-500 transition-colors text-right" 
+            />
         );
       };
 
@@ -1414,7 +1471,7 @@
                 {/* CONFIGURACIÓN SUPERIOR (Full Width) */}
                 <div className="lg:col-span-12 space-y-4">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-wrap gap-6 items-center">
-                        <h2 className="text-lg font-display font-bold text-white flex items-center gap-2"><Icons.Euro /> Comparador</h2>
+                        <h2 className="text-lg font-display font-bold text-white flex items-center gap-2"><Icons.Euro /> DATOS COMUNES</h2>
                         <div className="w-px h-8 bg-slate-700"></div>
                         
                         <div className="flex gap-4">
@@ -1436,7 +1493,7 @@
 
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
                         <div className="flex justify-between items-center mb-2">
-                             <h3 className="text-xs text-slate-400 font-bold uppercase flex gap-2"><Icons.Activity className="w-3 h-3"/> Escenario de Consumo (kWh)</h3>
+                             <h3 className="text-xs text-slate-400 font-bold uppercase flex gap-2"><Icons.Activity className="w-3 h-3"/> Patrón de Consumo (kWh)</h3>
                              <div className="flex items-center gap-4">
                                 <div className="flex items-center gap-2"><span className="text-xs text-yellow-500">Excedentes:</span><div className="w-20"><FormattedInput value={tState.solarExp} onChange={v => setTState({...tState, solarExp: v})} decimals={0}/></div></div>
                                 <div className="flex items-center gap-2"><span className="text-xs text-slate-500">Total:</span><span className="text-sm font-bold text-white bg-slate-800 px-2 py-1 rounded border border-slate-700">{formatDecimal(tState.consTotal, 0)}</span></div>
@@ -1573,7 +1630,7 @@
 
       // --- APP PRINCIPAL ---
       const App = () => {
-        const [activeTab, setActiveTab] = usePersistentState('activeTab', 'tariff'); 
+        const [activeTab, setActiveTab] = usePersistentState('activeTab', 'curve'); 
         const [simParams, setSimParams] = usePersistentState('simParams', { speed: 120, temperature: 20, gradient: 0, windSpeed: 0, electricConsumptionRef: 14, batteryCapacity: 60 });
         const [simCosts, setSimCosts] = usePersistentState('simCosts', { electricityPrice: 0.08, gasPrice: 1.45, gasConsumptionRef: 6.5 });
         const [consumption, setConsumption] = useState(0);
@@ -1584,14 +1641,15 @@
 
         const renderContent = () => {
             switch(activeTab) {
+                case 'curve': return <ChargeCurveCalculator />;
+                case 'tariff': return <TariffComparator />;
+                case 'drain': return <DrainCalculator />;
                 case 'simulator': return <><Visualizer params={simParams} /><ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} /><ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} /></>;
                 case 'amortization': return <AmortizationCalculator />;
                 case 'calculator': return <ChargingCalculator />;
-                case 'drain': return <DrainCalculator />;
                 case 'nyland': return <NylandCalculator />;
-                case 'curve': return <ChargeCurveCalculator />;
                 case 'equiv': return <EquivalenceCalculator />;
-                case 'tariff': return <TariffComparator />;
+                case 'charge': return <PlaceholderTab />;
                 default: return <PlaceholderTab />;
             }
         };
@@ -1612,14 +1670,14 @@
                             <button onClick={handleBack} className="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"><Icons.LogOut /> Volver</button>
                         </div>
                         <div className="flex overflow-x-auto gap-2 border-b border-slate-800/50 mt-4 pb-1">
+                            <TabButton id="curve" label="Curva Carga" />
+                            <TabButton id="tariff" label="COMPARADOR TARIFAS" />
+                            <TabButton id="drain" label="Drenaje" />
                             <TabButton id="simulator" label="Simulador" />
                             <TabButton id="amortization" label="Amortización" />
                             <TabButton id="calculator" label="Calculadora" />
-                            <TabButton id="drain" label="Drenaje" />
                             <TabButton id="nyland" label="Bjørn Nyland" />
-                            <TabButton id="curve" label="Curva Carga" />
                             <TabButton id="equiv" label="Equivalencia" />
-                            <TabButton id="tariff" label="COMPARADOR TARIFAS" />
                             <TabButton id="charge" label="+EXCEL" />
                         </div>
                     </header>
