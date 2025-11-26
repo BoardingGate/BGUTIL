@@ -67,6 +67,7 @@
 
     <script>
       window.onerror = function(message, source, lineno, colno, error) {
+        // Suprimir errores de script genéricos de CDN en móviles
         if (message && message.indexOf('Script error') > -1) return;
         console.error(error);
         const root = document.getElementById('root');
@@ -102,7 +103,6 @@
 
       const formatMoney = (val) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
       const formatDecimal = (val, digits = 2) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(val);
-      
       const formatTime = (min) => {
         if(!min || !isFinite(min)) return "00:00:00";
         const h = Math.floor(min / 60);
@@ -111,7 +111,54 @@
         return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
       };
 
-      // --- 2. UI ATOMS ---
+      // --- 2. GLOBAL DATA & HELPERS ---
+      const curvePoints = {
+        LFP: [{p:0, v:170}, {p:10, v:168}, {p:20, v:155}, {p:30, v:135}, {p:45, v:110}, {p:55, v:85}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}],
+        NCA: [{p:0, v:200}, {p:5, v:250}, {p:15, v:250}, {p:25, v:210}, {p:40, v:150}, {p:60, v:100}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}]
+      };
+
+      const getBatteryLimitAtSoC = (soc, type, chargerPowerInput) => {
+        const safeType = curvePoints[type] ? type : 'LFP';
+        const points = curvePoints[safeType];
+        const baseRef = safeType === 'NCA' ? 250 : 170; 
+        const techScaler = Math.max(baseRef, chargerPowerInput) / baseRef; 
+        const scaleFactor = Math.max(1, techScaler);
+        const p2Index = points.findIndex(pt => pt.p >= soc);
+        if (p2Index === -1) return points[points.length-1].v * scaleFactor; 
+        if (p2Index === 0) return points[0].v * scaleFactor;
+        const p1 = points[p2Index - 1];
+        const p2 = points[p2Index];
+        const range = p2.p - p1.p;
+        const dist = soc - p1.p;
+        const ratio = dist / range;
+        return (p1.v + (ratio * (p2.v - p1.v))) * scaleFactor;
+      };
+
+      const calculateConsumption = (params) => {
+        const mass = 1800; const cr = 0.006; const g = 9.81;
+        const rho = 1.225; const cd = 0.219; const area = 2.22; 
+        const drivetrainEfficiency = 0.90;
+        const speedMs = params.speed / 3.6; 
+        const gradientRad = Math.atan(params.gradient / 100);
+        const fRoll = mass * g * cr * Math.cos(gradientRad);
+        const relativeSpeed = speedMs - (params.windSpeed / 3.6);
+        const fAero = 0.5 * rho * cd * area * Math.sign(relativeSpeed) * (relativeSpeed ** 2);
+        const fGrade = mass * g * Math.sin(gradientRad);
+        const totalForce = fRoll + fAero + fGrade;
+        let powerWatts = totalForce * speedMs;
+        let finalPowerKw = powerWatts > 0 ? (powerWatts / 1000) / drivetrainEfficiency : (powerWatts / 1000) * 0.7; 
+        const tempDiff = Math.abs(20 - params.temperature);
+        const climatePowerKw = 0.5 + (tempDiff * 0.15);
+        const totalPowerKw = finalPowerKw + climatePowerKw;
+        let consumption = 0;
+        if (params.speed > 0) consumption = (totalPowerKw / params.speed) * 100;
+        const BASE_PHYSICS_REF = 14.0; 
+        const scalar = params.electricConsumptionRef / BASE_PHYSICS_REF;
+        consumption = consumption * scalar;
+        return Math.max(consumption < -10 ? -10 : consumption, -10); 
+      };
+
+      // --- 3. UI ATOMS (Robust Input) ---
       const FormattedInput = ({ value, onChange, decimals = 0 }) => {
         const getDisplayString = (val) => {
             if (val === null || val === undefined || val === '') return '';
@@ -123,13 +170,9 @@
         };
         const [localValue, setLocalValue] = useState(() => getDisplayString(value));
         const [isFocused, setIsFocused] = useState(false);
-
-        useEffect(() => {
-            if (!isFocused) {
-                setLocalValue(getDisplayString(value));
-            }
-        }, [value, isFocused, decimals]);
-
+        
+        useEffect(() => { if (!isFocused) setLocalValue(getDisplayString(value)); }, [value, isFocused, decimals]);
+        
         const handleChange = (e) => {
             const inputVal = e.target.value;
             setLocalValue(inputVal); 
@@ -140,14 +183,7 @@
             const num = parseFloat(normalized);
             if (!isNaN(num)) onChange(num);
         };
-
-        const handleFocus = () => {
-            setIsFocused(true);
-            if (value !== null && value !== undefined) {
-                setLocalValue(value.toString().replace('.', ','));
-            }
-        };
-
+        const handleFocus = () => { setIsFocused(true); if (value !== null && value !== undefined) setLocalValue(value.toString().replace('.', ',')); };
         const handleBlur = () => { setIsFocused(false); };
         const handleKeyDown = (e) => { if(e.key === 'Enter') e.target.blur(); }
 
@@ -157,7 +193,7 @@
         );
       };
 
-      // --- 3. ICONS ---
+      // --- 4. ICONS & SHARED COMPONENTS ---
       const Icons = {
         Wind: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>,
         Thermometer: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>,
@@ -187,55 +223,8 @@
         Link: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
       };
 
-      // --- 4. LOGIC ---
-      const curvePoints = {
-        LFP: [{p:0, v:170}, {p:10, v:168}, {p:20, v:155}, {p:30, v:135}, {p:45, v:110}, {p:55, v:85}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}],
-        NCA: [{p:0, v:200}, {p:5, v:250}, {p:15, v:250}, {p:25, v:210}, {p:40, v:150}, {p:60, v:100}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}]
-      };
-
-      const getBatteryLimitAtSoC = (soc, type, chargerPowerInput) => {
-        const safeType = curvePoints[type] ? type : 'LFP';
-        const points = curvePoints[safeType];
-        const baseRef = safeType === 'NCA' ? 250 : 170; 
-        const techScaler = Math.max(baseRef, chargerPowerInput) / baseRef; 
-        const scaleFactor = Math.max(1, techScaler);
-        const p2Index = points.findIndex(pt => pt.p >= soc);
-        if (p2Index === -1) return points[points.length-1].v * scaleFactor; 
-        if (p2Index === 0) return points[0].v * scaleFactor;
-        const p1 = points[p2Index - 1];
-        const p2 = points[p2Index];
-        const range = p2.p - p1.p;
-        const dist = soc - p1.p;
-        const ratio = dist / range;
-        const factor = p1.v + (ratio * (p2.v - p1.v));
-        return factor * scaleFactor;
-      };
-
-      const calculateConsumption = (params) => {
-        const mass = 1800; const cr = 0.006; const g = 9.81;
-        const rho = 1.225; const cd = 0.219; const area = 2.22; 
-        const drivetrainEfficiency = 0.90;
-        const speedMs = params.speed / 3.6; 
-        const gradientRad = Math.atan(params.gradient / 100);
-        const fRoll = mass * g * cr * Math.cos(gradientRad);
-        const relativeSpeed = speedMs - (params.windSpeed / 3.6);
-        const fAero = 0.5 * rho * cd * area * Math.sign(relativeSpeed) * (relativeSpeed ** 2);
-        const fGrade = mass * g * Math.sin(gradientRad);
-        const totalForce = fRoll + fAero + fGrade;
-        let powerWatts = totalForce * speedMs;
-        let finalPowerKw = powerWatts > 0 ? (powerWatts / 1000) / drivetrainEfficiency : (powerWatts / 1000) * 0.7; 
-        const tempDiff = Math.abs(20 - params.temperature);
-        const climatePowerKw = 0.5 + (tempDiff * 0.15);
-        const totalPowerKw = finalPowerKw + climatePowerKw;
-        let consumption = 0;
-        if (params.speed > 0) consumption = (totalPowerKw / params.speed) * 100;
-        const BASE_PHYSICS_REF = 14.0; 
-        const scalar = params.electricConsumptionRef / BASE_PHYSICS_REF;
-        consumption = consumption * scalar;
-        return Math.max(consumption < -10 ? -10 : consumption, -10); 
-      };
-
-      // --- 5. SHARED COMPONENTS ---
+      // --- 5. SUB-COMPONENTS (DEFINED GLOBALLY TO FIX SCOPE ISSUES) ---
+      
       const PlaceholderTab = () => (
         <div className="flex flex-col items-center justify-center h-96 bg-slate-900/30 rounded-3xl border border-slate-800 border-dashed p-8 text-center">
             <div className="bg-slate-800 p-4 rounded-full mb-4 text-slate-400"><Icons.Construction /></div>
@@ -246,17 +235,20 @@
          </div>
       );
 
+      // ProposalColumn extracted to fix focus issue
       const ProposalColumn = ({ propKey, title, data, onChange }) => (
             <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-700/50 h-full">
                 <input type="text" value={data.name} onChange={(e) => onChange(propKey, 'name', e.target.value)} 
                     className="bg-slate-800 text-sm font-bold text-center w-full mb-4 border border-slate-600 rounded px-2 py-2 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none text-blue-300 placeholder-slate-600 transition-all" 
                     placeholder="Nombre Compañía"
                 />
+                
                 <h4 className="text-[10px] uppercase font-bold text-slate-500 mb-2">Potencia (€/kW/día)</h4>
                 <div className="grid grid-cols-2 gap-2 mb-4">
                     <div><label className="text-[9px] text-slate-600 block">P1</label><FormattedInput value={data.pricePotP1} onChange={v => onChange(propKey, 'pricePotP1', v)} decimals={6}/></div>
                     <div><label className="text-[9px] text-slate-600 block">P2</label><FormattedInput value={data.pricePotP2} onChange={v => onChange(propKey, 'pricePotP2', v)} decimals={6}/></div>
                 </div>
+
                 <h4 className="text-[10px] uppercase font-bold text-slate-500 mb-2">Energía (€/kWh)</h4>
                 <div className="space-y-2 mb-4">
                     <div className="grid grid-cols-5 gap-1 items-center"><span className="text-[9px] text-red-400 font-bold">P1</span><span className="col-span-4"><FormattedInput value={data.priceEnP1} onChange={v => onChange(propKey, 'priceEnP1', v)} decimals={6}/></span></div>
@@ -265,12 +257,14 @@
                     <div className="grid grid-cols-5 gap-1 items-center"><span className="text-[9px] text-blue-400 font-bold whitespace-nowrap">P3 VE</span><span className="col-span-4"><FormattedInput value={data.priceEnP3Ve} onChange={v => onChange(propKey, 'priceEnP3Ve', v)} decimals={6}/></span></div>
                     <div className="grid grid-cols-5 gap-1 items-center"><span className="text-[9px] text-purple-400 font-bold">P4</span><span className="col-span-4"><FormattedInput value={data.priceEnP4} onChange={v => onChange(propKey, 'priceEnP4', v)} decimals={6}/></span></div>
                 </div>
+
                 <h4 className="text-[10px] uppercase font-bold text-slate-500 mb-2">Descuentos y Extras</h4>
                 <div className="grid grid-cols-2 gap-2 mb-4">
                     <div><label className="text-[9px] text-slate-600 block">% Dto Pot</label><FormattedInput value={data.discPot} onChange={v => onChange(propKey, 'discPot', v)} decimals={1}/></div>
                     <div><label className="text-[9px] text-slate-600 block">% Dto Ener</label><FormattedInput value={data.discEn} onChange={v => onChange(propKey, 'discEn', v)} decimals={1}/></div>
                     <div className="col-span-2"><label className="text-[9px] text-slate-600 block">Comisión Mensual (€)</label><FormattedInput value={data.comision} onChange={v => onChange(propKey, 'comision', v)} decimals={2}/></div>
                 </div>
+
                 <h4 className="text-[10px] uppercase font-bold text-yellow-600 mb-2">Solar / Excedentes</h4>
                 <div className="grid grid-cols-2 gap-2 items-end">
                     <div><label className="text-[9px] text-slate-600 block">Precio (€/kWh)</label><FormattedInput value={data.solarPrice} onChange={v => onChange(propKey, 'solarPrice', v)} decimals={3}/></div>
@@ -320,7 +314,7 @@
             );
       };
 
-      // --- 6. MAIN TABS ---
+      // --- 6. MAIN CALCULATORS ---
 
       const ControlPanel = ({ params, setParams, costs, setCosts }) => {
         const handleChange = (key, value) => setParams(prev => ({ ...prev, [key]: parseFloat(value) }));
@@ -388,45 +382,30 @@
         );
       };
       
-      // --- DRENAJE (RESTORED FULL LOGIC) ---
-      const DrainCalculator = () => {
-        const [state, setState] = usePersistentState('drainState', { battery: 60, days: 15, startPct: 80, isGarage: true, temperature: 16, sentryMode: false, sentryTraffic: 'low', sentryHours: 24, sentryDisablePct: 20, preconditioning: false, appChecks: 7, });
-        const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
-        let dailyBaseRate = state.isGarage ? 0.2 : 0.4; const tempDiff = Math.abs(state.temperature - 20); dailyBaseRate += (tempDiff * 0.015); let dailySentryPotential = 5.5; if (state.sentryTraffic === 'med') dailySentryPotential += 0.3; if (state.sentryTraffic === 'high') dailySentryPotential += 0.8; const hourlySentryRate = dailySentryPotential / 24; const dailySentryAdded = hourlySentryRate * state.sentryHours; const dailyPrecon = state.preconditioning ? 1.5 : 0; const totalAppDrain = state.appChecks * 0.15; const dailyAppDrain = totalAppDrain / state.days; const drainHigh = dailyBaseRate + dailySentryAdded + dailyPrecon + dailyAppDrain; const drainLow = dailyBaseRate + dailyPrecon + dailyAppDrain; const startEnergy = state.battery * (state.startPct / 100); const disableEnergy = state.battery * (state.sentryDisablePct / 100); const energyForHigh = Math.max(0, startEnergy - disableEnergy); let daysInHigh = 0; let daysInLow = 0;
-        if (!state.sentryMode) { daysInLow = state.days; } else { const daysUntilDisable = drainHigh > 0 ? energyForHigh / drainHigh : 0; if (daysUntilDisable >= state.days) { daysInHigh = state.days; } else { daysInHigh = daysUntilDisable; daysInLow = state.days - daysUntilDisable; } }
-        const totalDrain = (daysInHigh * drainHigh) + (daysInLow * drainLow); const endEnergy = Math.max(0, startEnergy - totalDrain); const endPct = (endEnergy / state.battery) * 100; let daysUntilDead = 0; if (state.sentryMode && startEnergy > disableEnergy) { const timeToDisable = energyForHigh / drainHigh; const timeFromDisableToZero = disableEnergy / drainLow; daysUntilDead = timeToDisable + timeFromDisableToZero; } else { daysUntilDead = drainLow > 0 ? startEnergy / drainLow : 999; } const isCritical = endPct <= 5; const isWarning = endPct <= 20;
+      const TariffComparator = () => {
+        const [tState, setTState] = usePersistentState('tariffCompV5', { days: 30, potP1: 4.6, potP2: 7.4, impuestoElec: 5.11, iva: 21, alquiler: 0.027, bonoSocial: 0.006, consTotal: 635, p1Kwh: 80, p2Kwh: 60, p3Kwh: 170, p3VeKwh: 325, p4Kwh: 0, solarExp: 0, propA: { name: "Compañía A", pricePotP1: 0.108, pricePotP2: 0.024, priceEnP1: 0.206, priceEnP2: 0.206, priceEnP3: 0.065, priceEnP3Ve: 0.065, priceEnP4: 0.065, discPot: 0, discEn: 0, comision: 0, solarPrice: 0.08, virtualBat: false }, propB: { name: "Compañía B", pricePotP1: 0.11, pricePotP2: 0.03, priceEnP1: 0.15, priceEnP2: 0.15, priceEnP3: 0.15, priceEnP3Ve: 0.15, priceEnP4: 0.15, discPot: 0, discEn: 0, comision: 0, solarPrice: 0.05, virtualBat: false } });
+        const handleConsChange = (key, val) => { if (key === 'consTotal') { const currentTotal = tState.p1Kwh + tState.p2Kwh + tState.p3Kwh + tState.p3VeKwh + tState.p4Kwh || 1; const ratio1 = tState.p1Kwh / currentTotal; const ratio2 = tState.p2Kwh / currentTotal; const ratio3 = tState.p3Kwh / currentTotal; const ratio3ve = tState.p3VeKwh / currentTotal; const ratio4 = tState.p4Kwh / currentTotal; setTState(prev => ({ ...prev, consTotal: val, p1Kwh: val * ratio1, p2Kwh: val * ratio2, p3Kwh: val * ratio3, p3VeKwh: val * ratio3ve, p4Kwh: val * ratio4 })); } else { setTState(prev => { const newState = { ...prev, [key]: val }; newState.consTotal = newState.p1Kwh + newState.p2Kwh + newState.p3Kwh + newState.p3VeKwh + newState.p4Kwh; return newState; }); } };
+        const handlePropChange = (propKey, field, val) => { setTState(prev => ({ ...prev, [propKey]: { ...prev[propKey], [field]: val } })); };
+        const calculateBill = (proposal) => { const termPotRaw = (tState.potP1 * proposal.pricePotP1 * tState.days) + (tState.potP2 * proposal.pricePotP2 * tState.days); const termPotDisc = termPotRaw * (1 - proposal.discPot / 100); const termEnRaw = (tState.p1Kwh * proposal.priceEnP1) + (tState.p2Kwh * proposal.priceEnP2) + (tState.p3Kwh * proposal.priceEnP3) + (tState.p3VeKwh * proposal.priceEnP3Ve) + (tState.p4Kwh * proposal.priceEnP4); const termEnDisc = termEnRaw * (1 - proposal.discEn / 100); const solarReturn = tState.solarExp * proposal.solarPrice; let termEnNet = termEnDisc - solarReturn; if(!proposal.virtualBat) termEnNet = Math.max(0, termEnNet); const fixedCosts = (tState.alquiler * tState.days) + (tState.bonoSocial * tState.days) + proposal.comision; const baseImp = termPotDisc + termEnNet; const withIEE = baseImp * (1 + tState.impuestoElec / 100); const beforeIVA = withIEE + fixedCosts; const total = beforeIVA * (1 + tState.iva / 100); const pricePerKwh = tState.consTotal > 0 ? total / tState.consTotal : 0; return { total, termPotDisc, termEnNet, fixedCosts, taxes: total - (termPotDisc + termEnNet + fixedCosts), pricePerKwh, solarReturn }; };
+        const billA = calculateBill(tState.propA); const billB = calculateBill(tState.propB); const diff = billB.total - billA.total; const diffPercent = Math.min(billA.total, billB.total) > 0 ? (Math.abs(diff) / Math.max(billA.total, billB.total)) * 100 : 0; const diffPot = billB.termPotDisc - billA.termPotDisc; const diffPotPct = Math.min(billA.termPotDisc, billB.termPotDisc) > 0 ? (Math.abs(diffPot) / Math.max(billA.termPotDisc, billB.termPotDisc)) * 100 : 0; const diffEn = billB.termEnNet - billA.termEnNet; const diffEnPct = Math.min(billA.termEnNet, billB.termEnNet) > 0 ? (Math.abs(diffEn) / Math.max(billA.termEnNet, billB.termEnNet)) * 100 : 0;
 
         return (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                <div className="lg:col-span-5 space-y-6"><div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6"><h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Icons.Shield /> Variables de Consumo</h2><div className="space-y-6"><div className="grid grid-cols-2 gap-4"><button onClick={() => handleChange('isGarage', true)} className={`p-3 rounded-lg border text-center transition-all ${state.isGarage ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}><div className="flex justify-center mb-1"><Icons.Home /></div><span className="text-xs font-bold">Garaje</span></button><button onClick={() => handleChange('isGarage', false)} className={`p-3 rounded-lg border text-center transition-all ${!state.isGarage ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'}`}><div className="flex justify-center mb-1"><Icons.Moon /></div><span className="text-xs font-bold">Calle</span></button></div><div className="animate-fade-in"><div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Temperatura Media</label><span className="text-xs font-bold text-white">{state.temperature}°C</span></div><input type="range" min="-10" max="45" value={state.temperature} onChange={e => handleChange('temperature', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-cyan-500" /></div><div className="border-t border-slate-800 pt-4"><div className="flex items-center justify-between mb-3"><label className="text-sm font-bold text-slate-300 flex items-center gap-2"><Icons.Eye /> Modo Centinela</label><button onClick={() => handleChange('sentryMode', !state.sentryMode)} className={`w-12 h-6 rounded-full p-1 transition-colors ${state.sentryMode ? 'bg-red-500' : 'bg-slate-700'}`}><div className={`w-4 h-4 rounded-full bg-white transition-transform ${state.sentryMode ? 'translate-x-6' : 'translate-x-0'}`}></div></button></div>{state.sentryMode && (<div className="space-y-4 animate-fade-in"><div className="grid grid-cols-3 gap-2">{['low', 'med', 'high'].map(lvl => (<button key={lvl} onClick={() => handleChange('sentryTraffic', lvl)} className={`py-1 px-2 rounded border text-[10px] uppercase font-bold ${state.sentryTraffic === lvl ? 'bg-red-900/50 border-red-500 text-red-400' : 'bg-slate-800 border-slate-700 text-slate-500'}`}>{lvl === 'low' ? 'Tranquilo' : lvl === 'med' ? 'Normal' : 'Intenso'}</button>))}</div><div><div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Horas activo / día</label><span className="text-xs font-bold text-white">{state.sentryHours}h</span></div><input type="range" min="1" max="24" value={state.sentryHours} onChange={e => handleChange('sentryHours', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-500" /><p className="text-[10px] text-slate-500 mt-1 italic">Útil si lo tiene automatizado para que se active a ciertos horarios.</p></div><div><div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Desactivar si baja de:</label><span className="text-xs font-bold text-red-400">{state.sentryDisablePct}%</span></div><input type="range" min="5" max="50" value={state.sentryDisablePct} onChange={e => handleChange('sentryDisablePct', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-red-500" /></div></div>)}</div><div className="border-t border-slate-800 pt-4 space-y-4"><div className="flex items-center justify-between"><label className="text-xs text-slate-400 flex items-center gap-2"><Icons.Thermometer /> Pre-acondicionamiento (1/día)</label><button onClick={() => handleChange('preconditioning', !state.preconditioning)} className={`w-10 h-5 rounded-full p-0.5 transition-colors ${state.preconditioning ? 'bg-orange-500' : 'bg-slate-700'}`}><div className={`w-4 h-4 rounded-full bg-white transition-transform ${state.preconditioning ? 'translate-x-5' : 'translate-x-0'}`}></div></button></div><div><div className="flex justify-between mb-1"><label className="text-xs text-slate-500 flex items-center gap-2"><Icons.Smartphone /> Consultas App (Total)</label><span className="text-xs font-bold text-white">{state.appChecks} veces</span></div><input type="range" min="0" max="100" value={state.appChecks} onChange={e => handleChange('appChecks', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500" /></div></div><div className="border-t border-slate-800 pt-4 space-y-4"><div><div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Capacidad Batería</label><span className="text-xs font-bold text-white">{state.battery} kWh</span></div><input type="range" min="40" max="100" value={state.battery} onChange={e => handleChange('battery', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500" /></div><div><div className="flex justify-between mb-1"><label className="text-xs text-slate-500">Días Aparcado</label><span className="text-xs font-bold text-white">{state.days} días</span></div><input type="range" min="1" max="90" value={state.days} onChange={e => handleChange('days', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500" /></div><div><div className="flex justify-between mb-1"><label className="text-xs text-slate-500">% Inicial</label><span className="text-xs font-bold text-yellow-400">{state.startPct}%</span></div><input type="range" min="0" max="100" value={state.startPct} onChange={e => handleChange('startPct', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-yellow-500" /></div></div></div></div></div>
-                <div className="lg:col-span-7 space-y-6">
-                    <div className="bg-black/40 border border-slate-800 rounded-xl p-8 flex items-center justify-center relative overflow-hidden h-48"><div className="relative w-full max-w-md h-24 border-4 border-slate-600 rounded-2xl p-1 flex items-center"><div className="absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-10 bg-slate-600 rounded-r-md"></div><div className="h-full bg-slate-800/50 rounded-l-lg absolute left-1" style={{width: `${state.startPct}%`}}></div><div className={`h-full rounded-l-lg relative z-10 transition-all duration-500 ${isCritical ? 'bg-red-600' : isWarning ? 'bg-yellow-600' : 'bg-green-600'}`} style={{width: `${endPct}%`}}></div><div className="absolute inset-0 flex items-center justify-center text-2xl font-display font-bold text-white drop-shadow-md z-20">{state.startPct}% <span className="text-slate-400 mx-2">➔</span> <span className={isCritical ? 'text-red-500' : isWarning ? 'text-yellow-400' : 'text-green-400'}>{endPct.toFixed(1)}%</span></div></div></div>
-                    <div className="grid grid-cols-2 gap-4"><div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Zap className="w-4 h-4"/> Drenaje Total</div><div className="text-3xl font-display font-bold text-red-400">-{formatDecimal(totalDrain)} <span className="text-lg text-slate-500">kWh</span></div><div className="text-[10px] text-slate-500 mt-1">en {state.days} días</div></div><div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-400 text-xs uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.AlertTriangle className="w-4 h-4"/> Días hasta 0%</div><div className="text-3xl font-display font-bold text-white">{daysUntilDead > 365 ? '>1 año' : Math.floor(daysUntilDead)} <span className="text-lg text-slate-500">días</span></div><div className="text-[10px] text-slate-500 mt-1">si mantienes este ritmo</div></div></div>
-                    <div className="bg-slate-800/30 rounded-xl p-4 border border-slate-700"><h4 className="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">Desglose Estimado</h4><div className="space-y-2"><div className="flex justify-between text-xs"><span className="text-slate-400">Consumo Base (Sleep)</span><span className="text-white">{(dailyBaseRate * state.days).toFixed(1)} kWh</span></div>{state.sentryMode && (<div className="flex justify-between text-xs text-red-300"><span className="flex items-center gap-1"><Icons.Eye /> Modo Centinela ({state.sentryHours}h/día)</span><span className="font-bold">{(dailySentryAdded * daysInHigh).toFixed(1)} kWh</span></div>)}{state.sentryMode && daysInHigh < state.days && (<div className="text-[10px] text-orange-400 italic text-right">* Se desactivó tras {daysInHigh.toFixed(1)} días por batería baja ({state.sentryDisablePct}%)</div>)}{state.preconditioning && (<div className="flex justify-between text-xs text-orange-300"><span className="flex items-center gap-1"><Icons.Thermometer /> Climatización</span><span>{(dailyPrecon * state.days).toFixed(1)} kWh</span></div>)}<div className="flex justify-between text-xs text-purple-300"><span className="flex items-center gap-1"><Icons.Smartphone /> Consultas App</span><span>{totalAppDrain.toFixed(1)} kWh</span></div></div></div>
-                    <div className="bg-blue-900/20 border border-blue-900/50 rounded-xl p-4"><div className="flex gap-2 items-center mb-2"><div className="text-blue-400"><Icons.Shield /></div><h4 className="text-sm font-bold text-blue-300">Cómo reducir el consumo (Vampire Drain)</h4></div><div className="text-xs text-slate-400 space-y-2"><p><strong>1. El "Sueño Profundo" es la clave:</strong> Si el coche duerme, solo consume ~0.2-0.4 kWh/día. Si se mantiene despierto (Centinela ON), consume 250Wh + el consumo extra derivado del nº de eventos.</p><p><strong>2. Cómo desactivar correctamente:</strong></p><ul className="list-disc pl-4 space-y-1"><li><span className="text-white">Centinela:</span> App > Seguridad > Modo Centinela (OFF) o automatizarlo por hora.</li><li><span className="text-white">Clima:</span> App > Climatización > Desactivar "Mantener", "Mascota" o "Campamento". Revisar "Programación" para que no se encienda solo.</li><li><span className="text-white">Apps de terceros:</span> Si usas apps como Tessie, TeslaMate, Stats, etc., pueden despertar al coche.</li></ul></div></div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
+                <div className="lg:col-span-12 space-y-4">
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-wrap gap-6 items-center"><h3 className="text-xs text-slate-400 font-bold uppercase flex items-center gap-2"><Icons.Euro /> DATOS COMUNES</h3><div className="w-px h-8 bg-slate-700"></div><div className="flex gap-4"><div><label className="text-[9px] text-slate-500 block">Días Factura</label><div className="w-16"><FormattedInput value={tState.days} onChange={v => setTState({...tState, days: v})} decimals={0}/></div></div><div><label className="text-[9px] text-slate-500 block">Pot P1 (kW)</label><div className="w-16"><FormattedInput value={tState.potP1} onChange={v => setTState({...tState, potP1: v})} decimals={1}/></div></div><div><label className="text-[9px] text-slate-500 block">Pot P2 (kW)</label><div className="w-16"><FormattedInput value={tState.potP2} onChange={v => setTState({...tState, potP2: v})} decimals={1}/></div></div></div><div className="w-px h-8 bg-slate-700"></div><div className="flex gap-4"><div><label className="text-[9px] text-slate-500 block">IVA (%)</label><div className="w-16"><FormattedInput value={tState.iva} onChange={v => setTState({...tState, iva: v})} decimals={0}/></div></div><div><label className="text-[9px] text-slate-500 block">Imp. Elec (%)</label><div className="w-16"><FormattedInput value={tState.impuestoElec} onChange={v => setTState({...tState, impuestoElec: v})} decimals={2}/></div></div></div><div className="w-px h-8 bg-slate-700"></div><div className="flex gap-4"><div><label className="text-[9px] text-slate-500 block">Alquiler/día</label><div className="w-24"><FormattedInput value={tState.alquiler} onChange={v => setTState({...tState, alquiler: v})} decimals={4}/></div></div><div><label className="text-[9px] text-slate-500 block">Bono Soc/día</label><div className="w-24"><FormattedInput value={tState.bonoSocial} onChange={v => setTState({...tState, bonoSocial: v})} decimals={4}/></div></div></div></div>
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4"><div className="flex justify-between items-center mb-2"><h3 className="text-xs text-slate-400 font-bold uppercase flex gap-2"><Icons.Activity className="w-3 h-3"/> Patrón de Consumo (kWh)</h3><div className="flex items-center gap-4"><div className="flex items-center gap-2"><span className="text-xs text-yellow-500">Excedentes:</span><div className="w-20"><FormattedInput value={tState.solarExp} onChange={v => setTState({...tState, solarExp: v})} decimals={0}/></div></div><div className="flex items-center gap-2"><span className="text-xs text-slate-500">Total:</span><span className="text-sm font-bold text-white bg-slate-800 px-2 py-1 rounded border border-slate-700">{formatDecimal(tState.consTotal, 0)}</span></div></div></div><div className="grid grid-cols-5 gap-2"><div className="bg-red-900/20 p-2 rounded border border-red-900/30 text-center"><label className="text-[9px] text-red-300 block mb-1">P1 (Punta)</label><FormattedInput value={tState.p1Kwh} onChange={v => handleConsChange('p1Kwh', v)} decimals={0}/></div><div className="bg-orange-900/20 p-2 rounded border border-orange-900/30 text-center"><label className="text-[9px] text-orange-300 block mb-1">P2 (Llano)</label><FormattedInput value={tState.p2Kwh} onChange={v => handleConsChange('p2Kwh', v)} decimals={0}/></div><div className="bg-green-900/20 p-2 rounded border border-green-900/30 text-center"><label className="text-[9px] text-green-300 block mb-1">P3 (Valle)</label><FormattedInput value={tState.p3Kwh} onChange={v => handleConsChange('p3Kwh', v)} decimals={0}/></div><div className="bg-blue-900/20 p-2 rounded border border-blue-900/30 text-center relative overflow-hidden"><label className="text-[9px] text-blue-300 block mb-1 font-bold">P3 (VE)</label><FormattedInput value={tState.p3VeKwh} onChange={v => handleConsChange('p3VeKwh', v)} decimals={0}/></div><div className="bg-purple-900/20 p-2 rounded border border-purple-900/30 text-center"><label className="text-[9px] text-purple-300 block mb-1">P4 (Extra)</label><FormattedInput value={tState.p4Kwh} onChange={v => handleConsChange('p4Kwh', v)} decimals={0}/></div></div></div>
                 </div>
+                <div className="lg:col-span-3"><ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} onChange={handlePropChange} /></div><div className="lg:col-span-3"><ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} onChange={handlePropChange} /></div>
+                <div className="lg:col-span-6 space-y-4">
+                    <div className="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 rounded-xl p-6 h-full flex flex-col"><h3 className="text-center text-sm uppercase tracking-widest text-slate-400 mb-4 font-bold">Resultado Comparativa</h3><div className={`text-center p-4 rounded-xl border mb-6 ${diff !== 0 ? 'bg-green-900/20 border-green-500/30' : 'bg-slate-800 border-slate-700'}`}>{diff === 0 ? (<div className="text-slate-400">Coste idéntico</div>) : (<><div className="text-xs text-green-400 uppercase font-bold mb-1">Opción Ganadora: {diff > 0 ? tState.propA.name : tState.propB.name}</div><div className="text-3xl font-bold text-white mb-1">Ahorras {formatDecimal(Math.abs(diff))} € <span className="text-sm font-normal text-slate-400">/ factura</span></div><div className="text-sm font-bold text-blue-200 bg-blue-900/30 inline-block px-3 py-1 rounded-full">{formatDecimal(diff > 0 ? billA.pricePerKwh : billB.pricePerKwh, 4)} €/kWh <span className="text-[10px] font-normal opacity-70">(Impuestos Inc)</span></div><div className="text-xs text-slate-500 mt-2">Proyección anual: ~{formatDecimal(Math.abs(diff) * (365/tState.days))} €</div></>)}</div>
+                    <div className="overflow-x-auto"><table className="w-full text-xs border-collapse"><thead className="border-b border-slate-700"><tr><th className="text-left py-2 text-slate-500">Concepto</th><th className="text-right py-2 text-blue-300">{tState.propA.name}</th><th className="text-right py-2 text-blue-300">{tState.propB.name}</th></tr></thead><tbody className="divide-y divide-slate-800"><tr><td className="py-2 text-slate-400">Potencia</td><td className={`py-2 text-right font-mono ${billA.termPotDisc < billB.termPotDisc ? 'text-green-400' : 'text-slate-300'}`}>{formatDecimal(billA.termPotDisc)} €</td><td className={`py-2 text-right font-mono ${billB.termPotDisc < billA.termPotDisc ? 'text-green-400' : 'text-slate-300'}`}>{formatDecimal(billB.termPotDisc)} €</td></tr><tr><td className="py-2 text-slate-400">Energía (Neto Solar)</td><td className={`py-2 text-right font-mono ${billA.termEnNet < billB.termEnNet ? 'text-green-400' : 'text-slate-300'}`}>{formatDecimal(billA.termEnNet)} €</td><td className={`py-2 text-right font-mono ${billB.termEnNet < billA.termEnNet ? 'text-green-400' : 'text-slate-300'}`}>{formatDecimal(billB.termEnNet)} €</td></tr>{tState.solarExp > 0 && (<tr><td className="py-1 text-yellow-600 text-[10px] pl-2">↳ Comp. Excedentes</td><td className="py-1 text-right font-mono text-yellow-600 text-[10px]">-{formatDecimal(billA.solarReturn)} €</td><td className="py-1 text-right font-mono text-yellow-600 text-[10px]">-{formatDecimal(billB.solarReturn)} €</td></tr>)}<tr><td className="py-2 text-slate-400">Fijos (Alq+Bono+Com)</td><td className="py-2 text-right font-mono text-slate-300">{formatDecimal(billA.fixedCosts)} €</td><td className="py-2 text-right font-mono text-slate-300">{formatDecimal(billB.fixedCosts)} €</td></tr><tr><td className="py-2 text-slate-400">Impuestos (IEE+IVA)</td><td className="py-2 text-right font-mono text-slate-300">{formatDecimal(billA.taxes)} €</td><td className="py-2 text-right font-mono text-slate-300">{formatDecimal(billB.taxes)} €</td></tr></tbody><tfoot className="border-t border-slate-600 bg-slate-800/30">{diff !== 0 && (<><tr className="text-[10px] text-slate-400 bg-slate-800/50"><td className="py-2 pl-2 font-bold uppercase tracking-wide">Diferencial</td><td colSpan="2" className="py-0"></td></tr><tr className="text-[10px]"><td className="py-1 pl-4 text-slate-500">En Potencia</td><td className="text-right py-1 pr-2 font-mono"><span className={diffPot > 0 ? "text-green-400" : "text-red-400"}>{diffPot > 0 ? '-' : '+'}{formatDecimal(Math.abs(diffPot))} €</span></td><td className="text-left py-1 pl-2 font-mono text-[9px] text-slate-500">({formatDecimal(diffPotPct)}%)</td></tr><tr className="text-[10px] border-b border-slate-700"><td className="py-1 pl-4 text-slate-500">En Energía</td><td className="text-right py-1 pr-2 font-mono"><span className={diffEn > 0 ? "text-green-400" : "text-red-400"}>{diffEn > 0 ? '-' : '+'}{formatDecimal(Math.abs(diffEn))} €</span></td><td className="text-left py-1 pl-2 font-mono text-[9px] text-slate-500">({formatDecimal(diffEnPct)}%)</td></tr><tr className="text-xs font-bold text-white bg-slate-700/30"><td className="py-2 pl-2">AHORRO TOTAL</td><td colSpan="2" className="text-center py-2"><span className={diff > 0 ? "text-green-400" : "text-red-400"}>{diff > 0 ? 'Ahorras' : 'Pierdes'} {formatDecimal(Math.abs(diff))} € <span className="opacity-70">({formatDecimal(diffPercent)}%)</span></span></td></tr></>)}<tr><td className="py-3 font-bold text-white">TOTAL FACTURA</td><td className={`py-3 text-right font-bold text-lg ${diff > 0 ? 'text-green-400' : 'text-white'}`}>{formatDecimal(billA.total)} €</td><td className={`py-3 text-right font-bold text-lg ${diff < 0 ? 'text-green-400' : 'text-white'}`}>{formatDecimal(billB.total)} €</td></tr></tfoot></table></div></div>
+                </div>
+                <div className="lg:col-span-12 mt-4 p-4 bg-purple-900/30 border border-purple-500/30 rounded-xl text-xs text-slate-300 text-center leading-relaxed"><p>(*) Una de las mejores Comercializadoras del Mercado es Octopus Energy, aprovecha mi referido para colaborar con éste proyecto y a su vez ahorrarte dinero en la contratación de tu consumo eléctrico. El trámite de cambio se realiza en 5 minutos y puedes cambiar de tarifas las veces que quieras y cuando quieras. Todo sin penalizaciones. REFERIDO: <a href="https://share.octopusenergy.es/topaz-boar-888" target="_blank" className="text-purple-400 font-bold underline hover:text-purple-300">https://share.octopusenergy.es/topaz-boar-888</a></p></div>
             </div>
         );
       };
 
-      // --- EQUIVALENCE CALCULATOR (FINAL OPTIMIZED) ---
-      const EquivalenceCalculator = () => {
-        const [staticParams, setStaticParams] = usePersistentState('equivStatic', { capacity: 60, consumption: 14.5, price: 0.45, batType: 'LFP' });
-        const [power, setPower] = usePersistentState('equivPower', 7.4);
-        const powerPresets = [3.3, 4, 4.5, 6, 7.4, 11, 22, 40, 50, 60, 80, 100, 120, 140, 150, 180, 200, 250, 300, 400, 500, 800];
-        const voltage = power < 11 ? 230 : 400; const amps = (power * 1000) / voltage; const kwPerMinLin = power / 60; const kmPerMinLin = kwPerMinLin / (staticParams.consumption / 100); const timeToFullMinLin = power > 0 ? (staticParams.capacity / power) * 60 : 0;
-        let totalMinutesCurve = 0; const kwhPerPercent = staticParams.capacity / 100;
-        for(let i=0; i<100; i++) { const limit = getBatteryLimitAtSoC(i, staticParams.batType, power); const realPower = Math.min(power, limit); if(realPower > 0) totalMinutesCurve += (kwhPerPercent / realPower) * 60; }
-        const avgPowerCurve = totalMinutesCurve > 0 ? staticParams.capacity / (totalMinutesCurve/60) : 0; const kwPerMinCurve = avgPowerCurve / 60; const kmPerMinCurve = kwPerMinCurve / (staticParams.consumption / 100); const costPerMin = kwPerMinCurve * staticParams.price;
-
-        return (
-            <div className="space-y-8 animate-fade-in">
-                <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6"><h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Icons.Link /> Calculadora de Equivalencias</h2><div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 pb-8 border-b border-slate-800 items-end"><div className="bg-slate-900/50 border border-slate-800 rounded-xl p-3"><label className="text-xs text-slate-500 font-bold block mb-2 uppercase">Tipo Batería</label><div className="flex gap-2"><button onClick={() => setStaticParams({...staticParams, batType:'LFP'})} className={`flex-1 py-1 text-xs font-bold rounded ${staticParams.batType==='LFP' ? 'bg-green-600 text-white' : 'bg-slate-700 text-slate-400'}`}>LFP</button><button onClick={() => setStaticParams({...staticParams, batType:'NCA'})} className={`flex-1 py-1 text-xs font-bold rounded ${staticParams.batType==='NCA' ? 'bg-red-600 text-white' : 'bg-slate-700 text-slate-400'}`}>NCA</button></div></div><EquivSlider label="Capacidad Batería" value={staticParams.capacity} min="30" max="300" step="1" unit="kWh" onChange={v => setStaticParams({...staticParams, capacity: v})} digits={0} isMaster={true} showButtons={true} /><EquivSlider label="Consumo Medio" value={staticParams.consumption} min="1" max="60" step="0.1" unit="kWh/100" onChange={v => setStaticParams({...staticParams, consumption: v})} digits={1} isMaster={true} showButtons={true} /><EquivSlider label="Precio Energía" value={staticParams.price} min="0" max="2" step="0.01" unit="€/kWh" onChange={v => setStaticParams({...staticParams, price: v})} digits={2} isMaster={true} showButtons={true} /></div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4"><div className="md:col-span-2 space-y-4"><EquivSlider label="POTENCIA CARGA (A CALCULAR)" value={power} min="1" max="800" step="0.01" unit="kW" onChange={v => setPower(Math.max(0, parseFloat(v)))} highlight digits={2} isMaster={true} showButtons={true} /><div className="flex flex-wrap gap-2 justify-center bg-slate-800/50 p-3 rounded-xl border border-slate-700">{powerPresets.map(p => (<button key={p} onClick={() => setPower(p)} className={`btn-preset ${Math.abs(power - p) < 0.1 ? 'bg-blue-600 text-white border-blue-500 shadow-[0_0_10px_rgba(37,99,235,0.5)]' : ''}`}>{p} kW</button>))}</div></div><EquivSlider label={`Amperaje (${voltage}V)`} value={amps} min="0" max="2000" step="1" unit="A" highlight digits={0} readOnly={true} /><EquivSlider label="" value={timeToFullMinLin} min="0" max={1440} step="1" readOnly={true} dualData={<DualDisplay label="Tiempo 0-100%" linearVal={timeToFullMinLin} curveVal={totalMinutesCurve} isTime={true} />} /><EquivSlider label="" value={kmPerMinLin} min="0" max="50" step="0.1" readOnly={true} dualData={<DualDisplay label="Velocidad (Km)" linearVal={kmPerMinLin} curveVal={kmPerMinCurve} unit="km/min" digits={1} />} /><EquivSlider label="" value={kwPerMinLin} min="0" max="50" step="0.1" readOnly={true} dualData={<DualDisplay label="Velocidad (Energía)" linearVal={kwPerMinLin} curveVal={kwPerMinCurve} unit="kW/min" digits={1} />} /><div className="md:col-span-2"><EquivSlider label="Importe Medio Carga" value={costPerMin} min="0" max="30" step="0.01" unit="€/min" digits={2} readOnly={true} highlight /></div></div><div className="mt-6 p-4 bg-blue-900/20 border border-blue-500/30 rounded-xl flex items-start gap-3"><div className="mt-1 text-blue-400"><Icons.Activity /></div><div><h4 className="text-sm font-bold text-blue-300 mb-1">Modo Interactivo</h4><p className="text-xs text-slate-400 leading-relaxed"><strong>Teórico (Lineal):</strong> Valores ideales si la carga fuera constante al 100% de potencia.<br/><strong>Real (Curva):</strong> Valores promedio simulando una sesión completa 0-100% aplicando la curva física de la batería seleccionada.<br/>Solo el control de Potencia es deslizable para garantizar la precisión.</p></div></div></div></div>
-        );
-      };
-
-      // --- APP PRINCIPAL ---
+      // --- 7. APP PRINCIPAL ---
       const App = () => {
         const [activeTab, setActiveTab] = usePersistentState('activeTab', 'curve'); 
         const [simParams, setSimParams] = usePersistentState('simParams', { speed: 120, temperature: 20, gradient: 0, windSpeed: 0, electricConsumptionRef: 14, batteryCapacity: 60 });
