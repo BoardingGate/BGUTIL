@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -50,8 +51,9 @@
       .slider-thumb::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #3b82f6; cursor: pointer; border: 2px solid #1e293b; box-shadow: 0 0 10px rgba(59, 130, 246, 0.5); transition: background 0.2s; }
       
       /* Estilo específico para sliders de solo lectura (grises) */
-      .slider-readonly::-webkit-slider-thumb { background: #475569; border-color: #334155; box-shadow: none; cursor: default; }
-      .slider-readonly::-moz-range-thumb { background: #475569; border-color: #334155; box-shadow: none; cursor: default; }
+      .slider-readonly::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 0; height: 0; display: none; }
+      .slider-readonly::-moz-range-thumb { width: 0; height: 0; display: none; }
+      .slider-track-only { pointer-events: none; }
 
       .btn-step { @apply w-8 h-8 flex items-center justify-center rounded bg-slate-700 text-slate-300 hover:bg-slate-600 hover:text-white active:bg-blue-600 transition-colors font-bold text-lg select-none; }
       .btn-preset { @apply px-2 py-1 bg-slate-800 border border-slate-700 rounded text-[10px] text-slate-400 hover:bg-blue-600 hover:text-white hover:border-blue-500 transition-all; }
@@ -949,21 +951,25 @@
 
         // Master values (Source of Truth)
         const [power, setPower] = useState(7.4);
-        const [time, setTime] = useState(30);
-
+        
         // Derived Values Calculation
-        const amps = (power * 1000) / 230;
+        // Voltage logic: < 11kW -> 230V, >= 11kW -> 400V
+        const voltage = power < 11 ? 230 : 400;
+        const amps = (power * 1000) / voltage;
+        
         const kwPerMin = power / 60;
         const kmPerMin = kwPerMin / (staticParams.consumption / 100);
         const costPerMin = kwPerMin * staticParams.price;
-        const distance = kmPerMin * time;
+        
+        // "Tiempo Carga" (0-100%) = Capacity / Power
+        const timeToFullHrs = power > 0 ? staticParams.capacity / power : 0;
+        const timeToFullMin = timeToFullHrs * 60;
 
         // Handler Wrapper
         const updatePower = (val) => setPower(Math.max(0, parseFloat(val)));
-        const updateTime = (val) => setTime(Math.max(0, parseFloat(val)));
 
         // Slider Component
-        const EquivSlider = ({ label, value, min, max, step, onChange, unit, highlight, digits=2, isMaster=false, showButtons=false }) => {
+        const EquivSlider = ({ label, value, min, max, step, onChange, unit, highlight, digits=2, isMaster=false, showButtons=false, readOnly=false }) => {
             const handleStep = (direction) => {
                 const newVal = parseFloat(value) + (step * direction);
                 onChange(Math.min(max, Math.max(min, newVal)));
@@ -981,9 +987,11 @@
                             type="range" 
                             min={min} max={max} step={step} 
                             value={value || 0} 
-                            onChange={(e) => isMaster && onChange(e.target.value)}
-                            className={`flex-grow h-2 rounded-lg appearance-none ${isMaster ? 'cursor-pointer slider-thumb' : 'slider-readonly pointer-events-none'} ${highlight ? 'bg-blue-900' : 'bg-slate-700'}`}
+                            onChange={(e) => !readOnly && onChange && onChange(e.target.value)}
+                            className={`flex-grow h-2 rounded-lg appearance-none ${readOnly ? 'slider-readonly pointer-events-none bg-slate-800' : 'cursor-pointer slider-thumb'} ${!readOnly && highlight ? 'bg-blue-900' : 'bg-slate-700'} ${readOnly ? 'h-1' : ''}`}
+                            disabled={readOnly}
                         />
+                        {readOnly && <div className="flex-grow h-2 bg-slate-800 rounded-full overflow-hidden relative"><div className="absolute top-0 left-0 h-full bg-blue-500/50 transition-all duration-300" style={{width: `${Math.min(100, (value/max)*100)}%`}}></div></div>}
                         {showButtons && <button onClick={() => handleStep(1)} className="btn-step">+</button>}
                     </div>
                 </div>
@@ -1025,17 +1033,15 @@
                             </div>
                         </div>
 
-                        <EquivSlider label="Amperaje (230V)" value={amps} min="0" max="4500" step="1" unit="A" highlight digits={0} />
+                        <EquivSlider label={`Amperaje (${voltage}V)`} value={amps} min="0" max="2000" step="1" unit="A" highlight digits={0} readOnly={true} />
                         
-                        <EquivSlider label="Tiempo Carga (MAESTRO)" value={time} min="0" max="300" step="1" unit="min" onChange={updateTime} digits={0} isMaster={true} showButtons={true} />
+                        <EquivSlider label="Tiempo Carga Completa (0-100%)" value={timeToFullMin} min="0" max={timeToFullMin > 1000 ? timeToFullMin : 1000} step="1" unit="min" digits={0} readOnly={true} />
                         
-                        <EquivSlider label="Rango Añadido" value={distance} min="0" max="2000" step="1" unit="km" digits={0} />
-                        
-                        <EquivSlider label="Velocidad (Km)" value={kmPerMin} min="0" max="100" step="0.1" unit="km/min" digits={1} />
-                        <EquivSlider label="Velocidad (Energía)" value={kwPerMin} min="0" max="100" step="0.1" unit="kW/min" digits={1} />
+                        <EquivSlider label="Velocidad (Km)" value={kmPerMin} min="0" max="50" step="0.1" unit="km/min" digits={1} readOnly={true} />
+                        <EquivSlider label="Velocidad (Energía)" value={kwPerMin} min="0" max="50" step="0.1" unit="kW/min" digits={1} readOnly={true} />
                         
                         <div className="md:col-span-2">
-                             <EquivSlider label="Importe Carga" value={costPerMin} min="0" max="50" step="0.01" unit="€/min" digits={2} />
+                             <EquivSlider label="Importe Carga" value={costPerMin} min="0" max="30" step="0.01" unit="€/min" digits={2} readOnly={true} />
                         </div>
                     </div>
 
@@ -1045,7 +1051,7 @@
                         <div>
                             <h4 className="text-sm font-bold text-blue-300 mb-1">Modo Interactivo</h4>
                             <p className="text-xs text-slate-400 leading-relaxed">
-                                Para garantizar la precisión y fluidez, <strong>solo los controles de Potencia y Tiempo son deslizables</strong>. Al ajustarlos (o usar los botones de potencia rápida), el resto de valores (Amperios, Velocidad, Coste, Distancia) se recalculan automáticamente respetando la física según la capacidad y consumo de tu vehículo.
+                                Para garantizar la precisión y fluidez, <strong>solo el control de Potencia es deslizable</strong>. Al ajustarlo (o usar los botones de potencia rápida), el resto de valores (Amperios, Velocidad, Coste, Tiempo Total) se recalculan automáticamente en tiempo real basándose en la capacidad y consumo de tu vehículo definidos arriba. Nota: El amperaje cambia a referencia 400V a partir de 11kW.
                             </p>
                         </div>
                     </div>
