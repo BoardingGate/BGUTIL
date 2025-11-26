@@ -952,6 +952,15 @@
         // Master values (Source of Truth)
         const [power, setPower] = useState(7.4);
         
+        // Helper format time string
+        const formatTime = (min) => {
+            if(!min || !isFinite(min)) return "00:00:00";
+            const h = Math.floor(min / 60);
+            const m = Math.floor(min % 60);
+            const s = Math.round((min * 60) % 60);
+            return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+        };
+
         // Derived Values Calculation
         // Voltage logic: < 11kW -> 230V, >= 11kW -> 400V
         const voltage = power < 11 ? 230 : 400;
@@ -969,7 +978,7 @@
         const updatePower = (val) => setPower(Math.max(0, parseFloat(val)));
 
         // Slider Component
-        const EquivSlider = ({ label, value, min, max, step, onChange, unit, highlight, digits=2, isMaster=false, showButtons=false, readOnly=false }) => {
+        const EquivSlider = ({ label, value, min, max, step, onChange, unit, highlight, digits=2, isMaster=false, showButtons=false, readOnly=false, customDisplay }) => {
             const handleStep = (direction) => {
                 const newVal = parseFloat(value) + (step * direction);
                 onChange(Math.min(max, Math.max(min, newVal)));
@@ -979,7 +988,10 @@
                 <div className={`bg-slate-900/50 border ${highlight ? 'border-blue-500/50 bg-blue-900/10' : 'border-slate-800'} rounded-xl p-4 transition-colors`}>
                     <div className="flex justify-between mb-2">
                         <label className={`text-xs font-bold uppercase tracking-wider ${highlight ? 'text-blue-300' : 'text-slate-400'}`}>{label}</label>
-                        <span className={`font-mono font-bold ${highlight ? 'text-white' : 'text-slate-300'}`}>{formatDecimal(value, digits)} <span className="text-xs text-slate-500">{unit}</span></span>
+                        <span className={`font-mono font-bold ${highlight ? 'text-white' : 'text-slate-300'}`}>
+                            {customDisplay ? customDisplay : formatDecimal(value, digits)} 
+                            {!customDisplay && <span className="text-xs text-slate-500">{unit}</span>}
+                        </span>
                     </div>
                     <div className="flex items-center gap-3">
                         {showButtons && <button onClick={() => handleStep(-1)} className="btn-step">-</button>}
@@ -1027,7 +1039,7 @@
                                         onClick={() => updatePower(p)}
                                         className={`btn-preset ${Math.abs(power - p) < 0.1 ? 'bg-blue-600 text-white border-blue-500 shadow-[0_0_10px_rgba(37,99,235,0.5)]' : ''}`}
                                     >
-                                        {p} kW
+                                        {p}
                                     </button>
                                 ))}
                             </div>
@@ -1035,7 +1047,14 @@
 
                         <EquivSlider label={`Amperaje (${voltage}V)`} value={amps} min="0" max="2000" step="1" unit="A" highlight digits={0} readOnly={true} />
                         
-                        <EquivSlider label="Tiempo Carga Completa (0-100%)" value={timeToFullMin} min="0" max={timeToFullMin > 1000 ? timeToFullMin : 1000} step="1" unit="min" digits={0} readOnly={true} />
+                        <EquivSlider 
+                            label="Tiempo Carga Completa (0-100%)" 
+                            value={timeToFullMin} 
+                            min="0" max={timeToFullMin > 1440 ? timeToFullMin : 1440} 
+                            step="1" 
+                            customDisplay={formatTime(timeToFullMin)}
+                            readOnly={true} 
+                        />
                         
                         <EquivSlider label="Velocidad (Km)" value={kmPerMin} min="0" max="50" step="0.1" unit="km/min" digits={1} readOnly={true} />
                         <EquivSlider label="Velocidad (Energía)" value={kwPerMin} min="0" max="50" step="0.1" unit="kW/min" digits={1} readOnly={true} />
