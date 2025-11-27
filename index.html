@@ -1501,20 +1501,21 @@
                                 <>
                                     <div className="text-sm text-green-400 uppercase font-bold mb-2">Opción Ganadora: {diff > 0 ? tState.propA.name : tState.propB.name}</div>
                                     <div className="text-4xl font-bold text-white mb-2">Ahorras {formatDecimal(Math.abs(diff))} € <span className="text-base font-normal text-slate-400">/ factura</span></div>
+                                    
+                                    <div className="text-sm font-bold text-slate-300 mb-4">Proyección anual: ~{formatDecimal(Math.abs(diff) * (365/tState.days))} €</div>
+
                                     <div className="text-base font-bold text-blue-200 bg-blue-900/30 inline-block px-4 py-2 rounded-full">
                                         {formatDecimal(diff > 0 ? billA.pricePerKwh : billB.pricePerKwh, 4)} €/kWh <span className="text-xs font-normal opacity-70">(Impuestos Inc)</span>
                                     </div>
                                     
                                     {/* BLOQUE COSTE EXCLUSIVO COCHE */}
                                     <div className="mt-4 pt-4 border-t border-slate-700/50">
-                                        <div className="text-xs uppercase font-bold text-slate-400 mb-1">Coste Estimado Recarga VE (P2 + Energía P3)</div>
+                                        <div className="text-xs uppercase font-bold text-slate-400 mb-1">Coste Estimado Recarga VE (P2 + Energía P3 VE)</div>
                                         <div className="flex justify-center items-baseline gap-2">
                                             <span className="text-2xl font-bold text-blue-300">{formatDecimal(winnerEVCost.total)} €</span>
-                                            <span className="text-sm font-bold text-slate-400">➜ {formatDecimal(winnerEVCost.pricePerKwh, 4)} €/kWh</span>
+                                            <span className="text-sm font-bold text-slate-400">➜ {formatDecimal(winnerEVCost.pricePerKwh, 4)} €/kWh (Impuestos inc)</span>
                                         </div>
                                     </div>
-
-                                    <div className="text-sm font-bold text-slate-300 mt-4">Proyección anual: ~{formatDecimal(Math.abs(diff) * (365/tState.days))} €</div>
                                 </>
                              )}
                         </div>
