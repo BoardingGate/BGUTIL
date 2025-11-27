@@ -1390,12 +1390,23 @@
         };
 
         const calculateEVCost = (proposal) => {
-            // Power P2 only
-            const termPotP2 = (tState.potP2 * proposal.pricePotP2 * tState.days) * (1 - proposal.discPot / 100);
-            // Energy P3 VE only
+            // 1. Calcular el consumo total en periodo valle (P3 Doméstico + P3 VE)
+            const totalP3Volume = (tState.p3Kwh || 0) + (tState.p3VeKwh || 0);
+
+            // 2. Calcular el ratio que representa el coche sobre el total nocturno
+            const evRatio = totalP3Volume > 0 ? ((tState.p3VeKwh || 0) / totalP3Volume) : 0;
+
+            // 3. Coste Total de la Potencia P2
+            const fullTermPotP2 = (tState.potP2 * proposal.pricePotP2 * tState.days) * (1 - proposal.discPot / 100);
+
+            // 4. Imputar solo la parte proporcional de la Potencia P2 al coche
+            const evTermPotP2 = fullTermPotP2 * evRatio;
+
+            // 5. Coste de la Energía específica del VE
             const termEnP3Ve = (tState.p3VeKwh * proposal.priceEnP3Ve) * (1 - proposal.discEn / 100);
 
-            const base = termPotP2 + termEnP3Ve;
+            // 6. Sumar y aplicar impuestos
+            const base = evTermPotP2 + termEnP3Ve;
             const withIEE = base * (1 + tState.impuestoElec / 100);
             const total = withIEE * (1 + tState.iva / 100);
 
