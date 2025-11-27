@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -186,7 +187,6 @@
                 onFocus={handleFocus}
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
-                // CAMBIO: text-lg, py-3
                 className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-3 text-yellow-300 font-mono font-bold focus:outline-none focus:border-yellow-500 text-lg placeholder-zinc-500 transition-colors text-right shadow-inner"
             />
         );
@@ -1291,7 +1291,7 @@
             </div>
         );
 
-      // --- TARIFF COMPARATOR (LETRAS MÁS GRANDES) ---
+      // --- TARIFF COMPARATOR (LETRAS MÁS GRANDES + CÁLCULO VE) ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV5', {
             // Shared Data
@@ -1389,8 +1389,26 @@
             return { total, termPotDisc, termEnNet, fixedCosts, taxes: total - (termPotDisc + termEnNet + fixedCosts), pricePerKwh, solarReturn };
         };
 
+        const calculateEVCost = (proposal) => {
+            // Power P2 only
+            const termPotP2 = (tState.potP2 * proposal.pricePotP2 * tState.days) * (1 - proposal.discPot / 100);
+            // Energy P3 VE only
+            const termEnP3Ve = (tState.p3VeKwh * proposal.priceEnP3Ve) * (1 - proposal.discEn / 100);
+
+            const base = termPotP2 + termEnP3Ve;
+            const withIEE = base * (1 + tState.impuestoElec / 100);
+            const total = withIEE * (1 + tState.iva / 100);
+
+            const pricePerKwh = tState.p3VeKwh > 0 ? total / tState.p3VeKwh : 0;
+
+            return { total, pricePerKwh };
+        };
+
         const billA = calculateBill(tState.propA);
         const billB = calculateBill(tState.propB);
+        const evCostA = calculateEVCost(tState.propA);
+        const evCostB = calculateEVCost(tState.propB);
+
         const diff = billB.total - billA.total;
         const diffPercent = Math.min(billA.total, billB.total) > 0 ? (Math.abs(diff) / Math.max(billA.total, billB.total)) * 100 : 0;
         
@@ -1399,6 +1417,9 @@
         
         const diffEn = billB.termEnNet - billA.termEnNet;
         const diffEnPct = Math.min(billA.termEnNet, billB.termEnNet) > 0 ? (Math.abs(diffEn) / Math.max(billA.termEnNet, billB.termEnNet)) * 100 : 0;
+
+        // If diff > 0, A is cheaper (B - A > 0). If diff < 0, B is cheaper.
+        const winnerEVCost = diff > 0 ? evCostA : evCostB;
 
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
@@ -1483,6 +1504,16 @@
                                     <div className="text-base font-bold text-blue-200 bg-blue-900/30 inline-block px-4 py-2 rounded-full">
                                         {formatDecimal(diff > 0 ? billA.pricePerKwh : billB.pricePerKwh, 4)} €/kWh <span className="text-xs font-normal opacity-70">(Impuestos Inc)</span>
                                     </div>
+                                    
+                                    {/* BLOQUE COSTE EXCLUSIVO COCHE */}
+                                    <div className="mt-4 pt-4 border-t border-slate-700/50">
+                                        <div className="text-xs uppercase font-bold text-slate-400 mb-1">Coste Estimado Recarga VE (P2 + Energía P3)</div>
+                                        <div className="flex justify-center items-baseline gap-2">
+                                            <span className="text-2xl font-bold text-blue-300">{formatDecimal(winnerEVCost.total)} €</span>
+                                            <span className="text-sm font-bold text-slate-400">➜ {formatDecimal(winnerEVCost.pricePerKwh, 4)} €/kWh</span>
+                                        </div>
+                                    </div>
+
                                     <div className="text-sm font-bold text-slate-300 mt-4">Proyección anual: ~{formatDecimal(Math.abs(diff) * (365/tState.days))} €</div>
                                 </>
                              )}
