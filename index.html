@@ -1,4 +1,8 @@
+Aquí tienes el código completo con la nueva sección solicitada.
 
+Se ha añadido el componente `SimpleSavingsSimulator` y se ha integrado al final de la pestaña "Simulador" (case `simulator`), justo debajo del Panel de Control, respetando estrictamente todo el código anterior y utilizando los valores configurados en "Configuración Avanzada" para realizar los cálculos.
+
+```html
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -301,6 +305,94 @@
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo Gasolina (L/100)</label><FormattedInput decimals={1} value={costs.gasConsumptionRef} onChange={(val) => handleCostChange('gasConsumptionRef', val)} /></div>
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo EV (kWh/100)</label><FormattedInput decimals={1} value={params.electricConsumptionRef} onChange={(val) => handleChange('electricConsumptionRef', val)} /></div>
                             <div className="col-span-2"><label className="text-sm font-bold text-slate-400 block mb-1">Batería (kWh)</label><FormattedInput value={params.batteryCapacity} onChange={(val) => handleChange('batteryCapacity', val)} /></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+      };
+
+      // --- NUEVO COMPONENTE: SIMULADOR SIMPLE AHORRO ---
+      const SimpleSavingsSimulator = ({ params, costs }) => {
+        const [distance, setDistance] = usePersistentState('simpleSimDistance', 10000);
+        
+        // Botones solicitados: 100, 1000, 10k, 20k, 50k, 100k, 200k, 300k, 400k, 500k
+        // Interpretando "M" como "Mil" dado el contexto de kilometraje de vehículos.
+        const presets = [
+            { label: "100", val: 100 },
+            { label: "1.000", val: 1000 },
+            { label: "10.000", val: 10000 },
+            { label: "20.000", val: 20000 },
+            { label: "50.000", val: 50000 },
+            { label: "100.000", val: 100000 },
+            { label: "200.000", val: 200000 },
+            { label: "300.000", val: 300000 },
+            { label: "400.000", val: 400000 },
+            { label: "500.000", val: 500000 }
+        ];
+
+        // Cálculos usando los valores de Configuración Avanzada
+        const costEV = (distance / 100) * params.electricConsumptionRef * costs.electricityPrice;
+        const costICE = (distance / 100) * costs.gasConsumptionRef * costs.gasPrice;
+        const savings = costICE - costEV;
+        const percent = costICE > 0 ? (savings / costICE) * 100 : 0;
+
+        return (
+            <div className="mt-6 bg-slate-900/50 backdrop-blur-lg border border-slate-800 rounded-2xl p-6 shadow-xl animate-fade-in">
+                <h3 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-4">
+                    <Icons.Piggy className="w-6 h-6 text-green-400" /> 
+                    SIMULADOR SIMPLE DE KM RECORRIDOS AHORRO VE / TÉRMICO
+                </h3>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                    {/* Columna Izquierda: Input y Botones */}
+                    <div className="space-y-6">
+                        <div>
+                            <label className="text-sm font-bold text-slate-400 block mb-2">KM. REALIZADOS</label>
+                            <FormattedInput value={distance} onChange={setDistance} />
+                        </div>
+                        
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 block mb-2 uppercase tracking-wider">Selección Rápida</label>
+                            <div className="flex flex-wrap gap-2">
+                                {presets.map((preset) => (
+                                    <button 
+                                        key={preset.val}
+                                        onClick={() => setDistance(preset.val)}
+                                        className={`px-3 py-2 text-xs font-bold rounded border transition-colors ${distance === preset.val ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
+                                    >
+                                        {preset.label} km
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Columna Derecha: Resultados */}
+                    <div className="bg-slate-900/80 rounded-xl p-6 border border-slate-700 h-full flex flex-col justify-center">
+                        <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-slate-700/50">
+                            <div className="text-center">
+                                <div className="text-xs font-bold text-orange-400 uppercase mb-1">Coste Térmico</div>
+                                <div className="text-2xl font-bold text-white">{formatMoney(costICE)}€</div>
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                    {costs.gasConsumptionRef}L/100 @ {costs.gasPrice}€
+                                </div>
+                            </div>
+                            <div className="text-center">
+                                <div className="text-xs font-bold text-blue-400 uppercase mb-1">Coste Eléctrico</div>
+                                <div className="text-2xl font-bold text-white">{formatMoney(costEV)}€</div>
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                    {params.electricConsumptionRef}kWh/100 @ {costs.electricityPrice}€
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-green-500/10 rounded-lg p-4 text-center border border-green-500/20">
+                            <div className="text-sm font-bold text-green-400 uppercase tracking-widest mb-1">Ahorro Total</div>
+                            <div className="text-4xl font-display font-bold text-white mb-1">+{formatMoney(savings)}€</div>
+                            <div className="text-sm font-bold text-green-300">
+                                {formatDecimal(percent, 1)}% más barato
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1637,7 +1729,8 @@
 
                 {/* FOOTER OCTOPUS */}
                 <div className="lg:col-span-12 mt-4 p-4 bg-purple-900/30 border border-purple-500/30 rounded-xl text-sm font-bold text-slate-300 text-center leading-relaxed">
-                    <p>(*) Una de las mejores Comercializadoras del Mercado es Octopus Energy, aprovecha mi referido para colaborar con el proyecto y a su vez ahorrarte dinero en la contratación de tu consumo eléctrico. El trámite de cambio se realiza en 5 minutos y puedes cambiar de tarifas las veces que quieras y cuando quieras. Todo sin penalizaciones. REFERIDO: <a href="https://share.octopusenergy.es/topaz-boar-888" target="_blank" className="text-purple-400 font-bold underline hover:text-purple-300">https://share.octopusenergy.es/topaz-boar-888</a></p>
+                    <p>(*) Una de las mejores Comercializadoras del Mercado es Octopus Energy, aprovecha mi referido para colaborar con el proyecto y a su vez ahorrarte dinero en la contratación de tu consumo eléctrico. El trámite de cambio se realiza en 5 minutos y puedes cambiar de tarifas las veces que quieras y cuando quieras. Todo sin penalizaciones. 
+                        REFERIDO: <a href="https://share.octopusenergy.es/topaz-boar-888" target="_blank" className="text-purple-400 font-bold underline hover:text-purple-300">https://share.octopusenergy.es/topaz-boar-888</a></p>
                 </div>
             </div>
         );
@@ -1659,7 +1752,14 @@
                 case 'curve': return <ChargeCurveCalculator />;
                 case 'tariff': return <TariffComparator />;
                 case 'drain': return <DrainCalculator />;
-                case 'simulator': return <><Visualizer params={simParams} /><ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} /><ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} /></>;
+                case 'simulator': return (
+                    <>
+                        <Visualizer params={simParams} />
+                        <ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} />
+                        <ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
+                        <SimpleSavingsSimulator params={simParams} costs={simCosts} />
+                    </>
+                );
                 case 'amortization': return <AmortizationCalculator />;
                 case 'calculator': return <ChargingCalculator />;
                 case 'nyland': return <NylandCalculator />;
