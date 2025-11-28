@@ -864,7 +864,7 @@
             power: 7.4,
             energyPrice: 0.09,
             deepDischargeLimit: 5, 
-            vampireRate: 1.5, // Consumo Vampiro (kWh/día)
+            vampireRate: 1.5, // Consumo Vampiro (kWh/día) - Por defecto 1.5
             currentKm: 0,
             lastCalibrationDate: '',
             purchaseDate: '', 
@@ -905,7 +905,7 @@
 
         const carAge = getCarAge();
 
-        // --- CÁLCULO SEMANAL (CONDUCCIÓN + VAMPIRO) ---
+        // --- CÁLCULO SEMANAL (SOLO CONDUCCIÓN) ---
         const calculateWeek = () => {
             const results = [];
             let totalTime = 0;
@@ -921,10 +921,7 @@
             let simPct = 80; 
             dayOrder.forEach(day => {
                 const driven = state.dailyKm[day];
-                // Consumo Total Diario = (Km * Consumo) + Vampiro Diario
-                const dailyKwh = ((driven / 100) * state.consumption) + state.vampireRate;
-                const consumedPct = (dailyKwh / state.battery) * 100;
-                
+                const consumedPct = (driven * state.consumption) / state.battery;
                 let endDayPct = simPct - consumedPct; 
                 const target = state.targets[day];
                 simPct = (target > 0 && target > endDayPct) ? target : endDayPct;
@@ -936,11 +933,8 @@
 
             dayOrder.forEach(day => {
                 const driven = state.dailyKm[day];
-                
-                // CÁLCULO DEL CONSUMO TOTAL DEL DÍA (INCLUYE VAMPIRO)
-                const drivingKwh = (driven / 100) * state.consumption;
-                const totalDailyKwh = drivingKwh + state.vampireRate;
-                const consumedPct = (totalDailyKwh / state.battery) * 100;
+                const kwhUsed = (driven / 100) * state.consumption;
+                const consumedPct = (kwhUsed / state.battery) * 100;
                 
                 // End of day status
                 const endDayPct = currentPct - consumedPct;
@@ -1045,13 +1039,28 @@
         const cyclesGuaranteed = 3000; 
         const cyclesLeft = Math.max(0, cyclesGuaranteed - cyclesUsed);
         
-        // 3. Cálculo de Consumo REAL PROMEDIO (Conducción + Vampiro) para proyecciones de la tabla
+        // 3. Cálculo de Consumo REAL PROMEDIO (Proyección Futura)
         const avgDailyKm = totalKmDriven / 7;
-        const dailyEnergyTotal = ((avgDailyKm / 100) * state.consumption) + state.vampireRate;
-        // kWh consumidos por cada 100km REALES (incluyendo el lastre del vampiro)
+        const dailyEnergyTotal = ((avgDailyKm / 100) * state.consumption) + state.vampireRate; // kWh/día totales
         const realConsumptionPer100 = avgDailyKm > 0 ? (dailyEnergyTotal / avgDailyKm) * 100 : 0;
 
-        const kmLeftInCycles = realConsumptionPer100 > 0 ? (cyclesLeft * state.battery) / (realConsumptionPer100 / 100) : 0;
+        // 4. Proyección Temporal (Fechas)
+        const getFutureDate = (daysToAdd) => {
+            const date = new Date();
+            date.setDate(date.getDate() + daysToAdd);
+            return date.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+        };
+
+        const yearsTo1500 = dailyEnergyTotal > 0 ? ((1500 * state.battery) - grandTotalKwh) / dailyEnergyTotal / 365 : 0;
+        const yearsTo3000 = dailyEnergyTotal > 0 ? ((3000 * state.battery) - grandTotalKwh) / dailyEnergyTotal / 365 : 0;
+        
+        const date1500 = dailyEnergyTotal > 0 ? getFutureDate(yearsTo1500 * 365) : "-";
+        const date3000 = dailyEnergyTotal > 0 ? getFutureDate(yearsTo3000 * 365) : "-";
+
+        // Km en esos hitos (basado en consumo real proyectado)
+        // Energía total entregada = Ciclos * Batería. Km = Energía / ConsumoReal
+        const totalKmAt1500 = realConsumptionPer100 > 0 ? ((1500 * state.battery) / realConsumptionPer100) * 100 : 0;
+        const totalKmAt3000 = realConsumptionPer100 > 0 ? ((3000 * state.battery) / realConsumptionPer100) * 100 : 0;
 
         const cycleTableData = [
             { r: "0 al 100%", c: 500 },
@@ -1104,20 +1113,12 @@
                                     const endKm = (row.endPct / 100) * (state.battery / state.consumption) * 100;
                                     const isNegative = row.endPct < 0;
                                     
-                                    // Cálculo de detalle diario
-                                    const dayDrivingKwh = (state.dailyKm[row.day] / 100) * state.consumption;
-                                    const dayTotalKwh = dayDrivingKwh + state.vampireRate;
-                                    const dayTotalPct = (dayTotalKwh / state.battery) * 100;
-
                                     return (
                                         <tr key={row.day} className="hover:bg-slate-800/30 transition-colors">
                                             <td className="p-4 font-bold text-white text-base">{dayLabels[row.day]}</td>
-                                            <td className="p-4 text-center">
+                                            <td className="p-4">
                                                 <input type="number" value={state.dailyKm[row.day]} onChange={(e) => handleDayChange('dailyKm', row.day, e.target.value)}
                                                     className="w-full bg-slate-700 border border-slate-600 rounded p-2 text-center text-white font-bold focus:border-blue-500 outline-none" />
-                                                <div className="text-[10px] text-slate-400 mt-1 font-mono">
-                                                    -{formatDecimal(dayTotalPct, 1)}% ({formatDecimal(dayTotalKwh, 1)} kWh)
-                                                </div>
                                             </td>
                                             <td className="p-4">
                                                 <div className="flex flex-col gap-2">
@@ -1321,22 +1322,21 @@
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
                                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Consumo Conducción</div>
-                                    <div className="text-lg font-bold text-white">{formatMoney(totalDrivingKwh)} <span className="text-base font-normal">kWh</span></div>
-                                    <div className="text-sm font-bold text-green-400 mt-1">{formatDecimal(costDrivingHistory)}€</div>
+                                    <div className="text-lg font-bold text-white">{formatMoney(totalDrivingKwh)} <span className="text-xs text-slate-500 font-normal">kWh</span></div>
+                                    <div className="text-xl font-bold text-green-400 mt-1">{formatDecimal(costDrivingHistory)}€</div>
                                 </div>
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
                                     <div className="text-[10px] font-bold text-purple-400 uppercase mb-1">Consumo Vampiro</div>
-                                    <div className="text-lg font-bold text-purple-300">+{formatMoney(totalVampireKwh)} <span className="text-base font-normal">kWh</span></div>
-                                    <div className="text-sm font-bold text-slate-400 mt-1">
-                                        ~{formatMoney(vampireKmEquivalent)} km <span className="text-slate-500 mx-1">|</span> <span className="text-red-400">{formatDecimal(costVampireHistory)}€</span>
-                                    </div>
+                                    <div className="text-lg font-bold text-purple-300">+{formatMoney(totalVampireKwh)} <span className="text-xs text-purple-400/70 font-normal">kWh</span></div>
+                                    <div className="text-xl font-bold text-red-400 mt-1">{formatDecimal(costVampireHistory)}€</div>
+                                    <div className="text-[10px] text-slate-500 mt-1">~{formatMoney(vampireKmEquivalent)} km perdidos</div>
                                 </div>
                             </div>
 
                             <div className="bg-slate-800/50 p-4 rounded-xl border border-blue-900/30 text-center">
                                 <div className="text-xs font-bold text-slate-300 uppercase mb-2">Consumo Total Acumulado</div>
                                 <div className="text-3xl font-bold text-white">{formatMoney(grandTotalKwh)} kWh</div>
-                                <div className="text-lg font-bold text-blue-400 mt-1">{formatDecimal(costTotalHistory)}€</div>
+                                <div className="text-2xl font-bold text-blue-400 mt-2">{formatDecimal(costTotalHistory)}€</div>
                                 <div className="text-xs text-slate-500 mt-1">Conducción + Vampírico</div>
                             </div>
 
@@ -1350,7 +1350,23 @@
                                 </div>
                                 <div className="flex justify-between text-xs font-bold text-slate-400">
                                     <span>Consumidos: <span className="text-white">{formatDecimal(cyclesUsed, 1)}</span></span>
-                                    <span>Restantes: <span className="text-blue-400">{formatMoney(cyclesLeft)} (~{formatMoney(kmLeftInCycles)} km)</span></span>
+                                    <span>Restantes: <span className="text-blue-400">{formatMoney(cyclesLeft)}</span></span>
+                                </div>
+                            </div>
+                            
+                            {/* Proyección Futura */}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-slate-800/20 p-3 rounded-lg border border-slate-700 text-left">
+                                    <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">1.500 Ciclos (Media)</div>
+                                    <div className="text-white font-bold text-sm">{date1500}</div>
+                                    <div className="text-xs text-slate-400">en {formatDecimal(yearsTo1500, 1)} años</div>
+                                    <div className="text-xs text-blue-400 font-bold mt-1">~{formatMoney(totalKmAt1500)} km</div>
+                                </div>
+                                <div className="bg-slate-800/20 p-3 rounded-lg border border-slate-700 text-left">
+                                    <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">3.000 Ciclos (Fin)</div>
+                                    <div className="text-white font-bold text-sm">{date3000}</div>
+                                    <div className="text-xs text-slate-400">en {formatDecimal(yearsTo3000, 1)} años</div>
+                                    <div className="text-xs text-green-400 font-bold mt-1">~{formatMoney(totalKmAt3000)} km</div>
                                 </div>
                             </div>
                         </div>
@@ -1360,7 +1376,7 @@
                             <div className="bg-slate-800 px-4 py-3 border-b border-slate-700">
                                 <h4 className="text-sm font-bold text-slate-300 uppercase">Tabla de Longevidad Estimada según Hábitos de Carga</h4>
                             </div>
-                            <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                            <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                                 <table className="w-full text-xs text-left">
                                     <thead className="text-slate-400 font-bold bg-slate-800/50 sticky top-0">
                                         <tr>
