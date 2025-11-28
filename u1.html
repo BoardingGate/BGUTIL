@@ -856,7 +856,6 @@
         );
       };
 
-
       // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState', {
@@ -865,6 +864,8 @@
             power: 7.4,
             energyPrice: 0.09,
             deepDischargeLimit: 5, 
+            currentKm: 0, // Nuevo dato: Kilometraje actual
+            lastCalibrationDate: '', // Nuevo dato: Fecha calibración
             dailyKm: { Mon: 75, Tue: 75, Wed: 75, Thu: 75, Fri: 75, Sat: 40, Sun: 40 },
             targets: { Mon: 0, Tue: 0, Wed: 0, Thu: 70, Fri: 0, Sat: 0, Sun: 100 }
         });
@@ -872,8 +873,9 @@
         const dayLabels = { Mon: 'Lunes', Tue: 'Martes', Wed: 'Miércoles', Thu: 'Jueves', Fri: 'Viernes', Sat: 'Sábado', Sun: 'Domingo' };
         const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-        const handleChange = (key, value) => setState(prev => ({ ...prev, [key]: parseFloat(value) || 0 }));
-        
+        const handleChange = (key, value) => setState(prev => ({ ...prev, [key]: value })); // Modificado para aceptar strings (fecha)
+        const handleNumChange = (key, value) => setState(prev => ({ ...prev, [key]: parseFloat(value) || 0 }));
+
         const handleDayChange = (type, day, value) => {
             const val = parseFloat(value) || 0;
             setState(prev => ({
@@ -891,24 +893,16 @@
             let totalKwhCharged = 0;
             let lowestPoint = { pct: 100, day: 'Mon', km: 0 };
             
-            // Variables para la lógica de recomendación
             let calibrationOpportunity = null;
-            let lastChargeEvent = null; // Guardará { day: 'Thu', target: 70 }
+            let lastChargeEvent = null;
 
-            // Pass 1: Simulate to find Sunday End % to use as Monday Start
+            // Pass 1: Simulate
             let simPct = 80; 
             dayOrder.forEach(day => {
                 const driven = state.dailyKm[day];
                 const consumedPct = (driven * state.consumption) / state.battery;
                 let endDayPct = simPct - consumedPct; 
-                
                 const target = state.targets[day];
-                let chargeNeeded = 0;
-                
-                if (target > 0 && target > endDayPct) {
-                    chargeNeeded = target - endDayPct;
-                }
-                
                 simPct = (target > 0 && target > endDayPct) ? target : endDayPct;
                 if(simPct > 100) simPct = 100;
             });
@@ -921,7 +915,6 @@
                 const kwhUsed = (driven / 100) * state.consumption;
                 const consumedPct = (kwhUsed / state.battery) * 100;
                 
-                // End of day status (Permitimos negativo para ver déficit)
                 const endDayPct = currentPct - consumedPct;
                 const endDayKm = (endDayPct / 100) * (state.battery / state.consumption) * 100;
                 
@@ -929,7 +922,6 @@
                     lowestPoint = { pct: endDayPct, day: day, km: endDayKm };
                 }
 
-                // Charging Logic
                 const target = state.targets[day];
                 let chargeNeededPct = 0;
                 let chargeTime = 0;
@@ -945,12 +937,12 @@
                     isCharging = true;
                 }
 
-                // --- LÓGICA DE RECOMENDACIÓN DE CALIBRACIÓN ---
+                // Logic for Calibration Advice
                 if (target === 100 && !calibrationOpportunity) {
                     const surplus = endDayPct - state.deepDischargeLimit;
                     let advice = null;
 
-                    if (surplus > 0.9 && lastChargeEvent) { // Margen de 0.9 para evitar redondeos
+                    if (surplus > 0.9 && lastChargeEvent) { 
                         const idealPrevTarget = lastChargeEvent.target - surplus;
                         advice = {
                             prevDay: lastChargeEvent.day,
@@ -963,16 +955,14 @@
                         day: day,
                         arrivalPct: endDayPct,
                         targetDeep: state.deepDischargeLimit,
-                        isOptimal: surplus <= 0.9, // Consideramos óptimo si está en el rango o por debajo
+                        isOptimal: surplus <= 0.9,
                         advice: advice
                     };
                 }
 
-                // Si hoy cargamos (y no es el día del 100%), guardamos este evento como "última carga"
                 if (isCharging && target < 100) {
                     lastChargeEvent = { day: day, target: target };
                 }
-                // ----------------------------------------------
 
                 const nextMorningPct = (target > 0 && target > endDayPct) ? target : endDayPct;
                 const nextMorningKm = (nextMorningPct / 100) * (state.battery / state.consumption) * 100;
@@ -1006,6 +996,29 @@
         const monthlyCost = (totalCost / 7) * 30.41;
         const annualCost = (totalCost / 7) * 365;
 
+        // Cycles Calculation
+        const totalKwhConsumedLifetime = (state.currentKm / 100) * state.consumption;
+        const cyclesUsed = state.battery > 0 ? totalKwhConsumedLifetime / state.battery : 0;
+        const cyclesGuaranteed = 3000; // Standard reference for LFP
+        const cyclesLeft = Math.max(0, cyclesGuaranteed - cyclesUsed);
+        const kmLeftInCycles = cyclesLeft * (state.battery / state.consumption) * 100;
+
+        // Cycle Table Data
+        const cycleTableData = [
+            { r: "0 al 100%", c: 500, d: 100 },
+            { r: "10 al 100%", c: 500, d: 90 },
+            { r: "20 al 100%", c: 1000, d: 80 },
+            { r: "0 al 90%", c: 1500, d: 90 },
+            { r: "10 al 90%", c: 1500, d: 80 },
+            { r: "20 al 90%", c: 2000, d: 70 },
+            { r: "0 al 80%", c: 3000, d: 80 },
+            { r: "10 al 80%", c: 3000, d: 70 },
+            { r: "20 al 80%", c: 3500, d: 60 },
+            { r: "0 al 70%", c: 5000, d: 70 },
+            { r: "10 al 70%", c: 5500, d: 60 },
+            { r: "20 al 70%", c: 6000, d: 50 },
+        ];
+
         return (
             <div className="grid grid-cols-1 gap-8 animate-fade-in">
                 {/* Global Settings */}
@@ -1014,11 +1027,11 @@
                         <Icons.Settings /> Configuración Global
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
-                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.battery} onChange={v => handleChange('battery', v)} /></div>
-                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo Medio (kWh/100)</label><FormattedInput decimals={1} value={state.consumption} onChange={v => handleChange('consumption', v)} /></div>
-                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Potencia Carga (kW)</label><FormattedInput decimals={1} value={state.power} onChange={v => handleChange('power', v)} /></div>
-                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Energía (€/kWh)</label><FormattedInput decimals={3} value={state.energyPrice} onChange={v => handleChange('energyPrice', v)} /></div>
-                        <div><label className="text-sm font-bold text-yellow-500 block mb-1">Nivel Carga Profunda (%)</label><FormattedInput decimals={0} value={state.deepDischargeLimit} onChange={v => handleChange('deepDischargeLimit', v)} /></div>
+                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.battery} onChange={v => handleNumChange('battery', v)} /></div>
+                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo Medio (kWh/100)</label><FormattedInput decimals={1} value={state.consumption} onChange={v => handleNumChange('consumption', v)} /></div>
+                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Potencia Carga (kW)</label><FormattedInput decimals={1} value={state.power} onChange={v => handleNumChange('power', v)} /></div>
+                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Energía (€/kWh)</label><FormattedInput decimals={3} value={state.energyPrice} onChange={v => handleNumChange('energyPrice', v)} /></div>
+                        <div><label className="text-sm font-bold text-yellow-500 block mb-1">Nivel Carga Profunda (%)</label><FormattedInput decimals={0} value={state.deepDischargeLimit} onChange={v => handleNumChange('deepDischargeLimit', v)} /></div>
                     </div>
                 </div>
 
@@ -1149,9 +1162,20 @@
                 {/* BMS Calibration Card */}
                 <div className="mt-6 bg-slate-800/30 border border-yellow-500/20 rounded-xl p-6 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-4 opacity-10"><Icons.Settings className="w-24 h-24 text-yellow-500" /></div>
-                    <h3 className="text-base font-bold text-yellow-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                        <Icons.Activity className="w-5 h-5"/> Calibración BMS / Carga Profunda
-                    </h3>
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+                        <h3 className="text-base font-bold text-yellow-500 uppercase tracking-widest flex items-center gap-2">
+                            <Icons.Activity className="w-5 h-5"/> Calibración BMS / Carga Profunda
+                        </h3>
+                        <div className="flex items-center gap-2 bg-slate-900/50 p-2 rounded-lg border border-slate-700">
+                            <label className="text-xs font-bold text-slate-400 uppercase">FECHA DE LA ÚLTIMA CARGA PROFUNDA:</label>
+                            <input 
+                                type="date" 
+                                value={state.lastCalibrationDate} 
+                                onChange={(e) => handleChange('lastCalibrationDate', e.target.value)}
+                                className="bg-slate-700 text-white text-xs font-bold rounded px-2 py-1 outline-none border border-slate-600 focus:border-blue-500"
+                            />
+                        </div>
+                    </div>
                     
                     {calibrationOpportunity ? (
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
@@ -1199,10 +1223,92 @@
                             No hay programada ninguna carga al 100% en la semana. Para calibrar el BMS, establece un objetivo del 100% en algún día.
                         </div>
                     )}
+
+                    <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/20 rounded-lg text-xs font-bold text-blue-200 leading-relaxed">
+                        (*) Tesla recomienda cargar al 100% (LFP) una vez a la semana para mantener calibrada la batería y cada cierto tiempo (de forma casual o programada), por ejemplo cada 6 meses, hacerle una carga profunda desde lo más abajo que puedas hasta el 100%.
+                    </div>
+                </div>
+
+                {/* Ciclos de Carga Section */}
+                <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
+                    <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
+                        <Icons.Activity /> Estimación de ciclos de carga
+                    </h2>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        {/* Panel de Datos */}
+                        <div className="space-y-6">
+                            <div>
+                                <label className="text-sm font-bold text-slate-400 block mb-2">KILOMETRAJE ACTUAL</label>
+                                <FormattedInput value={state.currentKm} onChange={v => handleNumChange('currentKm', v)} grouped={true} />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
+                                    <div className="text-xs font-bold text-slate-400 uppercase mb-1">Consumido Total</div>
+                                    <div className="text-2xl font-bold text-white">{formatMoney(totalKwhConsumedLifetime)} <span className="text-sm text-slate-500 font-normal">kWh</span></div>
+                                </div>
+                                <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
+                                    <div className="text-xs font-bold text-slate-400 uppercase mb-1">Ciclos Realizados</div>
+                                    <div className="text-2xl font-bold text-blue-400">{formatDecimal(cyclesUsed, 1)}</div>
+                                </div>
+                            </div>
+
+                            <div className="bg-slate-800/30 p-4 rounded-xl border border-green-900/30">
+                                <div className="flex justify-between items-end mb-2">
+                                    <div className="text-sm font-bold text-slate-300">Garantía Estimada ({formatMoney(cyclesGuaranteed)} Ciclos)</div>
+                                    <div className="text-xs font-bold text-green-400">{formatDecimal((cyclesUsed/cyclesGuaranteed)*100, 1)}% Usado</div>
+                                </div>
+                                <div className="w-full bg-slate-700 rounded-full h-2 mb-4 overflow-hidden">
+                                    <div className="bg-green-500 h-2 rounded-full" style={{ width: `${Math.min(100, (cyclesUsed/cyclesGuaranteed)*100)}%` }}></div>
+                                </div>
+                                <div className="flex justify-between text-xs font-bold text-slate-400">
+                                    <span>Faltan: <span className="text-white">{formatMoney(cyclesLeft)} ciclos</span></span>
+                                    <span>~{formatMoney(kmLeftInCycles)} km restantes</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Tabla de Referencia */}
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden">
+                            <div className="bg-slate-800 px-4 py-3 border-b border-slate-700">
+                                <h4 className="text-sm font-bold text-slate-300 uppercase">Tabla de Longevidad Estimada</h4>
+                            </div>
+                            <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                                <table className="w-full text-xs text-left">
+                                    <thead className="text-slate-400 font-bold bg-slate-800/50 sticky top-0">
+                                        <tr>
+                                            <th className="px-4 py-2">Rango Carga</th>
+                                            <th className="px-4 py-2 text-right">Ciclos Est.</th>
+                                            <th className="px-4 py-2 text-right">Km Totales</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800 text-slate-300 font-mono">
+                                        {cycleTableData.map((row, idx) => {
+                                            // Calculation: Total Energy = Cycles * (Battery * (Depth/100)). Total Km = Total Energy / Cons * 100
+                                            const totalEnergy = row.c * (state.battery * (row.d / 100));
+                                            const totalKm = (totalEnergy / state.consumption) * 100;
+                                            return (
+                                                <tr key={idx} className="hover:bg-slate-800/30">
+                                                    <td className="px-4 py-2 font-bold">{row.r}</td>
+                                                    <td className="px-4 py-2 text-right">{formatMoney(row.c)}</td>
+                                                    <td className="px-4 py-2 text-right text-blue-300">{formatMoney(totalKm)} km</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="p-2 text-[10px] text-slate-500 text-center font-bold italic bg-slate-800/30">
+                                * Estimación teórica basada en profundidad de descarga (DoD) y química LFP.
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         );
       };
+
         
 
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
