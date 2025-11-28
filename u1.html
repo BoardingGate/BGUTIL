@@ -1131,6 +1131,7 @@
                                                 </div>
                                             </td>
 
+
                                             <td className="p-2">
                                                 <div className="flex flex-col gap-1 w-full">
                                                     {/* INICIO ROW - Alineado IZQUIERDA: Etiqueta luego Valor */}
@@ -1161,9 +1162,17 @@
                                             </td>
 
                                             <td className="p-2">
-                                                <input type="number" min="0" max="100" placeholder="-" value={state.targets[row.day] === 0 ? '' : state.targets[row.day]} onChange={(e) => handleDayChange('targets', row.day, e.target.value)}
-                                                    className="w-full bg-slate-900 border border-blue-500/30 rounded p-1 text-center text-blue-300 font-bold focus:border-blue-500 outline-none placeholder-slate-600 h-10" />
+                                                <input 
+                                                    type="number" 
+                                                    min="0" 
+                                                    max="100" 
+                                                    placeholder="-" 
+                                                    value={state.targets[row.day] === 0 ? '' : state.targets[row.day]} 
+                                                    onChange={(e) => handleDayChange('targets', row.day, e.target.value)}
+                                                    className="w-full bg-slate-900 border border-blue-500/30 rounded p-1 text-center text-blue-300 font-bold focus:border-blue-500 outline-none placeholder-slate-600 h-10 text-xl" 
+                                                />
                                             </td>
+
 
                                             <td className="p-2 text-center">
                                                 {row.chargeTime > 0 ? (
