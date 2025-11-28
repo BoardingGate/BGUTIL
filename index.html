@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -353,13 +354,13 @@
         );
       };
 
-      // --- SIMULADOR SIMPLE AÑADIDO ---
+      // --- SIMULADOR SIMPLE AÑADIDO (CORREGIDO: USA CONSUMO DE CONFIGURACIÓN) ---
       const SimpleSavingsSimulator = ({ evConsumption, iceConsumption, elecPrice, fuelPrice }) => {
         const [distance, setDistance] = useState(10000);
 
         const presets = [100, 1000, 10000, 20000, 50000, 100000, 200000, 300000, 400000, 500000];
 
-        // Calculations based on current simulation parameters
+        // Calculations based on reference parameters passed from props
         const evCost = (distance / 100) * evConsumption * elecPrice;
         const iceCost = (distance / 100) * iceConsumption * fuelPrice;
         const savings = iceCost - evCost;
@@ -418,7 +419,7 @@
                     </div>
                     
                     <div className="text-[10px] text-slate-500 text-center italic">
-                        * Cálculos basados en el consumo resultante de la simulación actual ({formatDecimal(evConsumption)} kWh/100) y los parámetros introducidos ({formatDecimal(iceConsumption)} L/100).
+                        * Cálculos basados en el consumo de referencia configurado ({formatDecimal(evConsumption)} kWh/100) y los parámetros introducidos ({formatDecimal(iceConsumption)} L/100).
                     </div>
                 </div>
             </div>
@@ -829,7 +830,7 @@
             endPct: 80, 
             costPerKwh: 0.45, 
             chargerPower: 150, 
-            optimizationTime: 20,
+            optimizationTime: 20, 
             consumption: 15.0, 
             targetRange: 300
         });
@@ -1287,7 +1288,7 @@
                             label="" 
                             value={kwPerMinLin} min="0" max="50" step="0.1" 
                             readOnly={true}
-                            dualData={<DualDisplay label="Velocidad (Energía)" linearVal={kwPerMinLin} curveVal={kwPerMinCurve} unit="kW/min" digits={1} />}
+                            dualData={<DualDisplay label="Velocidad (Energía)" linearVal={kwPerMinLin} curveVal={kmPerMinCurve} unit="kW/min" digits={1} />}
                         />
                         
                         <div className="md:col-span-2">
@@ -1749,7 +1750,7 @@
                         <ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
                         {/* AÑADIDO: SIMULADOR SIMPLE A PIE DE PÁGINA */}
                         <SimpleSavingsSimulator 
-                            evConsumption={consumption}
+                            evConsumption={simParams.electricConsumptionRef} // CORREGIDO: Usa el consumo de referencia, no el simulado
                             iceConsumption={simCosts.gasConsumptionRef}
                             elecPrice={simCosts.electricityPrice}
                             fuelPrice={simCosts.gasPrice}
