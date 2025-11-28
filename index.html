@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -103,10 +102,11 @@
         return [state, setState];
       };
 
-      // --- GLOBAL FORMATTERS ---
+      // --- GLOBAL FORMATTERS (Defined at top to avoid ReferenceError in components) ---
       const formatMoney = (val) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(val);
       const formatDecimal = (val, digits = 2) => new Intl.NumberFormat('es-ES', { style: 'decimal', minimumFractionDigits: digits, maximumFractionDigits: digits }).format(val);
       
+      // Formato HH:MM:SS (Usado en Equivalencia y Curva)
       const formatTime = (min) => {
           if(!min || !isFinite(min)) return "00:00:00";
           const h = Math.floor(min / 60);
@@ -115,6 +115,7 @@
           return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
       };
 
+      // Formato HH:MM (Usado en Calculadora simple y Nyland)
       const formatTimeShort = (min) => {
           if(!min || !isFinite(min)) return "00:00";
           const h = Math.floor(min / 60);
@@ -830,7 +831,7 @@
             endPct: 80, 
             costPerKwh: 0.45, 
             chargerPower: 150, 
-            optimizationTime: 20, 
+            optimizationTime: 20,
             consumption: 15.0, 
             targetRange: 300
         });
@@ -1288,7 +1289,7 @@
                             label="" 
                             value={kwPerMinLin} min="0" max="50" step="0.1" 
                             readOnly={true}
-                            dualData={<DualDisplay label="Velocidad (Energía)" linearVal={kwPerMinLin} curveVal={kmPerMinCurve} unit="kW/min" digits={1} />}
+                            dualData={<DualDisplay label="Velocidad (Energía)" linearVal={kwPerMinLin} curveVal={kwPerMinCurve} unit="kW/min" digits={1} />}
                         />
                         
                         <div className="md:col-span-2">
@@ -1418,7 +1419,7 @@
             </div>
         );
 
-      // --- TARIFF COMPARATOR (ENHANCED A vs B) ---
+      // --- TARIFF COMPARATOR (RESTORED ORIGINAL) ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV5', {
             // Shared Data
@@ -1750,7 +1751,7 @@
                         <ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
                         {/* AÑADIDO: SIMULADOR SIMPLE A PIE DE PÁGINA */}
                         <SimpleSavingsSimulator 
-                            evConsumption={simParams.electricConsumptionRef} // CORREGIDO: Usa el consumo de referencia, no el simulado
+                            evConsumption={simParams.electricConsumptionRef} 
                             iceConsumption={simCosts.gasConsumptionRef}
                             elecPrice={simCosts.electricityPrice}
                             fuelPrice={simCosts.gasPrice}
