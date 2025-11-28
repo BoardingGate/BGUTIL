@@ -856,7 +856,8 @@
         );
       };
 
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA ---
+   
+    // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState', {
             battery: 60,
@@ -1056,28 +1057,31 @@
             return date.toLocaleDateString('es-ES', { month: 'short', year: 'numeric' });
         };
 
-        let date1500 = "---", years1500 = 0;
-        let date3000 = "---", years3000 = 0;
+        // VARIABLES CORREGIDAS PARA EVITAR REFERENCE ERROR
+        let projectionDate1500 = "---";
+        let yearsLeft1500 = 0;
+        let projectionDate3000 = "---";
+        let yearsLeft3000 = 0;
         const passed1500 = cyclesUsed >= 1500;
 
         if (cyclesPerDay > 0) {
             // Hito 3000
             const daysTo3000 = cyclesLeft / cyclesPerDay;
-            years3000 = daysTo3000 / 365;
-            date3000 = getFutureDate(daysTo3000);
+            yearsLeft3000 = daysTo3000 / 365;
+            projectionDate3000 = getFutureDate(daysTo3000);
 
             // Hito 1500
             if (!passed1500) {
                 const daysTo1500 = (1500 - cyclesUsed) / cyclesPerDay;
-                years1500 = daysTo1500 / 365;
-                date1500 = getFutureDate(daysTo1500);
+                yearsLeft1500 = daysTo1500 / 365;
+                projectionDate1500 = getFutureDate(daysTo1500);
             }
         }
 
         // Definición de variables para la tabla y la tarjeta de resumen
         // Consumo Real por Km (kWh/km)
         const realConsumptionPerKm = avgDailyKmWeekly > 0 ? dailyEnergyTotal / avgDailyKmWeekly : 0;
-        // Km restantes en la garantía (variable que faltaba antes)
+        // Km restantes en la garantía (variable definida)
         const kmLeftInCycles = realConsumptionPerKm > 0 ? (cyclesLeft * state.battery) / realConsumptionPerKm : 0;
 
         const cycleTableData = [
@@ -1353,9 +1357,9 @@
 
                             <div className="bg-slate-800/50 p-4 rounded-xl border border-blue-900/30 text-center">
                                 <div className="text-xs font-bold text-slate-300 uppercase mb-2">Consumo Total Acumulado</div>
-                                <div className="text-xl font-bold text-white">{formatMoney(grandTotalKwh)} kWh</div>
-                                <div className="text-3xl font-display font-bold text-blue-400 mt-2">{formatDecimal(costTotalHistory)}€</div>
-                                <div className="text-[10px] text-slate-500 mt-2">Conducción + Vampírico</div>
+                                <div className="text-3xl font-bold text-white">{formatMoney(grandTotalKwh)} kWh</div>
+                                <div className="text-2xl font-bold text-blue-400 mt-1">{formatDecimal(costTotalHistory)}€</div>
+                                <div className="text-[10px] text-slate-500 mt-1">Conducción + Vampírico</div>
                             </div>
 
                             <div className="bg-slate-800/30 p-4 rounded-xl border border-green-900/30">
@@ -1387,10 +1391,10 @@
                                     <div className="bg-slate-900/40 p-2 rounded">
                                         <div className="flex justify-between items-center mb-1">
                                             <span className="text-[10px] font-bold text-green-400 uppercase">Garantía (3.000 ciclos)</span>
-                                            <span className="text-xs font-bold text-white">{projectionDateStr}</span>
+                                            <span className="text-xs font-bold text-white">{projectionDate3000}</span>
                                         </div>
                                         <div className="text-right text-[10px] font-bold text-green-300">
-                                            Faltan {formatDecimal(yearsLeftVal, 1)} años
+                                            Faltan {formatDecimal(yearsLeft3000, 1)} años
                                         </div>
                                     </div>
                                 </div>
@@ -1436,6 +1440,7 @@
             </div>
         );
       };
+
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
