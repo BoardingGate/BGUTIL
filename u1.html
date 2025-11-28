@@ -856,7 +856,6 @@
         );
       };
 
-
       // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState', {
@@ -865,7 +864,7 @@
             power: 7.4,
             energyPrice: 0.09,
             deepDischargeLimit: 5, 
-            vampireRate: 3.0, // Consumo Vampiro (kWh/día)
+            vampireRate: 1.0, // Consumo Vampiro (kWh/día)
             currentKm: 0,
             lastCalibrationDate: '',
             purchaseDate: '', 
@@ -1021,39 +1020,42 @@
 
         // --- CÁLCULO DE CICLOS Y TABLA ---
         
-        // 1. Datos históricos actuales
+        // 1. Datos históricos totales
         const totalDrivingKwh = (state.currentKm / 100) * state.consumption;
         const daysOwned = carAge ? carAge.days : 0;
         const totalVampireKwh = daysOwned * state.vampireRate;
         const grandTotalKwh = totalDrivingKwh + totalVampireKwh;
         
+        // Vampiro en Km (pérdida equivalente)
+        const vampireKmEquivalent = (totalVampireKwh / state.consumption) * 100;
+
         // 2. Estado de salud actual
         const cyclesUsed = state.battery > 0 ? grandTotalKwh / state.battery : 0;
         const cyclesGuaranteed = 3000; 
         const cyclesLeft = Math.max(0, cyclesGuaranteed - cyclesUsed);
         
-        // 3. Cálculo de Consumo REAL (Conducción + Vampiro) para proyecciones
-        // Calculamos cuántos km hacemos a la semana y cuánto gastamos en total (conducción + vampiro) para sacar una media real
+        // 3. Cálculo de Consumo REAL PROMEDIO (Conducción + Vampiro) para proyecciones de la tabla
+        // Usamos los datos de la semana configurada para proyectar el futuro
         const avgDailyKm = totalKmDriven / 7;
         const dailyEnergyTotal = ((avgDailyKm / 100) * state.consumption) + state.vampireRate;
-        // kWh consumidos por cada 100km REALES (incluyendo el gasto vampiro diluido)
+        // kWh consumidos por cada 100km REALES (incluyendo el lastre del vampiro)
         const realConsumptionPer100 = avgDailyKm > 0 ? (dailyEnergyTotal / avgDailyKm) * 100 : 0;
 
         const kmLeftInCycles = realConsumptionPer100 > 0 ? (cyclesLeft * state.battery) / (realConsumptionPer100 / 100) : 0;
 
         const cycleTableData = [
-            { r: "0 al 100%", c: 500, d: 100 },
-            { r: "10 al 100%", c: 500, d: 90 },
-            { r: "20 al 100%", c: 1000, d: 80 },
-            { r: "0 al 90%", c: 1500, d: 90 },
-            { r: "10 al 90%", c: 1500, d: 80 },
-            { r: "20 al 90%", c: 2000, d: 70 },
-            { r: "0 al 80%", c: 3000, d: 80 },
-            { r: "10 al 80%", c: 3000, d: 70 },
-            { r: "20 al 80%", c: 3500, d: 60 },
-            { r: "0 al 70%", c: 5000, d: 70 },
-            { r: "10 al 70%", c: 5500, d: 60 },
-            { r: "20 al 70%", c: 6000, d: 50 },
+            { r: "0 al 100%", c: 500 },
+            { r: "10 al 100%", c: 500 },
+            { r: "20 al 100%", c: 1000 },
+            { r: "0 al 90%", c: 1500 },
+            { r: "10 al 90%", c: 1500 },
+            { r: "20 al 90%", c: 2000 },
+            { r: "0 al 80%", c: 3000 },
+            { r: "10 al 80%", c: 3000 },
+            { r: "20 al 80%", c: 3500 },
+            { r: "0 al 70%", c: 5000 },
+            { r: "10 al 70%", c: 5500 },
+            { r: "20 al 70%", c: 6000 },
         ];
 
         return (
@@ -1306,7 +1308,14 @@
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
                                     <div className="text-[10px] font-bold text-purple-400 uppercase mb-1">Consumo Vampiro</div>
                                     <div className="text-lg font-bold text-purple-300">+{formatMoney(totalVampireKwh)} <span className="text-xs text-purple-400/70 font-normal">kWh</span></div>
+                                    <div className="text-[10px] text-slate-500 mt-1">~{formatMoney(vampireKmEquivalent)} km perdidos</div>
                                 </div>
+                            </div>
+
+                            <div className="bg-slate-800/50 p-4 rounded-xl border border-blue-900/30 text-center">
+                                <div className="text-xs font-bold text-slate-300 uppercase mb-2">Consumo Total Acumulado</div>
+                                <div className="text-3xl font-bold text-white">{formatMoney(grandTotalKwh)} kWh</div>
+                                <div className="text-xs text-slate-500 mt-1">Conducción + Vampírico</div>
                             </div>
 
                             <div className="bg-slate-800/30 p-4 rounded-xl border border-green-900/30">
@@ -1334,22 +1343,30 @@
                                     <thead className="text-slate-400 font-bold bg-slate-800/50 sticky top-0">
                                         <tr>
                                             <th className="px-4 py-2">Rango Carga</th>
-                                            <th className="px-4 py-2 text-right">Ciclos Est.</th>
+                                            <th className="px-4 py-2 text-right">Ciclos Completos</th>
                                             <th className="px-4 py-2 text-right">Km Totales</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800 text-slate-300 font-mono">
                                         {cycleTableData.map((row, idx) => {
-                                            // Lógica: Ciclos * Energía por Ciclo = Energía Total.
-                                            // Energía por ciclo = Capacidad Batería * % Profundidad de descarga (DoD)
-                                            // Km Totales = Energía Total / Consumo REAL (Conducción + Vampiro) * 100
+                                            // Lógica solicitada:
+                                            // 1 Ciclo = 1 Carga Completa (Capacidad Batería).
+                                            // Energía Total = Nº Ciclos * Capacidad Batería.
+                                            // Km Totales = Energía Total / Consumo REAL por km (Driving + Vampiro).
                                             
-                                            // 1. Energía Total que la batería puede entregar antes de degradarse a ese ritmo
-                                            const totalEnergyLife = row.c * (state.battery * (row.d / 100));
+                                            const totalEnergyCapacity = row.c * state.battery;
                                             
-                                            // 2. Km que podemos hacer con esa energía, considerando el consumo REAL (incluyendo vampiro)
-                                            // Si realConsumptionPer100 es 0, evitamos división por cero.
-                                            const totalKm = realConsumptionPer100 > 0 ? (totalEnergyLife / realConsumptionPer100) * 100 : 0;
+                                            // Consumo REAL por cada 1 km (Driving + Vampiro diario promedio)
+                                            // Usamos la configuración semanal para sacar el perfil de consumo "ordinario".
+                                            // Consumo conducción por km = consumption / 100
+                                            // Consumo vampiro por km = vampireRate / (dailyKm promedio)
+                                            
+                                            const avgDailyKm = totalKmDriven / 7; // De la simulación semanal
+                                            const vampirePerKm = avgDailyKm > 0 ? state.vampireRate / avgDailyKm : 0;
+                                            const drivingPerKm = state.consumption / 100;
+                                            const totalConsumptionPerKm = drivingPerKm + vampirePerKm;
+
+                                            const totalKm = totalConsumptionPerKm > 0 ? totalEnergyCapacity / totalConsumptionPerKm : 0;
                                             
                                             return (
                                                 <tr key={idx} className="hover:bg-slate-800/30">
@@ -1363,7 +1380,7 @@
                                 </table>
                             </div>
                             <div className="p-2 text-[10px] text-slate-500 text-center font-bold italic bg-slate-800/30">
-                                * Km calculados según tu Consumo Real actual ({formatDecimal(realConsumptionPer100, 1)} kWh/100km incluyendo Vampiro).
+                                * Km calculados según nº de ciclos completos y tu consumo real promedio ({formatDecimal((state.consumption + (totalKmDriven > 0 ? (state.vampireRate*7)/(totalKmDriven/100) : 0)), 1)} kWh/100km inc. Vampiro).
                             </div>
                         </div>
                     </div>
@@ -1371,8 +1388,8 @@
             </div>
         );
       };
-
         
+
 
 
 
