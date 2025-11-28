@@ -856,6 +856,7 @@
         );
       };
 
+      
       // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState', {
@@ -864,7 +865,7 @@
             power: 7.4,
             energyPrice: 0.09,
             deepDischargeLimit: 5, 
-            vampireRate: 1.0, // Consumo Vampiro (kWh/día)
+            vampireRate: 1.5, // Consumo Vampiro (kWh/día)
             currentKm: 0,
             lastCalibrationDate: '',
             purchaseDate: '', 
@@ -1042,18 +1043,34 @@
         const cyclesGuaranteed = 3000; 
         const cyclesLeft = Math.max(0, cyclesGuaranteed - cyclesUsed);
         
-        // Proyección Fecha Fin Ciclos
+        // Proyección Fecha Fin Ciclos (3000) y Media Vida (1500)
         let projectionDateStr = "---";
         let yearsLeftVal = 0;
+        let projectionDate1500 = "---";
+        let yearsLeft1500 = 0;
+        const passed1500 = cyclesUsed >= 1500;
 
         if (daysOwned > 0 && cyclesUsed > 0) {
             const cyclesPerDay = cyclesUsed / daysOwned;
             if(cyclesPerDay > 0) {
+                // Calculo para 3000
                 const daysLeft = cyclesLeft / cyclesPerDay;
                 yearsLeftVal = daysLeft / 365;
                 const futureDate = new Date();
                 futureDate.setDate(futureDate.getDate() + daysLeft);
-                projectionDateStr = futureDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+                projectionDateStr = futureDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+
+                // Calculo para 1500
+                if (!passed1500) {
+                    const cyclesRemaining1500 = 1500 - cyclesUsed;
+                    const daysLeft1500 = cyclesRemaining1500 / cyclesPerDay;
+                    yearsLeft1500 = daysLeft1500 / 365;
+                    const futureDate1500 = new Date();
+                    futureDate1500.setDate(futureDate1500.getDate() + daysLeft1500);
+                    projectionDate1500 = futureDate1500.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+                } else {
+                    projectionDate1500 = "Superado";
+                }
             }
         }
         
@@ -1341,8 +1358,8 @@
                                 <div className="text-xs font-bold text-slate-300 uppercase mb-2">Consumo Total Acumulado</div>
                                 <div className="text-3xl font-bold text-white">{formatMoney(grandTotalKwh)} kWh</div>
                                 <div className="text-2xl font-bold text-blue-400 mt-1">{formatDecimal(costTotalHistory)}€</div>
-                                <div className="text-sm font-bold text-slate-300 mt-2 bg-blue-900/30 inline-block px-3 py-1 rounded">
-                                    Media Histórica: {formatDecimal(avgDailyKmHistorical, 1)} km/día
+                                <div className="text-lg font-bold text-slate-200 mt-3 bg-blue-900/30 inline-block px-4 py-2 rounded">
+                                    Media: {formatDecimal(avgDailyKmHistorical, 1)} km/día
                                 </div>
                                 <div className="text-[10px] text-slate-500 mt-1">Conducción + Vampírico</div>
                             </div>
@@ -1359,14 +1376,28 @@
                                     <span>Consumidos: <span className="text-white">{formatDecimal(cyclesUsed, 1)}</span></span>
                                     <span>Restantes: <span className="text-blue-400">{formatMoney(cyclesLeft)} (~{formatMoney(kmLeftInCycles)} km)</span></span>
                                 </div>
-                                <div className="mt-3 pt-3 border-t border-slate-700/50 space-y-1">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase">Fecha Fin (3.000 ciclos)</span>
-                                        <span className="text-sm font-bold text-green-400">{projectionDateStr}</span>
+                                
+                                <div className="mt-4 pt-3 border-t border-slate-700/50 space-y-2">
+                                    <div className="bg-slate-900/40 p-2 rounded">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Media Vida (1.500 ciclos)</span>
+                                            <span className="text-xs font-bold text-white">{passed1500 ? "SUPERADO" : projectionDate1500}</span>
+                                        </div>
+                                        {!passed1500 && (
+                                            <div className="text-right text-[10px] font-bold text-blue-300">
+                                                Faltan {formatDecimal(yearsLeft1500, 1)} años
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-[10px] font-bold text-slate-500 uppercase">Tiempo Restante</span>
-                                        <span className="text-sm font-bold text-blue-300">{formatDecimal(yearsLeftVal, 1)} años</span>
+                                    
+                                    <div className="bg-slate-900/40 p-2 rounded">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-[10px] font-bold text-green-400 uppercase">Garantía (3.000 ciclos)</span>
+                                            <span className="text-xs font-bold text-white">{projectionDateStr}</span>
+                                        </div>
+                                        <div className="text-right text-[10px] font-bold text-green-300">
+                                            Faltan {formatDecimal(yearsLeftVal, 1)} años
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1418,9 +1449,81 @@
             </div>
         );
       };
+```
 
-        
-      
+### 2. Componente `App` (Actualizado para resetear a la primera pestaña)
+Sustituye todo el componente `App` al final del archivo. La clave de almacenamiento ha sido cambiada a `activeTab_v3` para forzar a todos los usuarios a iniciar en "Estrategia Carga" la próxima vez que carguen la página.
+
+```javascript
+      // --- APP PRINCIPAL ---
+      const App = () => {
+        // Changed key to _v3 to force reset to 'strategy' for users
+        const [activeTab, setActiveTab] = usePersistentState('activeTab_v3', 'strategy'); 
+        const [simParams, setSimParams] = usePersistentState('simParams', { speed: 120, temperature: 20, gradient: 0, windSpeed: 0, electricConsumptionRef: 14, batteryCapacity: 60 });
+        const [simCosts, setSimCosts] = usePersistentState('simCosts', { electricityPrice: 0.08, gasPrice: 1.45, gasConsumptionRef: 6.5 });
+        const [consumption, setConsumption] = useState(0);
+
+        useEffect(() => { setConsumption(calculateConsumption(simParams)); }, [simParams]);
+
+        const handleBack = () => { if (window.history.length > 1) window.history.back(); else window.close(); };
+
+        const renderContent = () => {
+            switch(activeTab) {
+                case 'strategy': return <ChargingStrategy />;
+                case 'curve': return <ChargeCurveCalculator />;
+                case 'tariff': return <TariffComparator />;
+                case 'drain': return <DrainCalculator />;
+                case 'simulator': return (
+                    <>
+                        <Visualizer params={simParams} />
+                        <ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} />
+                        <ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
+                        <SimpleSavingsSimulator params={simParams} costs={simCosts} />
+                    </>
+                );
+                case 'amortization': return <AmortizationCalculator />;
+                case 'calculator': return <ChargingCalculator />;
+                case 'nyland': return <NylandCalculator />;
+                case 'equiv': return <EquivalenceCalculator />;
+                case 'charge': return <PlaceholderTab />;
+                default: return <PlaceholderTab />;
+            }
+        };
+
+        const TabButton = ({ id, label }) => (
+            <button onClick={() => setActiveTab(id)} className={`px-6 py-4 text-base font-bold transition-all uppercase tracking-wider whitespace-nowrap ${activeTab === id ? 'tab-active' : 'tab-inactive'}`}>{label}</button>
+        );
+
+        return (
+            <div className="min-h-screen bg-[#0a0a0a] text-white p-4 md:p-8">
+                <div className="max-w-6xl mx-auto">
+                    <header className="mb-8">
+                        <div className="flex justify-between items-end border-b border-slate-800 pb-4">
+                            <div>
+                                <h1 className="text-5xl md:text-6xl font-display font-bold"><span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Boarding</span><span className="text-red-600">Gate</span></h1>
+                                <p className="text-slate-400 font-bold tracking-widest text-base mt-2">TESLA EFFICIENCY TOOLS</p>
+                            </div>
+                            <button onClick={handleBack} className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-xl text-base font-bold transition-colors flex items-center gap-2"><Icons.LogOut className="w-6 h-6"/> Volver</button>
+                        </div>
+                        <div className="flex overflow-x-auto gap-4 border-b border-slate-800/50 mt-6 pb-2">
+                            <TabButton id="strategy" label="Estrategia Carga" />
+                            <TabButton id="curve" label="Curva Carga" />
+                            <TabButton id="tariff" label="COMPARADOR TARIFAS" />
+                            <TabButton id="drain" label="Drenaje" />
+                            <TabButton id="simulator" label="Simulador" />
+                            <TabButton id="amortization" label="Amortización" />
+                            <TabButton id="calculator" label="Calculadora" />
+                            <TabButton id="nyland" label="Bjørn Nyland" />
+                            <TabButton id="equiv" label="Equivalencia" />
+                            <TabButton id="charge" label="+EXCEL" />
+                        </div>
+                    </header>
+                    <main className="animate-fade-in">{renderContent()}</main>
+                </div>
+            </div>
+        );
+      };
+ 
 
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
       const ChargeCurveCalculator = () => {
