@@ -857,7 +857,7 @@
       };
 
         
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (MODIFICADO) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (MODIFICADO VISUAL) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState', {
             battery: 60,
@@ -865,7 +865,7 @@
             power: 7.4,
             energyPrice: 0.09,
             deepDischargeLimit: 5, 
-            vampireRate: 1, // Consumo Vampiro (kWh/día)
+            vampireRate: 1.5, // Consumo Vampiro (kWh/día)
             currentKm: 0,
             lastCalibrationDate: '',
             purchaseDate: '', 
@@ -922,7 +922,7 @@
             let simPct = 80; 
             dayOrder.forEach(day => {
                 const driven = state.dailyKm[day];
-                // Cálculo preliminar incluyendo vampiro para la simulación inicial
+                // Cálculo preliminar incluyendo vampiro
                 const kwhUsed = ((driven / 100) * state.consumption) + state.vampireRate;
                 const consumedPct = (kwhUsed / state.battery) * 100;
                 let endDayPct = simPct - consumedPct; 
@@ -937,7 +937,7 @@
             dayOrder.forEach(day => {
                 const driven = state.dailyKm[day];
                 
-                // MODIFICACIÓN: Consumo Total = Conducción + Vampiro
+                // Consumo Total = Conducción + Vampiro
                 const drivingKwh = (driven / 100) * state.consumption;
                 const kwhUsed = drivingKwh + state.vampireRate; 
                 
@@ -1125,11 +1125,11 @@
                         <table className="w-full text-sm">
                             <thead className="bg-slate-800 text-slate-300 border-b border-slate-700">
                                 <tr>
-                                    <th className="p-4 text-left font-bold uppercase">Día</th>
-                                    <th className="p-4 text-center font-bold uppercase w-32">Km Diarios</th>
-                                    <th className="p-4 text-center font-bold uppercase text-orange-300">Carga Inicio - Fin Día</th>
-                                    <th className="p-4 text-center font-bold uppercase w-32 text-blue-300">Objetivo Carga %</th>
-                                    <th className="p-4 text-center font-bold uppercase text-green-400">Carga (+kWh +Km)</th>
+                                    <th className="p-3 text-left font-bold uppercase">Día</th>
+                                    <th className="p-3 text-center font-bold uppercase w-32">Km Diarios</th>
+                                    <th className="p-3 text-center font-bold uppercase text-orange-300">Carga Inicio - Fin Día</th>
+                                    <th className="p-3 text-center font-bold uppercase w-32 text-blue-300">Objetivo Carga %</th>
+                                    <th className="p-3 text-center font-bold uppercase text-green-400">Carga (+kWh +Km)</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800">
@@ -1137,52 +1137,65 @@
                                     const startKm = (row.startPct / 100) * (state.battery / state.consumption) * 100;
                                     const endKm = (row.endPct / 100) * (state.battery / state.consumption) * 100;
                                     const isNegative = row.endPct < 0;
+                                    const isWeekend = row.day === 'Sat' || row.day === 'Sun';
 
-                                    // MODIFICACIÓN: Cálculo visual para mostrar debajo del input
                                     const drivingKwh = (state.dailyKm[row.day] / 100) * state.consumption;
                                     const drivingPct = (drivingKwh / state.battery) * 100;
                                     
                                     return (
                                         <tr key={row.day} className="hover:bg-slate-800/30 transition-colors">
-                                            <td className="p-4 font-bold text-white text-base">{dayLabels[row.day]}</td>
-                                            <td className="p-4">
+                                            {/* Día con color condicional para fin de semana */}
+                                            <td className={`p-2 font-bold text-base ${isWeekend ? 'text-orange-400' : 'text-white'}`}>
+                                                {dayLabels[row.day]}
+                                            </td>
+                                            
+                                            <td className="p-2">
                                                 <input type="number" value={state.dailyKm[row.day]} onChange={(e) => handleDayChange('dailyKm', row.day, e.target.value)}
-                                                    className="w-full bg-slate-700 border border-slate-600 rounded p-2 text-center text-white font-bold focus:border-blue-500 outline-none" />
-                                                {/* MODIFICACIÓN: Mostrar equivalencia debajo */}
-                                                <div className="text-[10px] text-slate-400 font-bold mt-2 text-center">
+                                                    className="w-full bg-slate-700 border border-slate-600 rounded p-1 text-center text-white font-bold focus:border-blue-500 outline-none" />
+                                                <div className="text-[10px] text-slate-400 font-bold mt-1 text-center">
                                                     -{formatDecimal(drivingPct, 1)}% <span className="text-slate-500">({formatDecimal(drivingKwh, 1)} kWh)</span>
                                                 </div>
                                             </td>
-                                            <td className="p-4">
-                                                <div className="flex flex-col gap-2">
-                                                    <div className="flex justify-between items-center bg-slate-800/40 px-3 py-1 rounded">
-                                                        <span className="text-[10px] text-slate-400 font-bold uppercase">Inicio</span>
-                                                        <span className="font-bold text-white">{formatDecimal(row.startPct, 0)}% <span className="text-xs text-slate-500 font-normal">({formatDecimal(startKm, 0)} km)</span></span>
+
+                                            <td className="p-2">
+                                                <div className="flex flex-col gap-1 w-full">
+                                                    {/* INICIO ROW - Alineado Derecha: Valor luego Etiqueta */}
+                                                    <div className="flex justify-end items-center gap-2 bg-slate-800/30 px-2 py-1 rounded">
+                                                        <span className="font-bold text-white text-sm">
+                                                            {formatDecimal(row.startPct, 0)}% <span className="text-xs text-slate-500 font-normal">({formatDecimal(startKm, 0)} km)</span>
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-400 font-bold uppercase">INICIO</span>
                                                     </div>
-                                                    <div className="flex justify-center text-slate-600 text-xs">▼</div>
-                                                    <div className="flex justify-between items-center bg-slate-800/40 px-3 py-1 rounded">
-                                                        <span className="text-[10px] text-slate-400 font-bold uppercase">Fin</span>
-                                                        <span className={`font-bold ${isNegative ? 'text-red-500 text-lg animate-pulse' : row.endPct < 10 ? 'text-red-400' : row.endPct < 20 ? 'text-yellow-500' : 'text-orange-200'}`}>
+
+                                                    {/* Flecha central sutil */}
+                                                    <div className="flex justify-center -my-1 text-slate-600 text-[10px] z-10">▼</div>
+
+                                                    {/* FIN ROW - Alineado Izquierda: Etiqueta luego Valor */}
+                                                    <div className="flex justify-start items-center gap-2 bg-slate-800/30 px-2 py-1 rounded">
+                                                         <span className="text-[10px] text-slate-400 font-bold uppercase">FIN</span>
+                                                         <span className={`font-bold text-sm ${isNegative ? 'text-red-500 animate-pulse' : row.endPct < 10 ? 'text-red-400' : row.endPct < 20 ? 'text-yellow-500' : 'text-orange-200'}`}>
                                                             {formatDecimal(row.endPct, 0)}% <span className={`text-xs font-normal ${isNegative ? 'text-red-400' : 'text-slate-500'}`}>({formatDecimal(endKm, 0)} km)</span>
                                                         </span>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="p-4">
+
+                                            <td className="p-2">
                                                 <input type="number" min="0" max="100" placeholder="-" value={state.targets[row.day] === 0 ? '' : state.targets[row.day]} onChange={(e) => handleDayChange('targets', row.day, e.target.value)}
-                                                    className="w-full bg-slate-900 border border-blue-500/30 rounded p-2 text-center text-blue-300 font-bold focus:border-blue-500 outline-none placeholder-slate-600" />
+                                                    className="w-full bg-slate-900 border border-blue-500/30 rounded p-1 text-center text-blue-300 font-bold focus:border-blue-500 outline-none placeholder-slate-600 h-10" />
                                             </td>
-                                            <td className="p-4 text-center">
+
+                                            <td className="p-2 text-center">
                                                 {row.chargeTime > 0 ? (
-                                                    <div className="flex flex-col gap-1 items-center">
-                                                        <div className="font-bold text-white bg-slate-800 px-3 py-1 rounded-full border border-slate-700">{formatTimeShort(row.chargeTime)}</div>
+                                                    <div className="flex flex-col gap-1 items-center justify-center h-full">
+                                                        <div className="font-bold text-white bg-slate-800 px-3 py-1 rounded-full border border-slate-700 text-sm">{formatTimeShort(row.chargeTime)}</div>
                                                         <div className="flex gap-2 text-xs font-bold mt-1">
                                                             <span className="text-slate-400">+{formatDecimal(row.kwhAdded, 1)} kWh</span>
                                                             <span className="text-green-400">+{formatDecimal(row.kmAdded, 0)} km</span>
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-slate-600 font-bold">-</span>
+                                                    <span className="text-slate-600 font-bold text-2xl">-</span>
                                                 )}
                                             </td>
                                         </tr>
@@ -1463,7 +1476,8 @@
                 </div>
             </div>
         );
-      };  
+      };
+ 
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
