@@ -864,7 +864,7 @@
             consumption: 15.0,
             power: 7.4,
             energyPrice: 0.09,
-            deepDischargeLimit: 5, // Nuevo dato por defecto
+            deepDischargeLimit: 5, 
             dailyKm: { Mon: 75, Tue: 75, Wed: 75, Thu: 75, Fri: 75, Sat: 40, Sun: 40 },
             targets: { Mon: 0, Tue: 0, Wed: 0, Thu: 70, Fri: 0, Sat: 0, Sun: 100 }
         });
@@ -890,31 +890,30 @@
             let totalKmDriven = 0;
             let totalKwhCharged = 0;
             let lowestPoint = { pct: 100, day: 'Mon', km: 0 };
+            
+            // Variables para la lógica de recomendación
             let calibrationOpportunity = null;
+            let lastChargeEvent = null; // Guardará { day: 'Thu', target: 70 }
 
             // Pass 1: Simulate to find Sunday End % to use as Monday Start
             let simPct = 80; 
             dayOrder.forEach(day => {
                 const driven = state.dailyKm[day];
                 const consumedPct = (driven * state.consumption) / state.battery;
-                // Permitimos negativos en la simulación
                 let endDayPct = simPct - consumedPct; 
                 
                 const target = state.targets[day];
                 let chargeNeeded = 0;
                 
-                // Solo cargamos si el target es superior al actual, aunque sea negativo (recuperación)
                 if (target > 0 && target > endDayPct) {
                     chargeNeeded = target - endDayPct;
                 }
                 
-                // Si cargamos, vamos al target. Si no, seguimos bajando (o mantenemos si no se usa)
                 simPct = (target > 0 && target > endDayPct) ? target : endDayPct;
-                // Clamp max to 100 just in case
                 if(simPct > 100) simPct = 100;
             });
             
-            // Pass 2: Real Calculation using Sunday's result as start
+            // Pass 2: Real Calculation
             let currentPct = simPct; 
 
             dayOrder.forEach(day => {
@@ -936,22 +935,44 @@
                 let chargeTime = 0;
                 let kwhAdded = 0;
                 let kmAdded = 0;
+                let isCharging = false;
 
                 if (target > 0 && target > endDayPct) {
                     chargeNeededPct = target - endDayPct;
                     kwhAdded = (chargeNeededPct / 100) * state.battery;
                     kmAdded = (kwhAdded / state.consumption) * 100;
                     chargeTime = state.power > 0 ? (kwhAdded / state.power) * 60 : 0;
+                    isCharging = true;
                 }
 
-                // Detección de oportunidad de carga al 100% para calibración
+                // --- LÓGICA DE RECOMENDACIÓN DE CALIBRACIÓN ---
                 if (target === 100 && !calibrationOpportunity) {
+                    const surplus = endDayPct - state.deepDischargeLimit;
+                    let advice = null;
+
+                    if (surplus > 0.9 && lastChargeEvent) { // Margen de 0.9 para evitar redondeos
+                        const idealPrevTarget = lastChargeEvent.target - surplus;
+                        advice = {
+                            prevDay: lastChargeEvent.day,
+                            oldTarget: lastChargeEvent.target,
+                            newTarget: Math.round(idealPrevTarget)
+                        };
+                    }
+
                     calibrationOpportunity = {
                         day: day,
                         arrivalPct: endDayPct,
-                        targetDeep: state.deepDischargeLimit
+                        targetDeep: state.deepDischargeLimit,
+                        isOptimal: surplus <= 0.9, // Consideramos óptimo si está en el rango o por debajo
+                        advice: advice
                     };
                 }
+
+                // Si hoy cargamos (y no es el día del 100%), guardamos este evento como "última carga"
+                if (isCharging && target < 100) {
+                    lastChargeEvent = { day: day, target: target };
+                }
+                // ----------------------------------------------
 
                 const nextMorningPct = (target > 0 && target > endDayPct) ? target : endDayPct;
                 const nextMorningKm = (nextMorningPct / 100) * (state.battery / state.consumption) * 100;
@@ -1140,26 +1161,34 @@
                             </div>
                             <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-700">
                                 <div className="text-xs text-slate-400 font-bold uppercase mb-1">Llegada Prevista</div>
-                                <div className={`text-2xl font-display font-bold ${calibrationOpportunity.arrivalPct <= state.deepDischargeLimit ? 'text-green-400' : 'text-orange-400'}`}>
+                                <div className={`text-2xl font-display font-bold ${calibrationOpportunity.isOptimal ? 'text-green-400' : 'text-orange-400'}`}>
                                     {formatDecimal(calibrationOpportunity.arrivalPct, 0)}%
                                 </div>
                                 <div className="text-xs font-bold text-slate-500">Objetivo: {state.deepDischargeLimit}%</div>
                             </div>
                             <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-700 flex items-center">
-                                {calibrationOpportunity.arrivalPct <= state.deepDischargeLimit ? (
+                                {calibrationOpportunity.isOptimal ? (
                                     <div className="text-green-400 font-bold flex items-center gap-2">
                                         <div className="bg-green-500/20 p-2 rounded-full"><Icons.Award className="w-6 h-6"/></div>
                                         <div>
                                             <div className="text-sm">¡Condiciones Óptimas!</div>
-                                            <div className="text-xs text-green-300/70">Carga profunda correcta.</div>
+                                            <div className="text-xs text-green-300/70">Llegas al {formatDecimal(calibrationOpportunity.arrivalPct, 0)}% antes de cargar.</div>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-orange-300 font-bold flex items-center gap-2">
-                                        <div className="bg-orange-500/20 p-2 rounded-full"><Icons.AlertTriangle className="w-6 h-6"/></div>
+                                    <div className="text-orange-300 font-bold flex items-start gap-2">
+                                        <div className="bg-orange-500/20 p-2 rounded-full mt-1"><Icons.Wrench className="w-5 h-5"/></div>
                                         <div>
-                                            <div className="text-sm">Requiere más consumo</div>
-                                            <div className="text-xs text-orange-200/70">Gasta un {formatDecimal(calibrationOpportunity.arrivalPct - state.deepDischargeLimit, 0)}% extra antes de cargar.</div>
+                                            <div className="text-sm mb-1">Sugerencia de Ajuste</div>
+                                            {calibrationOpportunity.advice ? (
+                                                <div className="text-xs text-orange-200/90 leading-relaxed">
+                                                    Carga el <span className="text-white uppercase">{dayLabels[calibrationOpportunity.advice.prevDay]}</span> al <span className="text-white text-base">{calibrationOpportunity.advice.newTarget}%</span> (en vez del {calibrationOpportunity.advice.oldTarget}%) para llegar al {state.deepDischargeLimit}%.
+                                                </div>
+                                            ) : (
+                                                <div className="text-xs text-orange-200/70">
+                                                    No se encontró una carga previa en la semana para ajustar. Consume más antes de cargar.
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -1174,7 +1203,7 @@
             </div>
         );
       };
-
+        
 
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
       const ChargeCurveCalculator = () => {
