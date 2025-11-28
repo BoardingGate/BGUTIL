@@ -125,14 +125,14 @@
           return `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}`;
       };
 
-      // --- ROBUST INPUT COMPONENT (MODIFICADO: FUENTE GRANDE) ---
-      const FormattedInput = ({ value, onChange, decimals = 0 }) => {
+      // --- ROBUST INPUT COMPONENT (MODIFICADO PARA SOPORTAR GROUPED) ---
+      const FormattedInput = ({ value, onChange, decimals = 0, grouped = false }) => {
         const getDisplayString = (val) => {
             if (val === null || val === undefined || val === '') return '';
             return new Intl.NumberFormat('es-ES', { 
                 minimumFractionDigits: 0, 
                 maximumFractionDigits: Math.max(decimals, 6), 
-                useGrouping: false 
+                useGrouping: grouped // Controlado por prop (default false para no romper compatibilidad)
             }).format(val);
         };
 
@@ -143,16 +143,25 @@
             if (!isFocused) {
                 setLocalValue(getDisplayString(value));
             }
-        }, [value, isFocused, decimals]);
+        }, [value, isFocused, decimals, grouped]);
 
         const handleChange = (e) => {
             const inputVal = e.target.value;
             setLocalValue(inputVal); 
 
             if (inputVal === '' || inputVal === '-') return;
+            // Permitimos puntos si grouped es true
             if (!/^[\d.,-]+$/.test(inputVal)) return;
 
-            const normalized = inputVal.replace(/,/g, '.');
+            let normalized = inputVal;
+            
+            // Si está agrupado (tiene puntos de millar), los eliminamos antes de parsear
+            if (grouped) {
+                normalized = inputVal.replace(/\./g, '').replace(/,/g, '.');
+            } else {
+                normalized = inputVal.replace(/,/g, '.');
+            }
+
             if (normalized.endsWith('.')) return;
 
             const num = parseFloat(normalized);
@@ -164,7 +173,12 @@
         const handleFocus = () => {
             setIsFocused(true);
             if (value !== null && value !== undefined) {
-                setLocalValue(value.toString().replace('.', ','));
+                // Si está agrupado, mostramos el formato bonito al editar también, si no, formato simple
+                if (grouped) {
+                    setLocalValue(getDisplayString(value));
+                } else {
+                    setLocalValue(value.toString().replace('.', ','));
+                }
             }
         };
 
@@ -310,10 +324,9 @@
 
       // --- NUEVO COMPONENTE: SIMULADOR SIMPLE AHORRO ---
       const SimpleSavingsSimulator = ({ params, costs }) => {
-        const [distance, setDistance] = usePersistentState('simpleSimDistance', 10000);
+        // Estado inicial cambiado a 400.000 como solicitado
+        const [distance, setDistance] = usePersistentState('simpleSimDistance', 400000);
         
-        // Botones solicitados: 100, 1000, 10k, 20k, 50k, 100k, 200k, 300k, 400k, 500k
-        // Interpretando "M" como "Mil" dado el contexto de kilometraje de vehículos.
         const presets = [
             { label: "100", val: 100 },
             { label: "1.000", val: 1000 },
@@ -345,7 +358,8 @@
                     <div className="space-y-6">
                         <div>
                             <label className="text-sm font-bold text-slate-400 block mb-2">KM. REALIZADOS</label>
-                            <FormattedInput value={distance} onChange={setDistance} />
+                            {/* Usamos grouped={true} para forzar puntos de millar */}
+                            <FormattedInput value={distance} onChange={setDistance} grouped={true} />
                         </div>
                         
                         <div>
@@ -370,14 +384,16 @@
                             <div className="text-center">
                                 <div className="text-xs font-bold text-orange-400 uppercase mb-1">Coste Térmico</div>
                                 <div className="text-2xl font-bold text-white">{formatMoney(costICE)}€</div>
-                                <div className="text-[10px] text-slate-500 font-mono">
+                                {/* Fuente aumentada aquí */}
+                                <div className="text-sm font-bold text-slate-400 font-mono mt-1">
                                     {costs.gasConsumptionRef}L/100 @ {costs.gasPrice}€
                                 </div>
                             </div>
                             <div className="text-center">
                                 <div className="text-xs font-bold text-blue-400 uppercase mb-1">Coste Eléctrico</div>
                                 <div className="text-2xl font-bold text-white">{formatMoney(costEV)}€</div>
-                                <div className="text-[10px] text-slate-500 font-mono">
+                                {/* Fuente aumentada aquí */}
+                                <div className="text-sm font-bold text-slate-400 font-mono mt-1">
                                     {params.electricConsumptionRef}kWh/100 @ {costs.electricityPrice}€
                                 </div>
                             </div>
@@ -1725,8 +1741,7 @@
 
                 {/* FOOTER OCTOPUS */}
                 <div className="lg:col-span-12 mt-4 p-4 bg-purple-900/30 border border-purple-500/30 rounded-xl text-sm font-bold text-slate-300 text-center leading-relaxed">
-                    <p>(*) Una de las mejores Comercializadoras del Mercado es Octopus Energy, aprovecha mi referido para colaborar con el proyecto y a su vez ahorrarte dinero en la contratación de tu consumo eléctrico. El trámite de cambio se realiza en 5 minutos y puedes cambiar de tarifas las veces que quieras y cuando quieras. Todo sin penalizaciones. 
-                        REFERIDO: <a href="https://share.octopusenergy.es/topaz-boar-888" target="_blank" className="text-purple-400 font-bold underline hover:text-purple-300">https://share.octopusenergy.es/topaz-boar-888</a></p>
+                    <p>(*) Una de las mejores Comercializadoras del Mercado es Octopus Energy, aprovecha mi referido para colaborar con el proyecto y a su vez ahorrarte dinero en la contratación de tu consumo eléctrico. El trámite de cambio se realiza en 5 minutos y puedes cambiar de tarifas las veces que quieras y cuando quieras. Todo sin penalizaciones. REFERIDO: <a href="https://share.octopusenergy.es/topaz-boar-888" target="_blank" className="text-purple-400 font-bold underline hover:text-purple-300">https://share.octopusenergy.es/topaz-boar-888</a></p>
                 </div>
             </div>
         );
