@@ -856,6 +856,7 @@
         );
       };
 
+
       // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState', {
@@ -864,8 +865,10 @@
             power: 7.4,
             energyPrice: 0.09,
             deepDischargeLimit: 5, 
-            currentKm: 0, // Nuevo dato: Kilometraje actual
-            lastCalibrationDate: '', // Nuevo dato: Fecha calibración
+            vampireRate: 3.0, // Consumo Vampiro (kWh/día)
+            currentKm: 0,
+            lastCalibrationDate: '',
+            purchaseDate: '', 
             dailyKm: { Mon: 75, Tue: 75, Wed: 75, Thu: 75, Fri: 75, Sat: 40, Sun: 40 },
             targets: { Mon: 0, Tue: 0, Wed: 0, Thu: 70, Fri: 0, Sat: 0, Sun: 100 }
         });
@@ -873,7 +876,7 @@
         const dayLabels = { Mon: 'Lunes', Tue: 'Martes', Wed: 'Miércoles', Thu: 'Jueves', Fri: 'Viernes', Sat: 'Sábado', Sun: 'Domingo' };
         const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-        const handleChange = (key, value) => setState(prev => ({ ...prev, [key]: value })); // Modificado para aceptar strings (fecha)
+        const handleChange = (key, value) => setState(prev => ({ ...prev, [key]: value })); 
         const handleNumChange = (key, value) => setState(prev => ({ ...prev, [key]: parseFloat(value) || 0 }));
 
         const handleDayChange = (type, day, value) => {
@@ -884,7 +887,26 @@
             }));
         };
 
-        // Calculation Logic
+        // Helper para antigüedad
+        const getCarAge = () => {
+            if (!state.purchaseDate) return null;
+            const start = new Date(state.purchaseDate);
+            const now = new Date();
+            const diffTime = Math.abs(now - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            
+            let years = now.getFullYear() - start.getFullYear();
+            let months = now.getMonth() - start.getMonth();
+            if (months < 0 || (months === 0 && now.getDate() < start.getDate())) {
+                years--;
+                months += 12;
+            }
+            return { text: `${years} años y ${months} meses`, days: diffDays };
+        };
+
+        const carAge = getCarAge();
+
+        // --- CÁLCULO SEMANAL (SOLO CONDUCCIÓN) ---
         const calculateWeek = () => {
             const results = [];
             let totalTime = 0;
@@ -915,6 +937,7 @@
                 const kwhUsed = (driven / 100) * state.consumption;
                 const consumedPct = (kwhUsed / state.battery) * 100;
                 
+                // End of day status
                 const endDayPct = currentPct - consumedPct;
                 const endDayKm = (endDayPct / 100) * (state.battery / state.consumption) * 100;
                 
@@ -937,7 +960,7 @@
                     isCharging = true;
                 }
 
-                // Logic for Calibration Advice
+                // Calibration Advice Logic
                 if (target === 100 && !calibrationOpportunity) {
                     const surplus = endDayPct - state.deepDischargeLimit;
                     let advice = null;
@@ -996,14 +1019,28 @@
         const monthlyCost = (totalCost / 7) * 30.41;
         const annualCost = (totalCost / 7) * 365;
 
-        // Cycles Calculation
-        const totalKwhConsumedLifetime = (state.currentKm / 100) * state.consumption;
-        const cyclesUsed = state.battery > 0 ? totalKwhConsumedLifetime / state.battery : 0;
-        const cyclesGuaranteed = 3000; // Standard reference for LFP
+        // --- CÁLCULO DE CICLOS Y TABLA ---
+        
+        // 1. Datos históricos actuales
+        const totalDrivingKwh = (state.currentKm / 100) * state.consumption;
+        const daysOwned = carAge ? carAge.days : 0;
+        const totalVampireKwh = daysOwned * state.vampireRate;
+        const grandTotalKwh = totalDrivingKwh + totalVampireKwh;
+        
+        // 2. Estado de salud actual
+        const cyclesUsed = state.battery > 0 ? grandTotalKwh / state.battery : 0;
+        const cyclesGuaranteed = 3000; 
         const cyclesLeft = Math.max(0, cyclesGuaranteed - cyclesUsed);
-        const kmLeftInCycles = cyclesLeft * (state.battery / state.consumption) * 100;
+        
+        // 3. Cálculo de Consumo REAL (Conducción + Vampiro) para proyecciones
+        // Calculamos cuántos km hacemos a la semana y cuánto gastamos en total (conducción + vampiro) para sacar una media real
+        const avgDailyKm = totalKmDriven / 7;
+        const dailyEnergyTotal = ((avgDailyKm / 100) * state.consumption) + state.vampireRate;
+        // kWh consumidos por cada 100km REALES (incluyendo el gasto vampiro diluido)
+        const realConsumptionPer100 = avgDailyKm > 0 ? (dailyEnergyTotal / avgDailyKm) * 100 : 0;
 
-        // Cycle Table Data
+        const kmLeftInCycles = realConsumptionPer100 > 0 ? (cyclesLeft * state.battery) / (realConsumptionPer100 / 100) : 0;
+
         const cycleTableData = [
             { r: "0 al 100%", c: 500, d: 100 },
             { r: "10 al 100%", c: 500, d: 90 },
@@ -1026,11 +1063,12 @@
                     <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
                         <Icons.Settings /> Configuración Global
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
                         <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.battery} onChange={v => handleNumChange('battery', v)} /></div>
                         <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo Medio (kWh/100)</label><FormattedInput decimals={1} value={state.consumption} onChange={v => handleNumChange('consumption', v)} /></div>
                         <div><label className="text-sm font-bold text-slate-400 block mb-1">Potencia Carga (kW)</label><FormattedInput decimals={1} value={state.power} onChange={v => handleNumChange('power', v)} /></div>
                         <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Energía (€/kWh)</label><FormattedInput decimals={3} value={state.energyPrice} onChange={v => handleNumChange('energyPrice', v)} /></div>
+                        <div><label className="text-sm font-bold text-purple-400 block mb-1">Consumo Vampiro (kWh/día)</label><FormattedInput decimals={1} value={state.vampireRate} onChange={v => handleNumChange('vampireRate', v)} /></div>
                         <div><label className="text-sm font-bold text-yellow-500 block mb-1">Nivel Carga Profunda (%)</label><FormattedInput decimals={0} value={state.deepDischargeLimit} onChange={v => handleNumChange('deepDischargeLimit', v)} /></div>
                     </div>
                 </div>
@@ -1242,29 +1280,46 @@
                                 <label className="text-sm font-bold text-slate-400 block mb-2">KILOMETRAJE ACTUAL</label>
                                 <FormattedInput value={state.currentKm} onChange={v => handleNumChange('currentKm', v)} grouped={true} />
                             </div>
+                            <div>
+                                <label className="text-sm font-bold text-slate-400 block mb-2">FECHA DE COMPRA</label>
+                                <div className="flex items-center gap-4">
+                                    <input 
+                                        type="date" 
+                                        value={state.purchaseDate} 
+                                        onChange={(e) => handleChange('purchaseDate', e.target.value)}
+                                        className="bg-zinc-700 text-yellow-300 text-lg font-mono font-bold rounded px-3 py-3 outline-none border border-zinc-600 focus:border-yellow-500 flex-grow"
+                                    />
+                                    {carAge && (
+                                        <div className="bg-slate-800 px-4 py-3 rounded-lg border border-slate-700">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase">Antigüedad</div>
+                                            <div className="text-sm font-bold text-white whitespace-nowrap">{carAge.text}</div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
 
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
-                                    <div className="text-xs font-bold text-slate-400 uppercase mb-1">Consumido Total</div>
-                                    <div className="text-2xl font-bold text-white">{formatMoney(totalKwhConsumedLifetime)} <span className="text-sm text-slate-500 font-normal">kWh</span></div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Consumo Conducción</div>
+                                    <div className="text-lg font-bold text-white">{formatMoney(totalDrivingKwh)} <span className="text-xs text-slate-500 font-normal">kWh</span></div>
                                 </div>
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
-                                    <div className="text-xs font-bold text-slate-400 uppercase mb-1">Ciclos Realizados</div>
-                                    <div className="text-2xl font-bold text-blue-400">{formatDecimal(cyclesUsed, 1)}</div>
+                                    <div className="text-[10px] font-bold text-purple-400 uppercase mb-1">Consumo Vampiro</div>
+                                    <div className="text-lg font-bold text-purple-300">+{formatMoney(totalVampireKwh)} <span className="text-xs text-purple-400/70 font-normal">kWh</span></div>
                                 </div>
                             </div>
 
                             <div className="bg-slate-800/30 p-4 rounded-xl border border-green-900/30">
                                 <div className="flex justify-between items-end mb-2">
-                                    <div className="text-sm font-bold text-slate-300">Garantía Estimada ({formatMoney(cyclesGuaranteed)} Ciclos)</div>
+                                    <div className="text-sm font-bold text-slate-300">Vida Útil Estimada ({formatMoney(cyclesGuaranteed)} Ciclos)</div>
                                     <div className="text-xs font-bold text-green-400">{formatDecimal((cyclesUsed/cyclesGuaranteed)*100, 1)}% Usado</div>
                                 </div>
                                 <div className="w-full bg-slate-700 rounded-full h-2 mb-4 overflow-hidden">
                                     <div className="bg-green-500 h-2 rounded-full" style={{ width: `${Math.min(100, (cyclesUsed/cyclesGuaranteed)*100)}%` }}></div>
                                 </div>
                                 <div className="flex justify-between text-xs font-bold text-slate-400">
-                                    <span>Faltan: <span className="text-white">{formatMoney(cyclesLeft)} ciclos</span></span>
-                                    <span>~{formatMoney(kmLeftInCycles)} km restantes</span>
+                                    <span>Consumidos: <span className="text-white">{formatDecimal(cyclesUsed, 1)}</span></span>
+                                    <span>Restantes: <span className="text-blue-400">{formatMoney(cyclesLeft)} (~{formatMoney(kmLeftInCycles)} km)</span></span>
                                 </div>
                             </div>
                         </div>
@@ -1285,9 +1340,17 @@
                                     </thead>
                                     <tbody className="divide-y divide-slate-800 text-slate-300 font-mono">
                                         {cycleTableData.map((row, idx) => {
-                                            // Calculation: Total Energy = Cycles * (Battery * (Depth/100)). Total Km = Total Energy / Cons * 100
-                                            const totalEnergy = row.c * (state.battery * (row.d / 100));
-                                            const totalKm = (totalEnergy / state.consumption) * 100;
+                                            // Lógica: Ciclos * Energía por Ciclo = Energía Total.
+                                            // Energía por ciclo = Capacidad Batería * % Profundidad de descarga (DoD)
+                                            // Km Totales = Energía Total / Consumo REAL (Conducción + Vampiro) * 100
+                                            
+                                            // 1. Energía Total que la batería puede entregar antes de degradarse a ese ritmo
+                                            const totalEnergyLife = row.c * (state.battery * (row.d / 100));
+                                            
+                                            // 2. Km que podemos hacer con esa energía, considerando el consumo REAL (incluyendo vampiro)
+                                            // Si realConsumptionPer100 es 0, evitamos división por cero.
+                                            const totalKm = realConsumptionPer100 > 0 ? (totalEnergyLife / realConsumptionPer100) * 100 : 0;
+                                            
                                             return (
                                                 <tr key={idx} className="hover:bg-slate-800/30">
                                                     <td className="px-4 py-2 font-bold">{row.r}</td>
@@ -1300,7 +1363,7 @@
                                 </table>
                             </div>
                             <div className="p-2 text-[10px] text-slate-500 text-center font-bold italic bg-slate-800/30">
-                                * Estimación teórica basada en profundidad de descarga (DoD) y química LFP.
+                                * Km calculados según tu Consumo Real actual ({formatDecimal(realConsumptionPer100, 1)} kWh/100km incluyendo Vampiro).
                             </div>
                         </div>
                     </div>
@@ -1310,6 +1373,8 @@
       };
 
         
+
+
 
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
       const ChargeCurveCalculator = () => {
