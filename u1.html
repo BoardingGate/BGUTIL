@@ -857,16 +857,6 @@
       };
 
 
-Aquí tienes el código completo y corregido **exclusivamente del componente `ChargingStrategy`**.
-
-He realizado las siguientes modificaciones según tus instrucciones:
-1.  **Porcentajes Negativos:** Ahora se permite que el porcentaje de fin de día baje de 0 (ej. -15%), indicando el déficit real necesario para alcanzar el destino o el cargador.
-2.  **Nuevo Dato Global:** Añadido campo "Nivel Carga Profunda (%)" en la configuración (por defecto 5%).
-3.  **Nueva Tarjeta BMS:** Añadida una tarjeta específica "Calibración BMS" que busca qué día tienes programada una carga al 100%, analiza con qué porcentaje llegas ese día y te indica si cumples con la carga profunda o cuánto te falta por consumir para lograrlo.
-
-Sustituye **todo** el bloque de código de `const ChargingStrategy = () => { ... };` por el siguiente:
-
-```javascript
       // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState', {
