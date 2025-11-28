@@ -864,7 +864,7 @@
             power: 7.4,
             energyPrice: 0.09,
             deepDischargeLimit: 5, 
-            vampireRate: 1.5, // Por defecto 1.5 kWh
+            vampireRate: 1.5, // Consumo Vampiro (kWh/día)
             currentKm: 0,
             lastCalibrationDate: '',
             purchaseDate: '', 
@@ -905,7 +905,7 @@
 
         const carAge = getCarAge();
 
-        // --- CÁLCULO SEMANAL (INCLUYENDO VAMPIRO) ---
+        // --- CÁLCULO SEMANAL (INCLUYENDO VAMPIRO EN RESTA BATERÍA) ---
         const calculateWeek = () => {
             const results = [];
             let totalTime = 0;
@@ -1074,10 +1074,11 @@
             }
         }
 
-        // Tabla: Km Totales que se pueden hacer con X ciclos completos
-        // Km = (Ciclos * Batería) / ConsumoRealPorKm
-        // ConsumoRealPorKm incluye conducción + el lastre del vampiro diario
-        const realConsumptionPerKm = avgDailyKmWeekly > 0 ? dailyEnergyTotal / avgDailyKmWeekly : 0; 
+        // Definición de variables para la tabla y la tarjeta de resumen
+        // Consumo Real por Km (kWh/km)
+        const realConsumptionPerKm = avgDailyKmWeekly > 0 ? dailyEnergyTotal / avgDailyKmWeekly : 0;
+        // Km restantes en la garantía (variable que faltaba antes)
+        const kmLeftInCycles = realConsumptionPerKm > 0 ? (cyclesLeft * state.battery) / realConsumptionPerKm : 0;
 
         const cycleTableData = [
             { r: "0 al 100%", c: 500 },
@@ -1435,7 +1436,6 @@
             </div>
         );
       };
-
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
