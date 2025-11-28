@@ -856,8 +856,8 @@
         );
       };
 
-      
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA ---
+        
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (MODIFICADO) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState', {
             battery: 60,
@@ -865,7 +865,7 @@
             power: 7.4,
             energyPrice: 0.09,
             deepDischargeLimit: 5, 
-            vampireRate: 1.5, // Consumo Vampiro (kWh/día)
+            vampireRate: 1, // Consumo Vampiro (kWh/día)
             currentKm: 0,
             lastCalibrationDate: '',
             purchaseDate: '', 
@@ -906,7 +906,7 @@
 
         const carAge = getCarAge();
 
-        // --- CÁLCULO SEMANAL (SOLO CONDUCCIÓN) ---
+        // --- CÁLCULO SEMANAL (CONDUCCIÓN + VAMPIRO) ---
         const calculateWeek = () => {
             const results = [];
             let totalTime = 0;
@@ -922,7 +922,9 @@
             let simPct = 80; 
             dayOrder.forEach(day => {
                 const driven = state.dailyKm[day];
-                const consumedPct = (driven * state.consumption) / state.battery;
+                // Cálculo preliminar incluyendo vampiro para la simulación inicial
+                const kwhUsed = ((driven / 100) * state.consumption) + state.vampireRate;
+                const consumedPct = (kwhUsed / state.battery) * 100;
                 let endDayPct = simPct - consumedPct; 
                 const target = state.targets[day];
                 simPct = (target > 0 && target > endDayPct) ? target : endDayPct;
@@ -934,7 +936,11 @@
 
             dayOrder.forEach(day => {
                 const driven = state.dailyKm[day];
-                const kwhUsed = (driven / 100) * state.consumption;
+                
+                // MODIFICACIÓN: Consumo Total = Conducción + Vampiro
+                const drivingKwh = (driven / 100) * state.consumption;
+                const kwhUsed = drivingKwh + state.vampireRate; 
+                
                 const consumedPct = (kwhUsed / state.battery) * 100;
                 
                 // End of day status
@@ -1131,6 +1137,10 @@
                                     const startKm = (row.startPct / 100) * (state.battery / state.consumption) * 100;
                                     const endKm = (row.endPct / 100) * (state.battery / state.consumption) * 100;
                                     const isNegative = row.endPct < 0;
+
+                                    // MODIFICACIÓN: Cálculo visual para mostrar debajo del input
+                                    const drivingKwh = (state.dailyKm[row.day] / 100) * state.consumption;
+                                    const drivingPct = (drivingKwh / state.battery) * 100;
                                     
                                     return (
                                         <tr key={row.day} className="hover:bg-slate-800/30 transition-colors">
@@ -1138,6 +1148,10 @@
                                             <td className="p-4">
                                                 <input type="number" value={state.dailyKm[row.day]} onChange={(e) => handleDayChange('dailyKm', row.day, e.target.value)}
                                                     className="w-full bg-slate-700 border border-slate-600 rounded p-2 text-center text-white font-bold focus:border-blue-500 outline-none" />
+                                                {/* MODIFICACIÓN: Mostrar equivalencia debajo */}
+                                                <div className="text-[10px] text-slate-400 font-bold mt-2 text-center">
+                                                    -{formatDecimal(drivingPct, 1)}% <span className="text-slate-500">({formatDecimal(drivingKwh, 1)} kWh)</span>
+                                                </div>
                                             </td>
                                             <td className="p-4">
                                                 <div className="flex flex-col gap-2">
@@ -1216,6 +1230,7 @@
                          <div className="text-sm font-bold text-white mt-1">
                              {formatDecimal(lowestPoint.pct, 0)}% <span className="text-slate-400">({formatDecimal(lowestPoint.km, 0)} km)</span>
                          </div>
+                         <div className="text-[10px] text-slate-500 mt-1 italic font-bold">Inc. efecto vampiro</div>
                     </div>
 
                     <div className="bg-slate-900/80 border border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-center">
@@ -1448,7 +1463,7 @@
                 </div>
             </div>
         );
-      };
+      };  
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
