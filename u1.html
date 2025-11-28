@@ -865,7 +865,7 @@
             power: 7.4,
             energyPrice: 0.09,
             deepDischargeLimit: 5, 
-            vampireRate: 1.0, // Consumo Vampiro (kWh/día)
+            vampireRate: 1.5, // Consumo Vampiro (kWh/día)
             currentKm: 0,
             lastCalibrationDate: '',
             purchaseDate: '', 
@@ -1449,82 +1449,8 @@
             </div>
         );
       };
-```
 
-### 2. Componente `App` (Actualizado para resetear a la primera pestaña)
-Sustituye todo el componente `App` al final del archivo. La clave de almacenamiento ha sido cambiada a `activeTab_v3` para forzar a todos los usuarios a iniciar en "Estrategia Carga" la próxima vez que carguen la página.
-
-```javascript
-      // --- APP PRINCIPAL ---
-      const App = () => {
-        // Changed key to _v3 to force reset to 'strategy' for users
-        const [activeTab, setActiveTab] = usePersistentState('activeTab_v3', 'strategy'); 
-        const [simParams, setSimParams] = usePersistentState('simParams', { speed: 120, temperature: 20, gradient: 0, windSpeed: 0, electricConsumptionRef: 14, batteryCapacity: 60 });
-        const [simCosts, setSimCosts] = usePersistentState('simCosts', { electricityPrice: 0.08, gasPrice: 1.45, gasConsumptionRef: 6.5 });
-        const [consumption, setConsumption] = useState(0);
-
-        useEffect(() => { setConsumption(calculateConsumption(simParams)); }, [simParams]);
-
-        const handleBack = () => { if (window.history.length > 1) window.history.back(); else window.close(); };
-
-        const renderContent = () => {
-            switch(activeTab) {
-                case 'strategy': return <ChargingStrategy />;
-                case 'curve': return <ChargeCurveCalculator />;
-                case 'tariff': return <TariffComparator />;
-                case 'drain': return <DrainCalculator />;
-                case 'simulator': return (
-                    <>
-                        <Visualizer params={simParams} />
-                        <ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} />
-                        <ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
-                        <SimpleSavingsSimulator params={simParams} costs={simCosts} />
-                    </>
-                );
-                case 'amortization': return <AmortizationCalculator />;
-                case 'calculator': return <ChargingCalculator />;
-                case 'nyland': return <NylandCalculator />;
-                case 'equiv': return <EquivalenceCalculator />;
-                case 'charge': return <PlaceholderTab />;
-                default: return <PlaceholderTab />;
-            }
-        };
-
-        const TabButton = ({ id, label }) => (
-            <button onClick={() => setActiveTab(id)} className={`px-6 py-4 text-base font-bold transition-all uppercase tracking-wider whitespace-nowrap ${activeTab === id ? 'tab-active' : 'tab-inactive'}`}>{label}</button>
-        );
-
-        return (
-            <div className="min-h-screen bg-[#0a0a0a] text-white p-4 md:p-8">
-                <div className="max-w-6xl mx-auto">
-                    <header className="mb-8">
-                        <div className="flex justify-between items-end border-b border-slate-800 pb-4">
-                            <div>
-                                <h1 className="text-5xl md:text-6xl font-display font-bold"><span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400">Boarding</span><span className="text-red-600">Gate</span></h1>
-                                <p className="text-slate-400 font-bold tracking-widest text-base mt-2">TESLA EFFICIENCY TOOLS</p>
-                            </div>
-                            <button onClick={handleBack} className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-xl text-base font-bold transition-colors flex items-center gap-2"><Icons.LogOut className="w-6 h-6"/> Volver</button>
-                        </div>
-                        <div className="flex overflow-x-auto gap-4 border-b border-slate-800/50 mt-6 pb-2">
-                            <TabButton id="strategy" label="Estrategia Carga" />
-                            <TabButton id="curve" label="Curva Carga" />
-                            <TabButton id="tariff" label="COMPARADOR TARIFAS" />
-                            <TabButton id="drain" label="Drenaje" />
-                            <TabButton id="simulator" label="Simulador" />
-                            <TabButton id="amortization" label="Amortización" />
-                            <TabButton id="calculator" label="Calculadora" />
-                            <TabButton id="nyland" label="Bjørn Nyland" />
-                            <TabButton id="equiv" label="Equivalencia" />
-                            <TabButton id="charge" label="+EXCEL" />
-                        </div>
-                    </header>
-                    <main className="animate-fade-in">{renderContent()}</main>
-                </div>
-            </div>
-        );
-      };
- 
-
+        
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
       const ChargeCurveCalculator = () => {
         const [state, setState] = usePersistentState('curveState', { 
@@ -2417,8 +2343,10 @@ Sustituye todo el componente `App` al final del archivo. La clave de almacenamie
       };
 
       // --- APP PRINCIPAL ---
+
       const App = () => {
-        const [activeTab, setActiveTab] = usePersistentState('activeTab', 'strategy'); 
+        // Changed key to _v3 to force reset to 'strategy' for users
+        const [activeTab, setActiveTab] = usePersistentState('activeTab_v3', 'strategy'); 
         const [simParams, setSimParams] = usePersistentState('simParams', { speed: 120, temperature: 20, gradient: 0, windSpeed: 0, electricConsumptionRef: 14, batteryCapacity: 60 });
         const [simCosts, setSimCosts] = usePersistentState('simCosts', { electricityPrice: 0.08, gasPrice: 1.45, gasConsumptionRef: 6.5 });
         const [consumption, setConsumption] = useState(0);
@@ -2483,7 +2411,8 @@ Sustituye todo el componente `App` al final del archivo. La clave de almacenamie
             </div>
         );
       };
-
+        
+   
       const root = createRoot(document.getElementById('root'));
       root.render(<App />);
     </script>
