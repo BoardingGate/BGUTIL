@@ -855,8 +855,8 @@
         );
       };
 
-        
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (MODIFICADO VISUAL) ---
+ 
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (MODIFICADO VISUAL DIAGONAL) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState', {
             battery: 60,
@@ -1025,30 +1025,20 @@
         const annualCost = (totalCost / 7) * 365;
 
         // --- CÁLCULO DE CICLOS Y TABLA ---
-        
-        // 1. Datos históricos totales
+        // (Sin cambios en lógica, mantenido para integridad)
         const totalDrivingKwh = (state.currentKm / 100) * state.consumption;
         const daysOwned = carAge ? carAge.days : 0;
         const totalVampireKwh = daysOwned * state.vampireRate;
         const grandTotalKwh = totalDrivingKwh + totalVampireKwh;
-        
-        // Costes Históricos
         const costDrivingHistory = totalDrivingKwh * state.energyPrice;
         const costVampireHistory = totalVampireKwh * state.energyPrice;
         const costTotalHistory = grandTotalKwh * state.energyPrice;
-
-        // Vampiro en Km (pérdida equivalente)
         const vampireKmEquivalent = (totalVampireKwh / state.consumption) * 100;
-
-        // Media diaria de KM Reales (Histórico)
         const avgDailyKmHistorical = daysOwned > 0 ? state.currentKm / daysOwned : 0;
-
-        // 2. Estado de salud actual
         const cyclesUsed = state.battery > 0 ? grandTotalKwh / state.battery : 0;
         const cyclesGuaranteed = 3000; 
         const cyclesLeft = Math.max(0, cyclesGuaranteed - cyclesUsed);
         
-        // Proyección Fecha Fin Ciclos (3000) y Media Vida (1500)
         let projectionDateStr = "---";
         let yearsLeftVal = 0;
         let projectionDate1500 = "---";
@@ -1058,14 +1048,11 @@
         if (daysOwned > 0 && cyclesUsed > 0) {
             const cyclesPerDay = cyclesUsed / daysOwned;
             if(cyclesPerDay > 0) {
-                // Calculo para 3000
                 const daysLeft = cyclesLeft / cyclesPerDay;
                 yearsLeftVal = daysLeft / 365;
                 const futureDate = new Date();
                 futureDate.setDate(futureDate.getDate() + daysLeft);
                 projectionDateStr = futureDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-
-                // Calculo para 1500
                 if (!passed1500) {
                     const cyclesRemaining1500 = 1500 - cyclesUsed;
                     const daysLeft1500 = cyclesRemaining1500 / cyclesPerDay;
@@ -1073,32 +1060,20 @@
                     const futureDate1500 = new Date();
                     futureDate1500.setDate(futureDate1500.getDate() + daysLeft1500);
                     projectionDate1500 = futureDate1500.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-                } else {
-                    projectionDate1500 = "Superado";
-                }
+                } else { projectionDate1500 = "Superado"; }
             }
         }
         
-        // 3. Cálculo de Consumo REAL PROMEDIO (Conducción + Vampiro) para proyecciones de la tabla
         const avgDailyKmWeekly = totalKmDriven / 7;
         const dailyEnergyTotal = ((avgDailyKmWeekly / 100) * state.consumption) + state.vampireRate;
         const realConsumptionPer100 = avgDailyKmWeekly > 0 ? (dailyEnergyTotal / avgDailyKmWeekly) * 100 : 0;
-
         const kmLeftInCycles = realConsumptionPer100 > 0 ? (cyclesLeft * state.battery) / (realConsumptionPer100 / 100) : 0;
 
         const cycleTableData = [
-            { r: "0 al 100%", c: 500 },
-            { r: "10 al 100%", c: 500 },
-            { r: "20 al 100%", c: 1000 },
-            { r: "0 al 90%", c: 1500 },
-            { r: "10 al 90%", c: 1500 },
-            { r: "20 al 90%", c: 2000 },
-            { r: "0 al 80%", c: 3000 },
-            { r: "10 al 80%", c: 3000 },
-            { r: "20 al 80%", c: 3500 },
-            { r: "0 al 70%", c: 5000 },
-            { r: "10 al 70%", c: 5500 },
-            { r: "20 al 70%", c: 6000 },
+            { r: "0 al 100%", c: 500 }, { r: "10 al 100%", c: 500 }, { r: "20 al 100%", c: 1000 },
+            { r: "0 al 90%", c: 1500 }, { r: "10 al 90%", c: 1500 }, { r: "20 al 90%", c: 2000 },
+            { r: "0 al 80%", c: 3000 }, { r: "10 al 80%", c: 3000 }, { r: "20 al 80%", c: 3500 },
+            { r: "0 al 70%", c: 5000 }, { r: "10 al 70%", c: 5500 }, { r: "20 al 70%", c: 6000 },
         ];
 
         return (
@@ -1124,11 +1099,11 @@
                         <table className="w-full text-sm">
                             <thead className="bg-slate-800 text-slate-300 border-b border-slate-700">
                                 <tr>
-                                    <th className="p-3 text-left font-bold uppercase">Día</th>
-                                    <th className="p-3 text-center font-bold uppercase w-32">Km Diarios</th>
-                                    <th className="p-3 text-center font-bold uppercase text-orange-300">Carga Inicio - Fin Día</th>
-                                    <th className="p-3 text-center font-bold uppercase w-32 text-blue-300">Objetivo Carga %</th>
-                                    <th className="p-3 text-center font-bold uppercase text-green-400">Carga (+kWh +Km)</th>
+                                    <th className="p-2 text-left font-bold uppercase">Día</th>
+                                    <th className="p-2 text-center font-bold uppercase w-32">Km Diarios</th>
+                                    <th className="p-2 text-center font-bold uppercase text-orange-300">Carga Inicio - Fin Día</th>
+                                    <th className="p-2 text-center font-bold uppercase w-32 text-blue-300">Objetivo Carga %</th>
+                                    <th className="p-2 text-center font-bold uppercase text-green-400">Carga (+kWh +Km)</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800">
@@ -1158,23 +1133,29 @@
 
                                             <td className="p-2">
                                                 <div className="flex flex-col gap-1 w-full">
-                                                    {/* INICIO ROW - Alineado Derecha: Valor luego Etiqueta */}
-                                                    <div className="flex justify-end items-center gap-2 bg-slate-800/30 px-2 py-1 rounded">
-                                                        <span className="font-bold text-white text-sm">
-                                                            {formatDecimal(row.startPct, 0)}% <span className="text-xs text-slate-500 font-normal">({formatDecimal(startKm, 0)} km)</span>
-                                                        </span>
-                                                        <span className="text-[10px] text-slate-400 font-bold uppercase">INICIO</span>
+                                                    {/* INICIO ROW - Alineado IZQUIERDA: Etiqueta luego Valor */}
+                                                    <div className="flex justify-start">
+                                                        <div className="flex items-center gap-2 bg-slate-800/30 px-2 py-1 rounded">
+                                                            <span className="text-[10px] text-slate-400 font-bold uppercase">INICIO</span>
+                                                            <span className="font-bold text-white text-xl"> {/* TAMAÑO AUMENTADO */}
+                                                                {formatDecimal(row.startPct, 0)}%
+                                                            </span>
+                                                            <span className="text-xs text-slate-500 font-normal">({formatDecimal(startKm, 0)} km)</span>
+                                                        </div>
                                                     </div>
 
-                                                    {/* Flecha central sutil */}
+                                                    {/* Flecha central */}
                                                     <div className="flex justify-center -my-1 text-slate-600 text-[10px] z-10">▼</div>
 
-                                                    {/* FIN ROW - Alineado Izquierda: Etiqueta luego Valor */}
-                                                    <div className="flex justify-start items-center gap-2 bg-slate-800/30 px-2 py-1 rounded">
-                                                         <span className="text-[10px] text-slate-400 font-bold uppercase">FIN</span>
-                                                         <span className={`font-bold text-sm ${isNegative ? 'text-red-500 animate-pulse' : row.endPct < 10 ? 'text-red-400' : row.endPct < 20 ? 'text-yellow-500' : 'text-orange-200'}`}>
-                                                            {formatDecimal(row.endPct, 0)}% <span className={`text-xs font-normal ${isNegative ? 'text-red-400' : 'text-slate-500'}`}>({formatDecimal(endKm, 0)} km)</span>
-                                                        </span>
+                                                    {/* FIN ROW - Alineado DERECHA: Etiqueta luego Valor */}
+                                                    <div className="flex justify-end">
+                                                        <div className="flex items-center gap-2 bg-slate-800/30 px-2 py-1 rounded">
+                                                            <span className="text-[10px] text-slate-400 font-bold uppercase">FIN</span>
+                                                            <span className={`font-bold text-xl ${isNegative ? 'text-red-500 animate-pulse' : row.endPct < 10 ? 'text-red-400' : row.endPct < 20 ? 'text-yellow-500' : 'text-orange-200'}`}> {/* TAMAÑO AUMENTADO */}
+                                                                {formatDecimal(row.endPct, 0)}%
+                                                            </span>
+                                                            <span className={`text-xs font-normal ${isNegative ? 'text-red-400' : 'text-slate-500'}`}>({formatDecimal(endKm, 0)} km)</span>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </td>
@@ -1476,7 +1457,7 @@
             </div>
         );
       };
- 
+
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
