@@ -856,7 +856,6 @@
         );
       };
 
-      
       // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState', {
@@ -906,7 +905,7 @@
 
         const carAge = getCarAge();
 
-        // --- CÁLCULO SEMANAL (SOLO CONDUCCIÓN) ---
+        // --- CÁLCULO SEMANAL (CONDUCCIÓN + VAMPIRO) ---
         const calculateWeek = () => {
             const results = [];
             let totalTime = 0;
@@ -922,7 +921,10 @@
             let simPct = 80; 
             dayOrder.forEach(day => {
                 const driven = state.dailyKm[day];
-                const consumedPct = (driven * state.consumption) / state.battery;
+                // Consumo Total Diario = (Km * Consumo) + Vampiro Diario
+                const dailyKwh = ((driven / 100) * state.consumption) + state.vampireRate;
+                const consumedPct = (dailyKwh / state.battery) * 100;
+                
                 let endDayPct = simPct - consumedPct; 
                 const target = state.targets[day];
                 simPct = (target > 0 && target > endDayPct) ? target : endDayPct;
@@ -934,8 +936,11 @@
 
             dayOrder.forEach(day => {
                 const driven = state.dailyKm[day];
-                const kwhUsed = (driven / 100) * state.consumption;
-                const consumedPct = (kwhUsed / state.battery) * 100;
+                
+                // CÁLCULO DEL CONSUMO TOTAL DEL DÍA (INCLUYE VAMPIRO)
+                const drivingKwh = (driven / 100) * state.consumption;
+                const totalDailyKwh = drivingKwh + state.vampireRate;
+                const consumedPct = (totalDailyKwh / state.battery) * 100;
                 
                 // End of day status
                 const endDayPct = currentPct - consumedPct;
@@ -1035,49 +1040,16 @@
         // Vampiro en Km (pérdida equivalente)
         const vampireKmEquivalent = (totalVampireKwh / state.consumption) * 100;
 
-        // Media diaria de KM Reales (Histórico)
-        const avgDailyKmHistorical = daysOwned > 0 ? state.currentKm / daysOwned : 0;
-
         // 2. Estado de salud actual
         const cyclesUsed = state.battery > 0 ? grandTotalKwh / state.battery : 0;
         const cyclesGuaranteed = 3000; 
         const cyclesLeft = Math.max(0, cyclesGuaranteed - cyclesUsed);
         
-        // Proyección Fecha Fin Ciclos (3000) y Media Vida (1500)
-        let projectionDateStr = "---";
-        let yearsLeftVal = 0;
-        let projectionDate1500 = "---";
-        let yearsLeft1500 = 0;
-        const passed1500 = cyclesUsed >= 1500;
-
-        if (daysOwned > 0 && cyclesUsed > 0) {
-            const cyclesPerDay = cyclesUsed / daysOwned;
-            if(cyclesPerDay > 0) {
-                // Calculo para 3000
-                const daysLeft = cyclesLeft / cyclesPerDay;
-                yearsLeftVal = daysLeft / 365;
-                const futureDate = new Date();
-                futureDate.setDate(futureDate.getDate() + daysLeft);
-                projectionDateStr = futureDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-
-                // Calculo para 1500
-                if (!passed1500) {
-                    const cyclesRemaining1500 = 1500 - cyclesUsed;
-                    const daysLeft1500 = cyclesRemaining1500 / cyclesPerDay;
-                    yearsLeft1500 = daysLeft1500 / 365;
-                    const futureDate1500 = new Date();
-                    futureDate1500.setDate(futureDate1500.getDate() + daysLeft1500);
-                    projectionDate1500 = futureDate1500.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
-                } else {
-                    projectionDate1500 = "Superado";
-                }
-            }
-        }
-        
         // 3. Cálculo de Consumo REAL PROMEDIO (Conducción + Vampiro) para proyecciones de la tabla
-        const avgDailyKmWeekly = totalKmDriven / 7;
-        const dailyEnergyTotal = ((avgDailyKmWeekly / 100) * state.consumption) + state.vampireRate;
-        const realConsumptionPer100 = avgDailyKmWeekly > 0 ? (dailyEnergyTotal / avgDailyKmWeekly) * 100 : 0;
+        const avgDailyKm = totalKmDriven / 7;
+        const dailyEnergyTotal = ((avgDailyKm / 100) * state.consumption) + state.vampireRate;
+        // kWh consumidos por cada 100km REALES (incluyendo el lastre del vampiro)
+        const realConsumptionPer100 = avgDailyKm > 0 ? (dailyEnergyTotal / avgDailyKm) * 100 : 0;
 
         const kmLeftInCycles = realConsumptionPer100 > 0 ? (cyclesLeft * state.battery) / (realConsumptionPer100 / 100) : 0;
 
@@ -1132,12 +1104,20 @@
                                     const endKm = (row.endPct / 100) * (state.battery / state.consumption) * 100;
                                     const isNegative = row.endPct < 0;
                                     
+                                    // Cálculo de detalle diario
+                                    const dayDrivingKwh = (state.dailyKm[row.day] / 100) * state.consumption;
+                                    const dayTotalKwh = dayDrivingKwh + state.vampireRate;
+                                    const dayTotalPct = (dayTotalKwh / state.battery) * 100;
+
                                     return (
                                         <tr key={row.day} className="hover:bg-slate-800/30 transition-colors">
                                             <td className="p-4 font-bold text-white text-base">{dayLabels[row.day]}</td>
-                                            <td className="p-4">
+                                            <td className="p-4 text-center">
                                                 <input type="number" value={state.dailyKm[row.day]} onChange={(e) => handleDayChange('dailyKm', row.day, e.target.value)}
                                                     className="w-full bg-slate-700 border border-slate-600 rounded p-2 text-center text-white font-bold focus:border-blue-500 outline-none" />
+                                                <div className="text-[10px] text-slate-400 mt-1 font-mono">
+                                                    -{formatDecimal(dayTotalPct, 1)}% ({formatDecimal(dayTotalKwh, 1)} kWh)
+                                                </div>
                                             </td>
                                             <td className="p-4">
                                                 <div className="flex flex-col gap-2">
@@ -1341,15 +1321,14 @@
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
                                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Consumo Conducción</div>
-                                    <div className="text-lg font-bold text-white">{formatMoney(totalDrivingKwh)} <span className="text-xs text-slate-500 font-normal">kWh</span></div>
-                                    <div className="text-base font-bold text-green-400 mt-1">{formatDecimal(costDrivingHistory)}€</div>
+                                    <div className="text-lg font-bold text-white">{formatMoney(totalDrivingKwh)} <span className="text-base font-normal">kWh</span></div>
+                                    <div className="text-sm font-bold text-green-400 mt-1">{formatDecimal(costDrivingHistory)}€</div>
                                 </div>
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
                                     <div className="text-[10px] font-bold text-purple-400 uppercase mb-1">Consumo Vampiro</div>
-                                    <div className="text-lg font-bold text-purple-300">+{formatMoney(totalVampireKwh)} <span className="text-xs text-purple-400/70 font-normal">kWh</span></div>
-                                    <div className="text-sm font-bold text-slate-400 mt-1 flex flex-col">
-                                        <span>~{formatMoney(vampireKmEquivalent)} km</span>
-                                        <span className="text-red-400 text-base font-bold mt-1">{formatDecimal(costVampireHistory)}€</span>
+                                    <div className="text-lg font-bold text-purple-300">+{formatMoney(totalVampireKwh)} <span className="text-base font-normal">kWh</span></div>
+                                    <div className="text-sm font-bold text-slate-400 mt-1">
+                                        ~{formatMoney(vampireKmEquivalent)} km <span className="text-slate-500 mx-1">|</span> <span className="text-red-400">{formatDecimal(costVampireHistory)}€</span>
                                     </div>
                                 </div>
                             </div>
@@ -1357,11 +1336,8 @@
                             <div className="bg-slate-800/50 p-4 rounded-xl border border-blue-900/30 text-center">
                                 <div className="text-xs font-bold text-slate-300 uppercase mb-2">Consumo Total Acumulado</div>
                                 <div className="text-3xl font-bold text-white">{formatMoney(grandTotalKwh)} kWh</div>
-                                <div className="text-2xl font-bold text-blue-400 mt-1">{formatDecimal(costTotalHistory)}€</div>
-                                <div className="text-lg font-bold text-slate-200 mt-3 bg-blue-900/30 inline-block px-4 py-2 rounded">
-                                    Media: {formatDecimal(avgDailyKmHistorical, 1)} km/día
-                                </div>
-                                <div className="text-[10px] text-slate-500 mt-1">Conducción + Vampírico</div>
+                                <div className="text-lg font-bold text-blue-400 mt-1">{formatDecimal(costTotalHistory)}€</div>
+                                <div className="text-xs text-slate-500 mt-1">Conducción + Vampírico</div>
                             </div>
 
                             <div className="bg-slate-800/30 p-4 rounded-xl border border-green-900/30">
@@ -1375,30 +1351,6 @@
                                 <div className="flex justify-between text-xs font-bold text-slate-400">
                                     <span>Consumidos: <span className="text-white">{formatDecimal(cyclesUsed, 1)}</span></span>
                                     <span>Restantes: <span className="text-blue-400">{formatMoney(cyclesLeft)} (~{formatMoney(kmLeftInCycles)} km)</span></span>
-                                </div>
-                                
-                                <div className="mt-4 pt-3 border-t border-slate-700/50 space-y-2">
-                                    <div className="bg-slate-900/40 p-2 rounded">
-                                        <div className="flex justify-between items-center mb-1">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Media Vida (1.500 ciclos)</span>
-                                            <span className="text-xs font-bold text-white">{passed1500 ? "SUPERADO" : projectionDate1500}</span>
-                                        </div>
-                                        {!passed1500 && (
-                                            <div className="text-right text-[10px] font-bold text-blue-300">
-                                                Faltan {formatDecimal(yearsLeft1500, 1)} años
-                                            </div>
-                                        )}
-                                    </div>
-                                    
-                                    <div className="bg-slate-900/40 p-2 rounded">
-                                        <div className="flex justify-between items-center mb-1">
-                                            <span className="text-[10px] font-bold text-green-400 uppercase">Garantía (3.000 ciclos)</span>
-                                            <span className="text-xs font-bold text-white">{projectionDateStr}</span>
-                                        </div>
-                                        <div className="text-right text-[10px] font-bold text-green-300">
-                                            Faltan {formatDecimal(yearsLeftVal, 1)} años
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
