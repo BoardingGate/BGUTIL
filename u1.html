@@ -1097,7 +1097,7 @@
                             <div><label className="text-sm font-bold text-red-400 block mb-1">Eficiencia Carga (%)</label><FormattedInput decimals={1} value={state.chargingEfficiency} onChange={v => handleNumChange('chargingEfficiency', v)} /></div>
                             <div><label className="text-sm font-bold text-yellow-500 block mb-1">Carga Profunda (%)</label><FormattedInput decimals={0} value={state.deepDischargeLimit} onChange={v => handleNumChange('deepDischargeLimit', v)} /></div>
                             <div>
-                                <label className="text-sm font-bold text-green-400 block mb-1 uppercase">Hora finalización de carga</label>
+                                <label className="text-sm font-bold text-green-400 block mb-1">Hora finalización de carga</label>
                                 <input 
                                     type="time" 
                                     value={state.chargeEndTime} 
