@@ -1126,6 +1126,7 @@
                                     <th className="p-2 text-center font-bold uppercase text-green-400">Plan de Carga</th>
                                 </tr>
                             </thead>
+                            {/* PADDING REDUCIDO Y BORDES AJUSTADOS PARA COMPACIDAD */}
                             <tbody className="divide-y divide-slate-800/50">
                                 {results.map((row) => {
                                     const startKm = (row.startPct / 100) * (state.battery / state.consumption) * 100;
@@ -1141,36 +1142,35 @@
 
                                     return (
                                         <tr key={row.day} className={`transition-colors border-b border-slate-800/30 ${isCharging ? "bg-blue-900/10 hover:bg-blue-900/20" : "hover:bg-slate-800/30"}`}>
-                                            <td className={`p-2 font-bold text-sm ${isWeekend ? 'text-orange-400' : 'text-white'}`}>
+                                            <td className={`px-2 py-1 font-bold text-sm ${isWeekend ? 'text-orange-400' : 'text-white'}`}>
                                                 {dayLabels[row.day]}
                                             </td>
                                             
-                                            {/* Km Diarios + Sub-datos RESTAURADOS */}
-                                            <td className="p-2">
+                                            <td className="px-2 py-1">
                                                 <input type="number" value={state.dailyKm[row.day]} onChange={(e) => handleDayChange('dailyKm', row.day, e.target.value)}
-                                                    className="w-full bg-slate-700 border border-slate-600 rounded p-1 text-center text-white font-bold focus:border-blue-500 outline-none text-sm" />
-                                                <div className="text-[10px] text-slate-400 font-bold mt-1 text-center">
+                                                    className="w-full bg-slate-700 border border-slate-600 rounded p-1 text-center text-white font-bold focus:border-blue-500 outline-none text-sm h-8" />
+                                                <div className="text-[10px] text-slate-400 font-bold text-center">
                                                     -{formatDecimal(drivingPct, 1)}% <span className="text-slate-500">({formatDecimal(drivingKwh, 1)} kWh)</span>
                                                 </div>
                                             </td>
 
-                                            <td className="p-2">
+                                            <td className="px-2 py-1">
                                                 <div className="flex flex-col w-full px-2">
-                                                    {/* Primera Línea: Inicio - LETRA MÁS GRANDE Y % DESTACADO */}
+                                                    {/* Primera Línea: Inicio - COMPACTADO */}
                                                     <div className="flex justify-start">
-                                                        <div className="bg-slate-800/40 px-3 py-1 rounded flex items-baseline gap-1.5">
+                                                        <div className="bg-slate-800/40 px-3 py-0.5 rounded flex items-baseline gap-1.5">
                                                             <span className="text-[10px] text-slate-500 font-bold uppercase">INICIO</span>
-                                                            <span className="font-bold text-white text-2xl">{formatDecimal(row.startPct, 0)}%</span>
+                                                            <span className="font-bold text-white text-xl">{formatDecimal(row.startPct, 0)}%</span>
                                                             <span className="text-xs text-slate-500 font-normal">({formatDecimal(startKm, 0)}km)</span>
                                                         </div>
                                                     </div>
                                                     
-                                                    {/* Segunda Línea: Flecha + Fin - LETRA MÁS GRANDE Y % DESTACADO */}
+                                                    {/* Segunda Línea: Flecha + Fin - COMPACTADO */}
                                                     <div className="flex items-center justify-end -mt-1">
                                                         <span className="text-slate-600 text-xs mr-2">▼</span>
-                                                        <div className="bg-slate-800/40 px-3 py-1 rounded flex items-baseline gap-1.5">
+                                                        <div className="bg-slate-800/40 px-3 py-0.5 rounded flex items-baseline gap-1.5">
                                                             <span className="text-[10px] text-slate-500 font-bold uppercase">FIN</span>
-                                                            <span className={`font-bold text-2xl ${isNegative ? 'text-red-500' : row.endPct < 10 ? 'text-red-400' : row.endPct < 20 ? 'text-yellow-500' : 'text-orange-200'}`}>
+                                                            <span className={`font-bold text-xl ${isNegative ? 'text-red-500' : row.endPct < 10 ? 'text-red-400' : row.endPct < 20 ? 'text-yellow-500' : 'text-orange-200'}`}>
                                                                 {formatDecimal(row.endPct, 0)}%
                                                             </span>
                                                             <span className="text-xs text-slate-500 font-normal">({formatDecimal(endKm, 0)}km)</span>
@@ -1179,19 +1179,19 @@
                                                 </div>
                                             </td>
 
-                                            <td className="p-2 text-center">
+                                            <td className="px-2 py-1 text-center">
                                                 <input type="number" min="0" max="100" placeholder="-" value={state.targets[row.day] === 0 ? '' : state.targets[row.day]} onChange={(e) => handleDayChange('targets', row.day, e.target.value)}
                                                     className="w-16 bg-slate-900 border border-blue-500/30 rounded p-1 text-center text-blue-300 font-bold focus:border-blue-500 outline-none placeholder-slate-600 h-10 text-2xl" />
                                             </td>
 
-                                            <td className="p-2 text-center">
+                                            <td className="px-2 py-1 text-center">
                                                 {isCharging ? (
-                                                    <div className="flex flex-col items-center justify-center bg-slate-800/60 p-2 rounded border border-slate-700/50 w-full max-w-[180px] mx-auto">
-                                                        <div className="flex justify-between w-full text-xs mb-1">
+                                                    <div className="flex flex-col items-center justify-center bg-slate-800/60 p-1 rounded border border-slate-700/50 w-full max-w-[180px] mx-auto">
+                                                        <div className="flex justify-between w-full text-xs mb-0.5">
                                                             <span className="text-slate-400 font-bold">Hora inicio:</span>
                                                             <span className="font-mono font-bold text-white text-right">{startTimeStr}</span>
                                                         </div>
-                                                        <div className="flex justify-between w-full text-xs border-b border-slate-600 pb-1 mb-1">
+                                                        <div className="flex justify-between w-full text-xs border-b border-slate-600 pb-0.5 mb-0.5">
                                                             <span className="text-slate-400 font-bold">Tiempo carga:</span>
                                                             <span className="font-mono font-bold text-white text-right">{formatTimeShort(row.chargeTime)}</span>
                                                         </div>
@@ -1319,7 +1319,7 @@
                     </h2>
                     
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {/* Panel de Datos */}
+                        {/* Panel de Datos (REORDENADO: TARJETA PROGRESO ARRIBA) */}
                         <div className="space-y-6">
                             <div>
                                 <label className="text-sm font-bold text-slate-400 block mb-2">KILOMETRAJE ACTUAL</label>
@@ -1330,6 +1330,38 @@
                                 <div className="flex items-center gap-4">
                                     <input type="date" value={state.purchaseDate} onChange={(e) => handleChange('purchaseDate', e.target.value)} className="bg-zinc-700 text-yellow-300 text-lg font-mono font-bold rounded px-3 py-3 outline-none border border-zinc-600 focus:border-yellow-500 flex-grow" />
                                     {carAge && (<div className="bg-slate-800 px-4 py-3 rounded-lg border border-slate-700"><div className="text-[10px] font-bold text-slate-400 uppercase">Antigüedad</div><div className="text-sm font-bold text-white whitespace-nowrap">{carAge.text}</div></div>)}
+                                </div>
+                            </div>
+
+                            {/* Tarjeta de Progreso de Vida Útil (MOVIDA AQUÍ, ANTES DEL GRID DE 3) */}
+                            <div className="bg-slate-800/30 p-4 rounded-xl border border-green-900/30">
+                                <div className="flex justify-between items-end mb-2">
+                                    <div className="text-sm font-bold text-slate-300">Vida Útil Estimada ({formatMoney(cyclesGuaranteed)} Ciclos)</div>
+                                    <div className="text-xs font-bold text-green-400">{formatDecimal((cyclesUsed/cyclesGuaranteed)*100, 1)}% Usado</div>
+                                </div>
+                                <div className="w-full bg-slate-700 rounded-full h-2 mb-4 overflow-hidden">
+                                    <div className="bg-green-500 h-2 rounded-full" style={{ width: `${Math.min(100, (cyclesUsed/cyclesGuaranteed)*100)}%` }}></div>
+                                </div>
+                                <div className="flex justify-between text-xs font-bold text-slate-400">
+                                    <span>Consumidos: <span className="text-white">{formatDecimal(cyclesUsed, 1)}</span></span>
+                                    <span>Restantes: <span className="text-blue-400">{formatMoney(cyclesLeft)} (~{formatMoney(kmLeftInCycles)} km)</span></span>
+                                </div>
+                                
+                                <div className="mt-4 pt-3 border-t border-slate-700/50 space-y-2">
+                                    <div className="bg-slate-900/40 p-2 rounded">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Media Vida (1.500 ciclos)</span>
+                                            <span className="text-xs font-bold text-white">{passed1500 ? "SUPERADO" : projectionDate1500}</span>
+                                        </div>
+                                        {!passed1500 && (<div className="text-right text-[10px] font-bold text-blue-300">Faltan {formatDecimal(yearsLeft1500, 1)} años</div>)}
+                                    </div>
+                                    <div className="bg-slate-900/40 p-2 rounded">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-[10px] font-bold text-green-400 uppercase">Garantía (3.000 ciclos)</span>
+                                            <span className="text-xs font-bold text-white">{projectionDateStr}</span>
+                                        </div>
+                                        <div className="text-right text-[10px] font-bold text-green-300">Faltan {formatDecimal(yearsLeftVal, 1)} años</div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1369,51 +1401,20 @@
                                 </div>
                                 <div className="text-[10px] text-slate-500 mt-1">Conducción + Vampírico + Pérdidas</div>
                             </div>
-
-                            <div className="bg-slate-800/30 p-4 rounded-xl border border-green-900/30">
-                                <div className="flex justify-between items-end mb-2">
-                                    <div className="text-sm font-bold text-slate-300">Vida Útil Estimada ({formatMoney(cyclesGuaranteed)} Ciclos)</div>
-                                    <div className="text-xs font-bold text-green-400">{formatDecimal((cyclesUsed/cyclesGuaranteed)*100, 1)}% Usado</div>
-                                </div>
-                                <div className="w-full bg-slate-700 rounded-full h-2 mb-4 overflow-hidden">
-                                    <div className="bg-green-500 h-2 rounded-full" style={{ width: `${Math.min(100, (cyclesUsed/cyclesGuaranteed)*100)}%` }}></div>
-                                </div>
-                                <div className="flex justify-between text-xs font-bold text-slate-400">
-                                    <span>Consumidos: <span className="text-white">{formatDecimal(cyclesUsed, 1)}</span></span>
-                                    <span>Restantes: <span className="text-blue-400">{formatMoney(cyclesLeft)} (~{formatMoney(kmLeftInCycles)} km)</span></span>
-                                </div>
-                                
-                                <div className="mt-4 pt-3 border-t border-slate-700/50 space-y-2">
-                                    <div className="bg-slate-900/40 p-2 rounded">
-                                        <div className="flex justify-between items-center mb-1">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Media Vida (1.500 ciclos)</span>
-                                            <span className="text-xs font-bold text-white">{passed1500 ? "SUPERADO" : projectionDate1500}</span>
-                                        </div>
-                                        {!passed1500 && (<div className="text-right text-[10px] font-bold text-blue-300">Faltan {formatDecimal(yearsLeft1500, 1)} años</div>)}
-                                    </div>
-                                    <div className="bg-slate-900/40 p-2 rounded">
-                                        <div className="flex justify-between items-center mb-1">
-                                            <span className="text-[10px] font-bold text-green-400 uppercase">Garantía (3.000 ciclos)</span>
-                                            <span className="text-xs font-bold text-white">{projectionDateStr}</span>
-                                        </div>
-                                        <div className="text-right text-[10px] font-bold text-green-300">Faltan {formatDecimal(yearsLeftVal, 1)} años</div>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
 
                         {/* Tabla de Referencia */}
-                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden">
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden h-full">
                             <div className="bg-slate-800 px-4 py-3 border-b border-slate-700">
                                 <h4 className="text-sm font-bold text-slate-300 uppercase">Tabla de Longevidad Estimada según Hábitos de Carga</h4>
                             </div>
-                            <div className="overflow-x-auto max-h-80 overflow-y-auto">
+                            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
                                 <table className="w-full text-xs text-left">
                                     <thead className="text-slate-400 font-bold bg-slate-800/50 sticky top-0">
                                         <tr>
-                                            <th className="px-4 py-2">Rango Carga</th>
-                                            <th className="px-4 py-2 text-right">Ciclos Completos</th>
-                                            <th className="px-4 py-2 text-right">Km Totales</th>
+                                            <th className="px-4 py-3">Rango Carga</th>
+                                            <th className="px-4 py-3 text-right">Ciclos Completos</th>
+                                            <th className="px-4 py-3 text-right">Km Totales</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800 text-slate-300 font-mono">
@@ -1426,16 +1427,16 @@
                                             const totalKm = totalConsumptionPerKm > 0 ? totalEnergyCapacity / totalConsumptionPerKm : 0;
                                             return (
                                                 <tr key={idx} className="hover:bg-slate-800/30">
-                                                    <td className="px-4 py-2 font-bold">{row.r}</td>
-                                                    <td className="px-4 py-2 text-right">{formatMoney(row.c)}</td>
-                                                    <td className="px-4 py-2 text-right text-blue-300">{formatMoney(totalKm)} km</td>
+                                                    <td className="px-4 py-3 font-bold">{row.r}</td>
+                                                    <td className="px-4 py-3 text-right">{formatMoney(row.c)}</td>
+                                                    <td className="px-4 py-3 text-right text-blue-300">{formatMoney(totalKm)} km</td>
                                                 </tr>
                                             );
                                         })}
                                     </tbody>
                                 </table>
                             </div>
-                            <div className="p-2 text-[10px] text-slate-500 text-center font-bold italic bg-slate-800/30">
+                            <div className="p-3 text-[10px] text-slate-500 text-center font-bold italic bg-slate-800/30 border-t border-slate-800">
                                 * Km calculados según nº de ciclos completos y tu consumo real promedio ({formatDecimal((state.consumption + (totalKmDriven > 0 ? (state.vampireRate*7)/(totalKmDriven/100) : 0)), 1)} kWh/100km inc. Vampiro).
                             </div>
                         </div>
