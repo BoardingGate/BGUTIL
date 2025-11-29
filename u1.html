@@ -855,16 +855,17 @@
         );
       };
 
-     // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (CON CÁLCULO DE EFICIENCIA) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (CON CÁLCULO DE EFICIENCIA) ---
       const ChargingStrategy = () => {
-        const [state, setState] = usePersistentState('strategyState', {
+        const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
             consumption: 15.0,
             power: 7.4,
             energyPrice: 0.09,
             deepDischargeLimit: 5, 
             vampireRate: 1, 
-            chargingEfficiency: 97, // NUEVO CAMPO: Por defecto 97%
+            chargingEfficiency: 97,
+            chargeEndTime: '08:00', // NUEVO CAMPO: Hora fin carga
             currentKm: 0,
             lastCalibrationDate: '',
             purchaseDate: '', 
@@ -884,6 +885,18 @@
                 ...prev,
                 [type]: { ...prev[type], [day]: val }
             }));
+        };
+
+        // Helper para calcular hora de inicio
+        const calculateStartTime = (endTime, durationMinutes) => {
+            if(!endTime) return "--:--";
+            const [h, m] = endTime.split(':').map(Number);
+            const endTotal = h * 60 + m;
+            let startTotal = endTotal - durationMinutes;
+            if (startTotal < 0) startTotal += 1440; // Handle previous day
+            const startH = Math.floor(startTotal / 60);
+            const startM = Math.round(startTotal % 60);
+            return `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
         };
 
         // Helper para antigüedad
@@ -990,47 +1003,34 @@
         const { results, totalTime, totalKmCharged, totalKmDriven, totalKwhCharged, lowestPoint, calibrationOpportunity } = calculateWeek();
         const reserveKm = totalKmCharged - totalKmDriven; 
         
-        // Costes Semanales (Estimados con la eficiencia también)
+        // Costes Semanales
         const weeklyNetKwh = totalKwhCharged;
         const weeklyGrossKwh = weeklyNetKwh / (state.chargingEfficiency / 100 || 1);
         const totalCost = weeklyGrossKwh * state.energyPrice;
         const monthlyCost = (totalCost / 7) * 30.41;
         const annualCost = (totalCost / 7) * 365;
 
-        // --- CÁLCULO DE HISTÓRICO Y CICLOS (CON EFICIENCIA) ---
-        
-        // 1. Energía NETA (Lo que realmente ha entrado/salido de la batería)
+        // --- CÁLCULO DE HISTÓRICO Y CICLOS ---
         const totalDrivingKwh = (state.currentKm / 100) * state.consumption;
         const daysOwned = carAge ? carAge.days : 0;
         const totalVampireKwh = daysOwned * state.vampireRate;
         const totalNetKwh = totalDrivingKwh + totalVampireKwh;
-
-        // 2. Energía BRUTA (Lo que ha salido del enchufe)
         const efficiencyFactor = state.chargingEfficiency / 100 || 1;
         const totalGrossKwh = totalNetKwh / efficiencyFactor;
-        
-        // 3. Pérdidas por Ineficiencia
         const totalLossKwh = totalGrossKwh - totalNetKwh;
         
-        // 4. Inferir Nº de Cargas y Km perdidos
-        // Asumimos una sesión de carga promedio del 40% de la batería (Ej: del 40% al 80%)
         const avgSessionDepth = 0.40; 
         const estimatedSessions = state.battery > 0 ? totalNetKwh / (state.battery * avgSessionDepth) : 0;
         const kmLossEquivalent = (totalLossKwh / state.consumption) * 100;
 
-        // Costes Históricos
         const costDrivingHistory = totalDrivingKwh * state.energyPrice;
         const costVampireHistory = totalVampireKwh * state.energyPrice;
         const costLossHistory = totalLossKwh * state.energyPrice;
-        const costTotalHistory = totalGrossKwh * state.energyPrice; // Total PAGADO
+        const costTotalHistory = totalGrossKwh * state.energyPrice; 
 
-        // Vampiro en Km (pérdida equivalente)
         const vampireKmEquivalent = (totalVampireKwh / state.consumption) * 100;
-
-        // Media diaria de KM Reales (Histórico)
         const avgDailyKmHistorical = daysOwned > 0 ? state.currentKm / daysOwned : 0;
 
-        // Estado de salud actual (Ciclos basados en Energía NETA, ya que las pérdidas son externas a la celda)
         const cyclesUsed = state.battery > 0 ? totalNetKwh / state.battery : 0;
         const cyclesGuaranteed = 3000; 
         const cyclesLeft = Math.max(0, cyclesGuaranteed - cyclesUsed);
@@ -1061,7 +1061,6 @@
             }
         }
         
-        // Tabla proyección
         const avgDailyKmWeekly = totalKmDriven / 7;
         const dailyEnergyTotal = ((avgDailyKmWeekly / 100) * state.consumption) + state.vampireRate;
         const realConsumptionPer100 = avgDailyKmWeekly > 0 ? (dailyEnergyTotal / avgDailyKmWeekly) * 100 : 0;
@@ -1081,18 +1080,29 @@
                     <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
                         <Icons.Settings /> Configuración Global
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-7 gap-6">
-                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.battery} onChange={v => handleNumChange('battery', v)} /></div>
-                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo Medio (kWh/100)</label><FormattedInput decimals={1} value={state.consumption} onChange={v => handleNumChange('consumption', v)} /></div>
+                    <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-8 gap-6">
+                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad (kWh)</label><FormattedInput value={state.battery} onChange={v => handleNumChange('battery', v)} /></div>
+                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo (kWh/100)</label><FormattedInput decimals={1} value={state.consumption} onChange={v => handleNumChange('consumption', v)} /></div>
                         <div><label className="text-sm font-bold text-slate-400 block mb-1">Potencia Carga (kW)</label><FormattedInput decimals={1} value={state.power} onChange={v => handleNumChange('power', v)} /></div>
                         <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Energía (€/kWh)</label><FormattedInput decimals={3} value={state.energyPrice} onChange={v => handleNumChange('energyPrice', v)} /></div>
-                        <div><label className="text-sm font-bold text-purple-400 block mb-1">Consumo Vampiro (kWh/día)</label><FormattedInput decimals={1} value={state.vampireRate} onChange={v => handleNumChange('vampireRate', v)} /></div>
+                        <div><label className="text-sm font-bold text-purple-400 block mb-1">Vampiro (kWh/día)</label><FormattedInput decimals={1} value={state.vampireRate} onChange={v => handleNumChange('vampireRate', v)} /></div>
                         <div><label className="text-sm font-bold text-red-400 block mb-1">Eficiencia Carga (%)</label><FormattedInput decimals={1} value={state.chargingEfficiency} onChange={v => handleNumChange('chargingEfficiency', v)} /></div>
-                        <div><label className="text-sm font-bold text-yellow-500 block mb-1">Nivel Carga Profunda (%)</label><FormattedInput decimals={0} value={state.deepDischargeLimit} onChange={v => handleNumChange('deepDischargeLimit', v)} /></div>
+                        <div><label className="text-sm font-bold text-yellow-500 block mb-1">Carga Profunda (%)</label><FormattedInput decimals={0} value={state.deepDischargeLimit} onChange={v => handleNumChange('deepDischargeLimit', v)} /></div>
+                        
+                        {/* NUEVO INPUT HORA */}
+                        <div>
+                            <label className="text-sm font-bold text-green-400 block mb-1">Hora finalización</label>
+                            <input 
+                                type="time" 
+                                value={state.chargeEndTime} 
+                                onChange={(e) => handleChange('chargeEndTime', e.target.value)} 
+                                className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-3 text-yellow-300 font-mono font-bold focus:outline-none focus:border-yellow-500 text-lg shadow-inner text-center"
+                            />
+                        </div>
                     </div>
                 </div>
 
-                {/* Weekly Grid */}
+                {/* Weekly Grid Compacto */}
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
@@ -1101,72 +1111,82 @@
                                     <th className="p-2 text-left font-bold uppercase">Día</th>
                                     <th className="p-2 text-center font-bold uppercase w-32">Km Diarios</th>
                                     <th className="p-2 text-center font-bold uppercase text-orange-300">Carga Inicio - Fin Día</th>
-                                    <th className="p-2 text-center font-bold uppercase w-32 text-blue-300">Objetivo Carga %</th>
-                                    <th className="p-2 text-center font-bold uppercase text-green-400">Carga (+kWh +Km)</th>
+                                    <th className="p-2 text-center font-bold uppercase w-32 text-blue-300">Objetivo %</th>
+                                    <th className="p-2 text-center font-bold uppercase text-green-400">Plan de Carga</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-800">
+                            <tbody className="divide-y divide-slate-800/50">
                                 {results.map((row) => {
                                     const startKm = (row.startPct / 100) * (state.battery / state.consumption) * 100;
                                     const endKm = (row.endPct / 100) * (state.battery / state.consumption) * 100;
                                     const isNegative = row.endPct < 0;
                                     const isWeekend = row.day === 'Sat' || row.day === 'Sun';
-
                                     const drivingKwh = (state.dailyKm[row.day] / 100) * state.consumption;
                                     const drivingPct = (drivingKwh / state.battery) * 100;
+                                    const isCharging = row.chargeTime > 0;
                                     
+                                    // Calculo hora inicio
+                                    const startTimeStr = isCharging ? calculateStartTime(state.chargeEndTime, row.chargeTime) : "";
+
                                     return (
-                                        <tr key={row.day} className="hover:bg-slate-800/30 transition-colors">
-                                            <td className={`p-2 font-bold text-base ${isWeekend ? 'text-orange-400' : 'text-white'}`}>
+                                        <tr key={row.day} className={`transition-colors border-b border-slate-800/30 ${isCharging ? "bg-blue-900/10 hover:bg-blue-900/20" : "hover:bg-slate-800/30"}`}>
+                                            <td className={`p-2 font-bold text-sm ${isWeekend ? 'text-orange-400' : 'text-white'}`}>
                                                 {dayLabels[row.day]}
                                             </td>
                                             
                                             <td className="p-2">
                                                 <input type="number" value={state.dailyKm[row.day]} onChange={(e) => handleDayChange('dailyKm', row.day, e.target.value)}
-                                                    className="w-full bg-slate-700 border border-slate-600 rounded p-1 text-center text-white font-bold focus:border-blue-500 outline-none" />
-                                                <div className="text-[10px] text-slate-400 font-bold mt-1 text-center">
-                                                    -{formatDecimal(drivingPct, 1)}% <span className="text-slate-500">({formatDecimal(drivingKwh, 1)} kWh)</span>
-                                                </div>
+                                                    className="w-full bg-slate-700 border border-slate-600 rounded p-1 text-center text-white font-bold focus:border-blue-500 outline-none text-sm" />
                                             </td>
 
                                             <td className="p-2">
-                                                <div className="flex flex-col gap-1 w-full">
+                                                <div className="flex flex-col w-full px-2">
+                                                    {/* Primera Línea: Inicio */}
                                                     <div className="flex justify-start">
-                                                        <div className="flex items-center gap-2 bg-slate-800/30 px-2 py-1 rounded">
-                                                            <span className="text-[10px] text-slate-400 font-bold uppercase">INICIO</span>
-                                                            <span className="font-bold text-white text-xl">{formatDecimal(row.startPct, 0)}%</span>
-                                                            <span className="text-xs text-slate-500 font-normal">({formatDecimal(startKm, 0)} km)</span>
+                                                        <div className="bg-slate-800/40 px-2 py-0.5 rounded text-xs">
+                                                            <span className="text-slate-500 font-bold mr-1">INICIO</span>
+                                                            <span className="font-bold text-white">{formatDecimal(row.startPct, 0)}%</span>
+                                                            <span className="text-[10px] text-slate-500 ml-1">({formatDecimal(startKm, 0)}km)</span>
                                                         </div>
                                                     </div>
-                                                    <div className="flex justify-center -my-1 text-slate-600 text-[10px] z-10">▼</div>
-                                                    <div className="flex justify-end">
-                                                        <div className="flex items-center gap-2 bg-slate-800/30 px-2 py-1 rounded">
-                                                            <span className="text-[10px] text-slate-400 font-bold uppercase">FIN</span>
-                                                            <span className={`font-bold text-xl ${isNegative ? 'text-red-500 animate-pulse' : row.endPct < 10 ? 'text-red-400' : row.endPct < 20 ? 'text-yellow-500' : 'text-orange-200'}`}>
+                                                    
+                                                    {/* Segunda Línea: Flecha + Fin (COMPACTA) */}
+                                                    <div className="flex items-center justify-end -mt-1">
+                                                        <span className="text-slate-600 text-[10px] mr-1">▼</span>
+                                                        <div className="bg-slate-800/40 px-2 py-0.5 rounded text-xs">
+                                                            <span className="text-slate-500 font-bold mr-1">FIN</span>
+                                                            <span className={`font-bold ${isNegative ? 'text-red-500' : row.endPct < 10 ? 'text-red-400' : row.endPct < 20 ? 'text-yellow-500' : 'text-orange-200'}`}>
                                                                 {formatDecimal(row.endPct, 0)}%
                                                             </span>
-                                                            <span className={`text-xs font-normal ${isNegative ? 'text-red-400' : 'text-slate-500'}`}>({formatDecimal(endKm, 0)} km)</span>
+                                                            <span className="text-[10px] text-slate-500 ml-1">({formatDecimal(endKm, 0)}km)</span>
                                                         </div>
                                                     </div>
                                                 </div>
-                                            </td>
-
-                                            <td className="p-2">
-                                                <input type="number" min="0" max="100" placeholder="-" value={state.targets[row.day] === 0 ? '' : state.targets[row.day]} onChange={(e) => handleDayChange('targets', row.day, e.target.value)}
-                                                    className="w-full bg-slate-900 border border-blue-500/30 rounded p-1 text-center text-blue-300 font-bold focus:border-blue-500 outline-none placeholder-slate-600 h-10 text-xl" />
                                             </td>
 
                                             <td className="p-2 text-center">
-                                                {row.chargeTime > 0 ? (
-                                                    <div className="flex flex-col gap-1 items-center justify-center h-full">
-                                                        <div className="font-bold text-white bg-slate-800 px-3 py-1 rounded-full border border-slate-700 text-sm">{formatTimeShort(row.chargeTime)}</div>
-                                                        <div className="flex gap-2 text-xs font-bold mt-1">
-                                                            <span className="text-slate-400">+{formatDecimal(row.kwhAdded, 1)} kWh</span>
-                                                            <span className="text-green-400">+{formatDecimal(row.kmAdded, 0)} km</span>
+                                                <input type="number" min="0" max="100" placeholder="-" value={state.targets[row.day] === 0 ? '' : state.targets[row.day]} onChange={(e) => handleDayChange('targets', row.day, e.target.value)}
+                                                    className="w-16 bg-slate-900 border border-blue-500/30 rounded p-1 text-center text-blue-300 font-bold focus:border-blue-500 outline-none placeholder-slate-600 h-8" />
+                                            </td>
+
+                                            <td className="p-2 text-center">
+                                                {isCharging ? (
+                                                    <div className="flex items-center justify-center gap-3">
+                                                        {/* Bloque Hora */}
+                                                        <div className="flex flex-col items-center bg-slate-800 px-2 py-1 rounded border border-slate-700 min-w-[60px]">
+                                                            <div className="text-[10px] text-slate-400 uppercase font-bold">Poner a:</div>
+                                                            <div className="text-lg font-bold text-white leading-none">{startTimeStr}</div>
+                                                            <div className="text-[9px] text-slate-500">Duración: {formatTimeShort(row.chargeTime)}</div>
+                                                        </div>
+                                                        
+                                                        {/* Bloque Datos */}
+                                                        <div className="text-left text-xs">
+                                                            <div className="text-slate-300 font-bold">+{formatDecimal(row.kwhAdded, 1)} kWh</div>
+                                                            <div className="text-green-400 font-bold">+{formatDecimal(row.kmAdded, 0)} km</div>
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-slate-600 font-bold text-2xl">-</span>
+                                                    <span className="text-slate-700 font-bold">-</span>
                                                 )}
                                             </td>
                                         </tr>
@@ -1238,7 +1258,6 @@
 
                 {/* BMS Calibration Card */}
                 <div className="mt-6 bg-slate-800/30 border border-yellow-500/20 rounded-xl p-6 relative overflow-hidden">
-                    {/* ... (Contenido de calibración igual que antes) ... */}
                     <div className="absolute top-0 right-0 p-4 opacity-10"><Icons.Settings className="w-24 h-24 text-yellow-500" /></div>
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
                         <h3 className="text-base font-bold text-yellow-500 uppercase tracking-widest flex items-center gap-2">
@@ -1278,7 +1297,7 @@
                     <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/20 rounded-lg text-xs font-bold text-blue-200 leading-relaxed">(*) Tesla recomienda cargar al 100% (LFP) una vez a la semana para mantener calibrada la batería y cada cierto tiempo (de forma casual o programada), por ejemplo cada 6 meses, hacerle una carga profunda desde lo más abajo que puedas hasta el 100%.</div>
                 </div>
 
-                {/* Ciclos de Carga Section (CON NUEVA TARJETA DE EFICIENCIA) */}
+                {/* Ciclos de Carga Section */}
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                     <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
                         <Icons.Activity /> Estimación de ciclos de carga
@@ -1299,7 +1318,7 @@
                                 </div>
                             </div>
 
-                            {/* GRID DE 3 TARJETAS: CONDUCCION | VAMPIRO | EFICIENCIA */}
+                            {/* GRID DE 3 TARJETAS */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
                                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Consumo Conducción</div>
