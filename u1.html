@@ -855,7 +855,6 @@
         );
       };
 
-
       // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (CON CÁLCULO DE EFICIENCIA) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
@@ -1081,26 +1080,35 @@
                     <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
                         <Icons.Settings /> Configuración Global
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-8 gap-6">
-                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad (kWh)</label><FormattedInput value={state.battery} onChange={v => handleNumChange('battery', v)} /></div>
-                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo (kWh/100)</label><FormattedInput decimals={1} value={state.consumption} onChange={v => handleNumChange('consumption', v)} /></div>
-                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Potencia Carga (kW)</label><FormattedInput decimals={1} value={state.power} onChange={v => handleNumChange('power', v)} /></div>
-                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Energía (€/kWh)</label><FormattedInput decimals={3} value={state.energyPrice} onChange={v => handleNumChange('energyPrice', v)} /></div>
-                        <div><label className="text-sm font-bold text-purple-400 block mb-1">Vampiro (kWh/día)</label><FormattedInput decimals={1} value={state.vampireRate} onChange={v => handleNumChange('vampireRate', v)} /></div>
-                        <div><label className="text-sm font-bold text-red-400 block mb-1">Eficiencia Carga (%)</label><FormattedInput decimals={1} value={state.chargingEfficiency} onChange={v => handleNumChange('chargingEfficiency', v)} /></div>
-                        <div><label className="text-sm font-bold text-yellow-500 block mb-1">Carga Profunda (%)</label><FormattedInput decimals={0} value={state.deepDischargeLimit} onChange={v => handleNumChange('deepDischargeLimit', v)} /></div>
-                        
-                        {/* NUEVO INPUT HORA + AYUDA */}
-                        <div>
-                            <label className="text-sm font-bold text-green-400 block mb-1 uppercase">HORA DE FINALIZACIÓN CARGA</label>
-                            <input 
-                                type="time" 
-                                value={state.chargeEndTime} 
-                                onChange={(e) => handleChange('chargeEndTime', e.target.value)} 
-                                className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-3 text-yellow-300 font-mono font-bold focus:outline-none focus:border-yellow-500 text-lg shadow-inner text-center"
-                            />
-                            {/* Texto de ayuda agrandado a text-[11px] */}
-                            <p className="text-[11px] text-slate-500 mt-1 leading-tight">(*) si carga al 100% es recomendable usar la batería y no tenerla con ese nivel de carga mucho tiempo sin uso, por lo que es buena rutina ajustar la carga para que termine momentos antes de usarla.</p>
+                    
+                    <div className="flex flex-col gap-6">
+                        {/* Fila 1: 4 Columnas */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad (kWh)</label><FormattedInput value={state.battery} onChange={v => handleNumChange('battery', v)} /></div>
+                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo (kWh/100)</label><FormattedInput decimals={1} value={state.consumption} onChange={v => handleNumChange('consumption', v)} /></div>
+                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Potencia Carga (kW)</label><FormattedInput decimals={1} value={state.power} onChange={v => handleNumChange('power', v)} /></div>
+                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Energía (€/kWh)</label><FormattedInput decimals={3} value={state.energyPrice} onChange={v => handleNumChange('energyPrice', v)} /></div>
+                        </div>
+
+                        {/* Fila 2: 4 Columnas */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div><label className="text-sm font-bold text-purple-400 block mb-1">Vampiro (kWh/día)</label><FormattedInput decimals={1} value={state.vampireRate} onChange={v => handleNumChange('vampireRate', v)} /></div>
+                            <div><label className="text-sm font-bold text-red-400 block mb-1">Eficiencia Carga (%)</label><FormattedInput decimals={1} value={state.chargingEfficiency} onChange={v => handleNumChange('chargingEfficiency', v)} /></div>
+                            <div><label className="text-sm font-bold text-yellow-500 block mb-1">Carga Profunda (%)</label><FormattedInput decimals={0} value={state.deepDischargeLimit} onChange={v => handleNumChange('deepDischargeLimit', v)} /></div>
+                            <div>
+                                <label className="text-sm font-bold text-green-400 block mb-1 uppercase">HORA DE FINALIZACIÓN CARGA</label>
+                                <input 
+                                    type="time" 
+                                    value={state.chargeEndTime} 
+                                    onChange={(e) => handleChange('chargeEndTime', e.target.value)} 
+                                    className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-3 text-yellow-300 font-mono font-bold focus:outline-none focus:border-yellow-500 text-lg shadow-inner text-center"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Fila 3: Texto de Ayuda Full Width */}
+                        <div className="w-full">
+                            <p className="text-[11px] text-slate-500 leading-tight">(*) si carga al 100% es recomendable usar la batería y no tenerla con ese nivel de carga mucho tiempo sin uso, por lo que es buena rutina ajustar la carga para que termine momentos antes de usarla.</p>
                         </div>
                     </div>
                 </div>
@@ -1173,7 +1181,7 @@
 
                                             <td className="p-2 text-center">
                                                 <input type="number" min="0" max="100" placeholder="-" value={state.targets[row.day] === 0 ? '' : state.targets[row.day]} onChange={(e) => handleDayChange('targets', row.day, e.target.value)}
-                                                    className="w-16 bg-slate-900 border border-blue-500/30 rounded p-1 text-center text-blue-300 font-bold focus:border-blue-500 outline-none placeholder-slate-600 h-8" />
+                                                    className="w-16 bg-slate-900 border border-blue-500/30 rounded p-1 text-center text-blue-300 font-bold focus:border-blue-500 outline-none placeholder-slate-600 h-10 text-2xl" />
                                             </td>
 
                                             <td className="p-2 text-center">
