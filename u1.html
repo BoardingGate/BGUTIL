@@ -1099,7 +1099,8 @@
                                 onChange={(e) => handleChange('chargeEndTime', e.target.value)} 
                                 className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-3 text-yellow-300 font-mono font-bold focus:outline-none focus:border-yellow-500 text-lg shadow-inner text-center"
                             />
-                            <p className="text-[9px] text-slate-500 mt-1 leading-tight">(*) si carga al 100% es recomendable usar la batería y no tenerla con ese nivel de carga mucho tiempo sin uso, por lo que es buena rutina ajustar la carga para que termine momentos antes de usarla.</p>
+                            {/* Texto de ayuda agrandado a text-[11px] */}
+                            <p className="text-[11px] text-slate-500 mt-1 leading-tight">(*) si carga al 100% es recomendable usar la batería y no tenerla con ese nivel de carga mucho tiempo sin uso, por lo que es buena rutina ajustar la carga para que termine momentos antes de usarla.</p>
                         </div>
                     </div>
                 </div>
@@ -1147,24 +1148,24 @@
 
                                             <td className="p-2">
                                                 <div className="flex flex-col w-full px-2">
-                                                    {/* Primera Línea: Inicio */}
+                                                    {/* Primera Línea: Inicio - LETRA MÁS GRANDE Y % DESTACADO */}
                                                     <div className="flex justify-start">
-                                                        <div className="bg-slate-800/40 px-2 py-0.5 rounded text-xs">
-                                                            <span className="text-slate-500 font-bold mr-1">INICIO</span>
-                                                            <span className="font-bold text-white">{formatDecimal(row.startPct, 0)}%</span>
-                                                            <span className="text-[10px] text-slate-500 ml-1">({formatDecimal(startKm, 0)}km)</span>
+                                                        <div className="bg-slate-800/40 px-3 py-1 rounded flex items-baseline gap-1.5">
+                                                            <span className="text-[10px] text-slate-500 font-bold uppercase">INICIO</span>
+                                                            <span className="font-bold text-white text-2xl">{formatDecimal(row.startPct, 0)}%</span>
+                                                            <span className="text-xs text-slate-500 font-normal">({formatDecimal(startKm, 0)}km)</span>
                                                         </div>
                                                     </div>
                                                     
-                                                    {/* Segunda Línea: Flecha + Fin (COMPACTA) */}
+                                                    {/* Segunda Línea: Flecha + Fin - LETRA MÁS GRANDE Y % DESTACADO */}
                                                     <div className="flex items-center justify-end -mt-1">
-                                                        <span className="text-slate-600 text-[10px] mr-1">▼</span>
-                                                        <div className="bg-slate-800/40 px-2 py-0.5 rounded text-xs">
-                                                            <span className="text-slate-500 font-bold mr-1">FIN</span>
-                                                            <span className={`font-bold ${isNegative ? 'text-red-500' : row.endPct < 10 ? 'text-red-400' : row.endPct < 20 ? 'text-yellow-500' : 'text-orange-200'}`}>
+                                                        <span className="text-slate-600 text-xs mr-2">▼</span>
+                                                        <div className="bg-slate-800/40 px-3 py-1 rounded flex items-baseline gap-1.5">
+                                                            <span className="text-[10px] text-slate-500 font-bold uppercase">FIN</span>
+                                                            <span className={`font-bold text-2xl ${isNegative ? 'text-red-500' : row.endPct < 10 ? 'text-red-400' : row.endPct < 20 ? 'text-yellow-500' : 'text-orange-200'}`}>
                                                                 {formatDecimal(row.endPct, 0)}%
                                                             </span>
-                                                            <span className="text-[10px] text-slate-500 ml-1">({formatDecimal(endKm, 0)}km)</span>
+                                                            <span className="text-xs text-slate-500 font-normal">({formatDecimal(endKm, 0)}km)</span>
                                                         </div>
                                                     </div>
                                                 </div>
