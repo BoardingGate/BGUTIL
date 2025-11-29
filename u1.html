@@ -855,6 +855,7 @@
         );
       };
 
+
       // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (CON CÁLCULO DE EFICIENCIA) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
@@ -865,7 +866,7 @@
             deepDischargeLimit: 5, 
             vampireRate: 1, 
             chargingEfficiency: 97,
-            chargeEndTime: '08:00', // NUEVO CAMPO: Hora fin carga
+            chargeEndTime: '08:00', 
             currentKm: 0,
             lastCalibrationDate: '',
             purchaseDate: '', 
@@ -1089,15 +1090,16 @@
                         <div><label className="text-sm font-bold text-red-400 block mb-1">Eficiencia Carga (%)</label><FormattedInput decimals={1} value={state.chargingEfficiency} onChange={v => handleNumChange('chargingEfficiency', v)} /></div>
                         <div><label className="text-sm font-bold text-yellow-500 block mb-1">Carga Profunda (%)</label><FormattedInput decimals={0} value={state.deepDischargeLimit} onChange={v => handleNumChange('deepDischargeLimit', v)} /></div>
                         
-                        {/* NUEVO INPUT HORA */}
+                        {/* NUEVO INPUT HORA + AYUDA */}
                         <div>
-                            <label className="text-sm font-bold text-green-400 block mb-1">Hora finalización</label>
+                            <label className="text-sm font-bold text-green-400 block mb-1 uppercase">HORA DE FINALIZACIÓN CARGA</label>
                             <input 
                                 type="time" 
                                 value={state.chargeEndTime} 
                                 onChange={(e) => handleChange('chargeEndTime', e.target.value)} 
                                 className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-3 text-yellow-300 font-mono font-bold focus:outline-none focus:border-yellow-500 text-lg shadow-inner text-center"
                             />
+                            <p className="text-[9px] text-slate-500 mt-1 leading-tight">(*) si carga al 100% es recomendable usar la batería y no tenerla con ese nivel de carga mucho tiempo sin uso, por lo que es buena rutina ajustar la carga para que termine momentos antes de usarla.</p>
                         </div>
                     </div>
                 </div>
@@ -1134,9 +1136,13 @@
                                                 {dayLabels[row.day]}
                                             </td>
                                             
+                                            {/* Km Diarios + Sub-datos RESTAURADOS */}
                                             <td className="p-2">
                                                 <input type="number" value={state.dailyKm[row.day]} onChange={(e) => handleDayChange('dailyKm', row.day, e.target.value)}
                                                     className="w-full bg-slate-700 border border-slate-600 rounded p-1 text-center text-white font-bold focus:border-blue-500 outline-none text-sm" />
+                                                <div className="text-[10px] text-slate-400 font-bold mt-1 text-center">
+                                                    -{formatDecimal(drivingPct, 1)}% <span className="text-slate-500">({formatDecimal(drivingKwh, 1)} kWh)</span>
+                                                </div>
                                             </td>
 
                                             <td className="p-2">
@@ -1171,18 +1177,18 @@
 
                                             <td className="p-2 text-center">
                                                 {isCharging ? (
-                                                    <div className="flex items-center justify-center gap-3">
-                                                        {/* Bloque Hora */}
-                                                        <div className="flex flex-col items-center bg-slate-800 px-2 py-1 rounded border border-slate-700 min-w-[60px]">
-                                                            <div className="text-[10px] text-slate-400 uppercase font-bold">Poner a:</div>
-                                                            <div className="text-lg font-bold text-white leading-none">{startTimeStr}</div>
-                                                            <div className="text-[9px] text-slate-500">Duración: {formatTimeShort(row.chargeTime)}</div>
+                                                    <div className="flex flex-col items-center justify-center bg-slate-800/60 p-2 rounded border border-slate-700/50 w-full max-w-[180px] mx-auto">
+                                                        <div className="flex justify-between w-full text-xs mb-1">
+                                                            <span className="text-slate-400 font-bold">Hora inicio:</span>
+                                                            <span className="font-mono font-bold text-white text-right">{startTimeStr}</span>
                                                         </div>
-                                                        
-                                                        {/* Bloque Datos */}
-                                                        <div className="text-left text-xs">
-                                                            <div className="text-slate-300 font-bold">+{formatDecimal(row.kwhAdded, 1)} kWh</div>
-                                                            <div className="text-green-400 font-bold">+{formatDecimal(row.kmAdded, 0)} km</div>
+                                                        <div className="flex justify-between w-full text-xs border-b border-slate-600 pb-1 mb-1">
+                                                            <span className="text-slate-400 font-bold">Tiempo carga:</span>
+                                                            <span className="font-mono font-bold text-white text-right">{formatTimeShort(row.chargeTime)}</span>
+                                                        </div>
+                                                        <div className="flex justify-center gap-3 text-[10px] w-full">
+                                                             <span className="text-slate-300 font-bold">+{formatDecimal(row.kwhAdded, 1)} kWh</span>
+                                                             <span className="text-green-400 font-bold">+{formatDecimal(row.kmAdded, 0)} km</span>
                                                         </div>
                                                     </div>
                                                 ) : (
@@ -1297,7 +1303,7 @@
                     <div className="mt-4 p-3 bg-blue-900/20 border border-blue-500/20 rounded-lg text-xs font-bold text-blue-200 leading-relaxed">(*) Tesla recomienda cargar al 100% (LFP) una vez a la semana para mantener calibrada la batería y cada cierto tiempo (de forma casual o programada), por ejemplo cada 6 meses, hacerle una carga profunda desde lo más abajo que puedas hasta el 100%.</div>
                 </div>
 
-                {/* Ciclos de Carga Section */}
+                {/* Ciclos de Carga Section (CON NUEVA TARJETA DE EFICIENCIA) */}
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                     <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
                         <Icons.Activity /> Estimación de ciclos de carga
@@ -1318,7 +1324,7 @@
                                 </div>
                             </div>
 
-                            {/* GRID DE 3 TARJETAS */}
+                            {/* GRID DE 3 TARJETAS: CONDUCCION | VAMPIRO | EFICIENCIA */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
                                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Consumo Conducción</div>
