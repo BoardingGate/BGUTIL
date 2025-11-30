@@ -855,7 +855,7 @@
         );
       };
 
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (FINAL: COMENTARIO AÑADIDO) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICA SEMANAL AÑADIDA) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -874,6 +874,7 @@
         });
 
         const dayLabels = { Mon: 'Lunes', Tue: 'Martes', Wed: 'Miércoles', Thu: 'Jueves', Fri: 'Viernes', Sat: 'Sábado', Sun: 'Domingo' };
+        const dayInitials = { Mon: 'LU', Tue: 'MA', Wed: 'MI', Thu: 'JU', Fri: 'VI', Sat: 'SA', Sun: 'DO' };
         const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
         const handleChange = (key, value) => setState(prev => ({ ...prev, [key]: value })); 
@@ -1285,8 +1286,64 @@
                     </div>
                 </div>
 
+                {/* GRAPH PANEL (GRÁFICA DE BARRAS VERTICAL) */}
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 mt-6">
+                    <h4 className="text-sm font-bold text-slate-300 uppercase mb-6 flex items-center gap-2">
+                        <Icons.Activity className="w-4 h-4" /> Evolución de Carga Diaria (Inicio vs Fin)
+                    </h4>
+                    
+                    <div className="relative h-64 w-full">
+                        {/* Grid Lines */}
+                        <div className="absolute inset-0 flex flex-col justify-between text-xs font-bold text-slate-600 z-0 pointer-events-none">
+                            {[100, 75, 50, 25, 0].map(p => (
+                                <div key={p} className="flex items-center w-full">
+                                    <span className="w-8 text-right mr-2">{p}%</span>
+                                    <div className="flex-1 h-px bg-slate-700/50 dashed"></div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Bars Container */}
+                        <div className="absolute inset-0 flex justify-around items-end pl-10 pb-6 z-10 pt-2">
+                            {results.map((row) => (
+                                <div key={row.day} className="flex flex-col justify-end items-center h-full w-full gap-2 group">
+                                     {/* Bars Wrapper */}
+                                     <div className="flex items-end gap-1.5 h-full">
+                                         {/* Start Bar */}
+                                         <div className="relative w-3 md:w-5 bg-purple-400/80 rounded-t-sm hover:bg-purple-300 transition-all" 
+                                              style={{height: `${Math.min(100, Math.max(0, row.startPct))}%`}}>
+                                         </div>
+                                         
+                                         {/* End Bar */}
+                                         <div className={`relative w-3 md:w-5 rounded-t-sm transition-all ${row.endPct < 10 ? 'bg-red-500' : row.endPct < 20 ? 'bg-yellow-500' : 'bg-green-500'}`} 
+                                              style={{height: `${Math.min(100, Math.max(0, row.endPct))}%`}}>
+                                         </div>
+                                     </div>
+                                     
+                                     {/* X Axis Label */}
+                                     <span className={`text-xs font-bold ${row.day === 'Sat' || row.day === 'Sun' ? 'text-orange-400' : 'text-slate-400'}`}>
+                                         {dayInitials[row.day]}
+                                     </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                    
+                    {/* Legend */}
+                    <div className="flex justify-center gap-6 mt-2 text-xs font-bold">
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-purple-400/80 rounded-sm"></div>
+                            <span className="text-slate-400">Inicio Día</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-green-500 rounded-sm"></div>
+                            <span className="text-slate-400">Fin Día</span>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Summary Cards (TIPOGRAFÍA AUMENTADA) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
                     <div className="bg-slate-900/80 border border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-center">
                         <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Tiempo Total Carga</div>
                         <div className="text-4xl font-display font-bold text-white">{formatTimeShort(totalTime)}</div>
@@ -1519,7 +1576,7 @@
             </div>
         );
       };
-     
+
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
       const ChargeCurveCalculator = () => {
