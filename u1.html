@@ -855,7 +855,7 @@
         );
       };
 
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (CON CÁLCULO DE EFICIENCIA & FUENTES GRANDES) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (CON CÁLCULO DE EFICIENCIA, FUENTES GRANDES Y BARRA VISUAL) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1172,7 +1172,7 @@
                     </div>
                 </div>
 
-                {/* Weekly Grid Compacto (FUENTES MÁS GRANDES) */}
+                {/* Weekly Grid Compacto (FUENTES MÁS GRANDES Y DISEÑO BARRA) */}
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
                     <div className="overflow-x-auto">
                         <table className="w-full text-base">
@@ -1210,24 +1210,35 @@
                                                 </div>
                                             </td>
 
-                                            <td className="px-3 py-3">
-                                                <div className="flex flex-col w-full px-2 gap-2">
-                                                    <div className="flex justify-start">
-                                                        <div className="bg-slate-800/40 px-3 py-1 rounded flex items-baseline gap-2 w-full">
-                                                            <span className="text-xs text-slate-400 font-bold uppercase w-12">INICIO</span>
-                                                            <span className="font-bold text-white text-xl">{formatDecimal(row.startPct, 0)}%</span>
-                                                            <span className="text-sm text-slate-400 font-normal">({formatDecimal(startKm, 0)}km)</span>
+                                            <td className="px-3 py-3 align-middle">
+                                                <div className="flex flex-col w-full gap-2">
+                                                    {/* Fila Texto */}
+                                                    <div className="flex justify-between items-end w-full">
+                                                        {/* Izquierda: Inicio */}
+                                                        <div className="text-left flex flex-col items-start">
+                                                            <div className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">INICIO</div>
+                                                            <div className="flex items-baseline gap-1">
+                                                                <span className="font-bold text-white text-xl">{formatDecimal(row.startPct, 0)}%</span>
+                                                                <span className="text-xs text-slate-400 font-bold">({formatDecimal(startKm, 0)} km)</span>
+                                                            </div>
+                                                        </div>
+                                                        {/* Derecha: Fin */}
+                                                        <div className="text-right flex flex-col items-end">
+                                                            <div className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">FIN</div>
+                                                            <div className="flex items-baseline gap-1">
+                                                                <span className={`font-bold text-xl ${isNegative ? 'text-red-500' : row.endPct < 10 ? 'text-red-400' : row.endPct < 20 ? 'text-yellow-500' : 'text-white'}`}>
+                                                                    {formatDecimal(row.endPct, 0)}%
+                                                                </span>
+                                                                <span className="text-xs text-slate-400 font-bold">({formatDecimal(endKm, 0)} km)</span>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                    
-                                                    <div className="flex items-center justify-end">
-                                                        <div className="bg-slate-800/40 px-3 py-1 rounded flex items-baseline gap-2 w-full">
-                                                            <span className="text-xs text-slate-400 font-bold uppercase w-12">FIN</span>
-                                                            <span className={`font-bold text-xl ${isNegative ? 'text-red-500' : row.endPct < 10 ? 'text-red-400' : row.endPct < 20 ? 'text-yellow-500' : 'text-orange-200'}`}>
-                                                                {formatDecimal(row.endPct, 0)}%
-                                                            </span>
-                                                            <span className="text-sm text-slate-400 font-normal">({formatDecimal(endKm, 0)}km)</span>
-                                                        </div>
+                                                    {/* Fila Barra de Progreso */}
+                                                    <div className="w-full bg-slate-700 h-[5px] rounded-full overflow-hidden shadow-inner">
+                                                        <div 
+                                                            className={`h-full transition-all duration-500 bg-green-500`} 
+                                                            style={{ width: `${Math.max(0, Math.min(100, row.endPct))}%` }}
+                                                        ></div>
                                                     </div>
                                                 </div>
                                             </td>
@@ -1499,6 +1510,7 @@
             </div>
         );
       };
+
       
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
