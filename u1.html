@@ -856,7 +856,7 @@
       };
 
    
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICA FINAL: GRADIENTE PROFUNDO, TEXTOS UNIFICADOS, EJE Y CORREGIDO) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (EJE Y ALINEADO PERFECTO + FUENTES XL + GRADIENTE PROFUNDO) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1287,7 +1287,7 @@
                     </div>
                 </div>
 
-                {/* GRAPH PANEL + SIDE CARDS (CORREGIDO: GRADIENTE ABSOLUTO Y TEXTOS GRANDES Y EJE Y ABAJO) */}
+                {/* GRAPH PANEL + SIDE CARDS (CORREGIDO: ALINEACIÓN Y Y TAMAÑOS) */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
                     {/* Gráfica Compacta */}
                     <div className="lg:col-span-8 bg-slate-900/50 border border-slate-800 rounded-xl p-6">
@@ -1295,45 +1295,45 @@
                             <Icons.Activity className="w-4 h-4" /> Evolución de Carga Diaria (Inicio vs Fin)
                         </h4>
                         
-                        <div className="flex h-64 mt-6">
-                            {/* Y-Axis Labels (Left) - CORREGIDO FLEX-COL-REVERSE */}
-                            <div className="w-12 flex flex-col-reverse justify-between text-xs text-slate-500 font-bold py-0 h-full">
-                                <span>0%</span>
-                                <span>25%</span>
-                                <span>50%</span>
-                                <span>75%</span>
-                                <span>100%</span>
-                            </div>
+                        {/* Se separa el contenedor para que la altura de los ejes sea correcta */}
+                        <div className="mt-4">
+                            <div className="flex h-64">
+                                {/* Y-Axis Labels (Left) - CORREGIDO: flex-col-reverse */}
+                                <div className="w-12 flex flex-col-reverse justify-between text-xs text-slate-500 font-bold py-0 h-full pr-2 text-right">
+                                    <span>0%</span>
+                                    <span>25%</span>
+                                    <span>50%</span>
+                                    <span>75%</span>
+                                    <span>100%</span>
+                                </div>
 
-                            {/* Chart Area */}
-                            <div className="flex-1 flex flex-col h-full">
-                                {/* Bars Area (Height defined) */}
-                                <div className="relative flex-1 border-l border-b border-slate-700">
+                                {/* Chart Area (Bars) */}
+                                <div className="relative flex-1 border-l border-b border-slate-700 h-full">
                                     {/* Grid Lines */}
                                     <div className="absolute inset-0 flex flex-col justify-between pointer-events-none z-0">
                                         {[...Array(5)].map((_, i) => <div key={i} className="w-full h-px bg-slate-800/50 dashed"></div>)}
                                     </div>
 
-                                    {/* Bars Container (Absolute to fill grid) */}
+                                    {/* Bars Container */}
                                     <div className="absolute inset-0 flex items-end z-10">
                                         {results.map((row, i) => {
-                                            // ESTILO GRADIENTE FIJO (256px de altura, igual al contenedor)
-                                            // 022c22 (Dark Green) -> 22c55e (Bright Green)
+                                            // ESTILO GRADIENTE FIJO (Negro Verdoso -> Verde Brillante)
+                                            // Fixed height (h-64 = 256px) para continuidad de color
                                             const getGradientStyle = (pct) => ({
                                                 height: `${Math.min(100, Math.max(0, pct))}%`,
                                                 backgroundImage: 'linear-gradient(to top, #022c22 0%, #22c55e 100%)', 
-                                                backgroundSize: '100% 256px', // Altura fija del contenedor
+                                                backgroundSize: '100% 256px', 
                                                 backgroundRepeat: 'no-repeat',
                                                 backgroundPosition: 'bottom'
                                             });
 
                                             return (
                                                 <div key={i} className="flex-1 h-full flex items-end group">
-                                                    {/* Start Bar (Mismo estilo exacto - SIN OPACIDAD) */}
+                                                    {/* Start Bar (Solido, mismo gradiente) */}
                                                     <div style={getGradientStyle(row.startPct)} 
                                                          className="w-1/2 rounded-tl-sm transition-all hover:brightness-110">
                                                     </div>
-                                                    {/* End Bar (Mismo estilo exacto) */}
+                                                    {/* End Bar (Solido, mismo gradiente) */}
                                                     <div style={getGradientStyle(row.endPct)} 
                                                          className="w-1/2 rounded-tr-sm transition-all hover:brightness-110">
                                                     </div>
@@ -1342,33 +1342,36 @@
                                         })}
                                     </div>
                                 </div>
+                            </div>
 
-                                {/* X-Axis Labels (Bottom - Outside Chart with Target & Autonomy UNIFICADA) */}
-                                <div className="flex w-full pt-3 h-16">
-                                    {results.map((row, i) => {
-                                        const isCharging = row.chargeTime > 0;
-                                        const targetPct = row.target;
-                                        const totalRangeAtTarget = (targetPct / 100) * (state.battery / state.consumption) * 100;
+                            {/* X-Axis Labels (Bottom - SEPARADO para alineación) */}
+                            <div className="flex w-full pt-3 h-20 pl-12">
+                                {results.map((row, i) => {
+                                    const isCharging = row.chargeTime > 0;
+                                    const targetPct = row.target;
+                                    const totalRangeAtTarget = (targetPct / 100) * (state.battery / state.consumption) * 100;
 
-                                        return (
-                                            <div key={i} className="flex-1 flex flex-col items-center justify-start">
-                                                <span className={`text-lg font-bold ${['Sat','Sun'].includes(row.day) ? 'text-orange-400' : 'text-slate-400'}`}>
-                                                    {dayInitials[row.day]}
-                                                </span>
-                                                {isCharging && (
-                                                    <div className="flex flex-col items-center mt-1">
-                                                        <span className="text-lg font-bold text-blue-300 leading-none">
-                                                            {targetPct}%
-                                                        </span>
-                                                        <span className="text-lg font-bold text-slate-500 leading-tight">
-                                                            {formatDecimal(totalRangeAtTarget, 0)} km
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                    return (
+                                        <div key={i} className="flex-1 flex flex-col items-center justify-start">
+                                            {/* DÍA: TAMAÑO XL */}
+                                            <span className={`text-xl font-bold ${['Sat','Sun'].includes(row.day) ? 'text-orange-400' : 'text-slate-400'}`}>
+                                                {dayInitials[row.day]}
+                                            </span>
+                                            {isCharging && (
+                                                <div className="flex flex-col items-center mt-1">
+                                                    {/* PORCENTAJE: TAMAÑO XL */}
+                                                    <span className="text-xl font-bold text-blue-300 leading-none mb-1">
+                                                        {targetPct}%
+                                                    </span>
+                                                    {/* KM: TAMAÑO XL (IGUALADO) */}
+                                                    <span className="text-xl font-bold text-slate-500 leading-none">
+                                                        {formatDecimal(totalRangeAtTarget, 0)} km
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     </div>
