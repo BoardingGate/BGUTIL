@@ -855,7 +855,7 @@
         );
       };
 
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (CORREGIDO CÁLCULO VISUAL KM+VAMPIRO) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (COLORES TEXTO COINCIDENTES) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1212,19 +1212,19 @@
                                                 <div className="flex flex-col w-full gap-1">
                                                     {/* Fila Texto */}
                                                     <div className="flex justify-between items-end w-full">
-                                                        {/* Izquierda: Inicio */}
+                                                        {/* Izquierda: Inicio (LILA) */}
                                                         <div className="text-left flex flex-col items-start">
                                                             <div className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">INICIO</div>
                                                             <div className="flex items-baseline gap-1.5">
-                                                                <span className="font-bold text-white text-xl">{formatDecimal(row.startPct, 0)}%</span>
+                                                                <span className="font-bold text-purple-300 text-xl">{formatDecimal(row.startPct, 0)}%</span>
                                                                 <span className="text-sm text-slate-400 font-bold">({formatDecimal(startKm, 0)} km)</span>
                                                             </div>
                                                         </div>
-                                                        {/* Derecha: Fin */}
+                                                        {/* Derecha: Fin (VERDE) */}
                                                         <div className="text-right flex flex-col items-end">
                                                             <div className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">FIN</div>
                                                             <div className="flex items-baseline gap-1.5">
-                                                                <span className={`font-bold text-xl ${isNegative ? 'text-red-500' : row.endPct < 10 ? 'text-red-400' : row.endPct < 20 ? 'text-yellow-500' : 'text-white'}`}>
+                                                                <span className={`font-bold text-xl ${isNegative ? 'text-red-500' : row.endPct < 10 ? 'text-red-400' : row.endPct < 20 ? 'text-yellow-500' : 'text-green-400'}`}>
                                                                     {formatDecimal(row.endPct, 0)}%
                                                                 </span>
                                                                 <span className="text-sm text-slate-400 font-bold">({formatDecimal(endKm, 0)} km)</span>
@@ -1514,6 +1514,7 @@
             </div>
         );
       };
+  
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
@@ -2411,6 +2412,7 @@
 
       const App = () => {
         const [activeTab, setActiveTab] = useState('strategy'); 
+          
         const [simParams, setSimParams] = usePersistentState('simParams', { speed: 120, temperature: 20, gradient: 0, windSpeed: 0, electricConsumptionRef: 14, batteryCapacity: 60 });
         const [simCosts, setSimCosts] = usePersistentState('simCosts', { electricityPrice: 0.08, gasPrice: 1.45, gasConsumptionRef: 6.5 });
         const [consumption, setConsumption] = useState(0);
@@ -2475,8 +2477,7 @@
             </div>
         );
       };
-        
-        
+          
    
       const root = createRoot(document.getElementById('root'));
       root.render(<App />);
