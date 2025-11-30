@@ -2410,8 +2410,8 @@
       // --- APP PRINCIPAL ---
 
       const App = () => {
-        // Se ha cambiado la clave a 'activeTab_v4' para forzar el reseteo a 'strategy' por defecto
-        const [activeTab, setActiveTab] = usePersistentState('activeTab_v4', 'strategy'); 
+        const [activeTab, setActiveTab] = useState('strategy'); 
+          
         const [simParams, setSimParams] = usePersistentState('simParams', { speed: 120, temperature: 20, gradient: 0, windSpeed: 0, electricConsumptionRef: 14, batteryCapacity: 60 });
         const [simCosts, setSimCosts] = usePersistentState('simCosts', { electricityPrice: 0.08, gasPrice: 1.45, gasConsumptionRef: 6.5 });
         const [consumption, setConsumption] = useState(0);
@@ -2476,8 +2476,7 @@
             </div>
         );
       };
-        
-        
+          
    
       const root = createRoot(document.getElementById('root'));
       root.render(<App />);
