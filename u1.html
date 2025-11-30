@@ -855,7 +855,7 @@
         );
       };
 
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICA GRADIENTE REAL + TEXTOS GRANDES) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICA CORREGIDA: MISMO COLOR EXACTO + TEXTOS AJUSTADOS) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1316,25 +1316,25 @@
                                     {/* Bars Container (Absolute to fill grid) */}
                                     <div className="absolute inset-0 flex items-end z-10">
                                         {results.map((row, i) => {
-                                            // Define the style object for FIXED absolute gradient (Same for both bars)
-                                            // height is the variable, backgroundSize is fixed to container height (256px)
+                                            // ESTILO GRADIENTE FIJO (256px de altura, igual al contenedor)
+                                            // Esto asegura que el tono de verde sea idéntico en todas las barras a la misma altura
                                             const getGradientStyle = (pct) => ({
                                                 height: `${Math.min(100, Math.max(0, pct))}%`,
                                                 backgroundImage: 'linear-gradient(to top, #14532d, #22c55e)', // green-900 to green-500
-                                                backgroundSize: '100% 256px', // Fits the container height (h-64 = 16rem = 256px)
+                                                backgroundSize: '100% 256px', // Altura fija del contenedor
                                                 backgroundRepeat: 'no-repeat',
                                                 backgroundPosition: 'bottom'
                                             });
 
                                             return (
                                                 <div key={i} className="flex-1 h-full flex items-end group">
-                                                    {/* Start Bar */}
+                                                    {/* Start Bar (Mismo estilo exacto) */}
                                                     <div style={getGradientStyle(row.startPct)} 
-                                                         className="w-1/2 rounded-t-[1px] opacity-80 hover:opacity-100 transition-all">
+                                                         className="w-1/2 rounded-tl-sm transition-all hover:brightness-110">
                                                     </div>
-                                                    {/* End Bar (Same Gradient Style) */}
+                                                    {/* End Bar (Mismo estilo exacto) */}
                                                     <div style={getGradientStyle(row.endPct)} 
-                                                         className="w-1/2 rounded-t-[1px] hover:brightness-110 transition-all">
+                                                         className="w-1/2 rounded-tr-sm transition-all hover:brightness-110">
                                                     </div>
                                                 </div>
                                             );
@@ -1343,7 +1343,7 @@
                                 </div>
 
                                 {/* X-Axis Labels (Bottom - Outside Chart with Target & Autonomy) */}
-                                <div className="flex w-full pt-2 h-14">
+                                <div className="flex w-full pt-2 h-16">
                                     {results.map((row, i) => {
                                         const isCharging = row.chargeTime > 0;
                                         const targetPct = row.target;
@@ -1356,10 +1356,10 @@
                                                 </span>
                                                 {isCharging && (
                                                     <div className="flex flex-col items-center mt-0.5">
-                                                        <span className="text-sm font-bold text-blue-300 leading-tight">
+                                                        <span className="text-lg font-bold text-blue-300 leading-none">
                                                             {targetPct}%
                                                         </span>
-                                                        <span className="text-sm font-bold text-slate-500 leading-tight">
+                                                        <span className="text-xs font-bold text-slate-500 leading-tight mt-0.5">
                                                             {formatDecimal(totalRangeAtTarget, 0)} km
                                                         </span>
                                                     </div>
@@ -1615,7 +1615,7 @@
             </div>
         );
       };
-  
+
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
