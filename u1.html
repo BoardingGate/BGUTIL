@@ -855,7 +855,7 @@
         );
       };
 
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICA FINAL: DATOS OBJETIVO Y AUTONOMÍA) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICA GRADIENTE REAL + TEXTOS GRANDES) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1286,7 +1286,7 @@
                     </div>
                 </div>
 
-                {/* GRAPH PANEL + SIDE CARDS (CORREGIDO: EJE X CON DATOS) */}
+                {/* GRAPH PANEL + SIDE CARDS (CORREGIDO: GRADIENTE ABSOLUTO Y TEXTOS GRANDES) */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
                     {/* Gráfica Compacta */}
                     <div className="lg:col-span-8 bg-slate-900/50 border border-slate-800 rounded-xl p-6">
@@ -1315,18 +1315,29 @@
 
                                     {/* Bars Container (Absolute to fill grid) */}
                                     <div className="absolute inset-0 flex items-end z-10">
-                                        {results.map((row, i) => (
-                                            <div key={i} className="flex-1 h-full flex items-end group">
-                                                {/* Start Bar (Gradient) */}
-                                                <div style={{height: `${Math.min(100, Math.max(0, row.startPct))}%`}} 
-                                                     className="w-1/2 bg-gradient-to-t from-green-900 to-green-600 hover:from-green-800 hover:to-green-500 transition-all relative rounded-t-[1px]">
+                                        {results.map((row, i) => {
+                                            // Define the style object for FIXED absolute gradient
+                                            const getGradientStyle = (pct) => ({
+                                                height: `${Math.min(100, Math.max(0, pct))}%`,
+                                                backgroundImage: 'linear-gradient(to top, #14532d, #22c55e)', // green-900 to green-500
+                                                backgroundSize: '100% 256px', // Fits the container height (h-64)
+                                                backgroundRepeat: 'no-repeat',
+                                                backgroundPosition: 'bottom'
+                                            });
+
+                                            return (
+                                                <div key={i} className="flex-1 h-full flex items-end group">
+                                                    {/* Start Bar */}
+                                                    <div style={getGradientStyle(row.startPct)} 
+                                                         className="w-1/2 rounded-t-[1px] opacity-80 hover:opacity-100 transition-all">
+                                                    </div>
+                                                    {/* End Bar */}
+                                                    <div style={getGradientStyle(row.endPct)} 
+                                                         className="w-1/2 rounded-t-[1px] hover:brightness-110 transition-all">
+                                                    </div>
                                                 </div>
-                                                {/* End Bar (Gradient) */}
-                                                <div style={{height: `${Math.min(100, Math.max(0, row.endPct))}%`}} 
-                                                     className="w-1/2 bg-gradient-to-t from-green-900 to-green-600 hover:from-green-800 hover:to-green-500 transition-all relative rounded-t-[1px]">
-                                                </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
@@ -1347,7 +1358,7 @@
                                                         <span className="text-sm font-bold text-blue-300 leading-tight">
                                                             {targetPct}%
                                                         </span>
-                                                        <span className="text-[10px] font-bold text-slate-500 leading-tight">
+                                                        <span className="text-sm font-bold text-slate-500 leading-tight">
                                                             {formatDecimal(totalRangeAtTarget, 0)} km
                                                         </span>
                                                     </div>
@@ -1603,7 +1614,7 @@
             </div>
         );
       };
- 
+  
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
