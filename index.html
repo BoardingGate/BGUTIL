@@ -855,7 +855,7 @@
         );
       };
 
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (COLORES TEXTO COINCIDENTES) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (FINAL: COMENTARIO AÑADIDO) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1162,6 +1162,11 @@
                                         +{formatDecimal(windowStats.km, 0)} km <span className="text-slate-500 font-bold">[min: {formatDecimal(minStartKmToFull, 0)} km]</span>
                                     </div>
                                 </div>
+                            </div>
+                            
+                            {/* COMENTARIO AÑADIDO AL PIE DE LA TARJETA */}
+                            <div className="mt-4 pt-3 border-t border-blue-500/20 text-[11px] font-bold text-blue-200 leading-tight">
+                                (*) Se sugiere la hora de inicio de carga de tal forma que termine momentos antes de su utilización. No es recomendable cargar al 100% si no va a utilizar el coche. Un truco si no va a usarlo es activar el Centinela para descargar un poco la batería.
                             </div>
                         </div>
                     </div>
@@ -1514,8 +1519,7 @@
             </div>
         );
       };
-  
-
+     
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
       const ChargeCurveCalculator = () => {
