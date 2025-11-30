@@ -855,7 +855,7 @@
         );
       };
 
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICA LIMPIA + DATOS DE CARGA EN EJE X) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICA FINAL: DATOS OBJETIVO Y AUTONOMÍA) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1286,7 +1286,7 @@
                     </div>
                 </div>
 
-                {/* GRAPH PANEL + SIDE CARDS (CORREGIDO: LEYENDA FUERA, DATOS EN EJE X) */}
+                {/* GRAPH PANEL + SIDE CARDS (CORREGIDO: EJE X CON DATOS) */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
                     {/* Gráfica Compacta */}
                     <div className="lg:col-span-8 bg-slate-900/50 border border-slate-800 rounded-xl p-6">
@@ -1330,20 +1330,27 @@
                                     </div>
                                 </div>
 
-                                {/* X-Axis Labels (Bottom - Outside Chart with Added %) */}
-                                <div className="flex w-full pt-2 h-12">
+                                {/* X-Axis Labels (Bottom - Outside Chart with Target & Autonomy) */}
+                                <div className="flex w-full pt-2 h-14">
                                     {results.map((row, i) => {
-                                        // Calcular % añadido solo si hay carga
-                                        const pctAdded = (row.kwhAdded / state.battery) * 100;
+                                        const isCharging = row.chargeTime > 0;
+                                        const targetPct = row.target;
+                                        const totalRangeAtTarget = (targetPct / 100) * (state.battery / state.consumption) * 100;
+
                                         return (
                                             <div key={i} className="flex-1 flex flex-col items-center justify-start">
                                                 <span className={`text-xs font-bold ${['Sat','Sun'].includes(row.day) ? 'text-orange-400' : 'text-slate-400'}`}>
                                                     {dayInitials[row.day]}
                                                 </span>
-                                                {row.chargeTime > 0 && (
-                                                    <span className="text-[10px] font-bold text-green-400 mt-0.5">
-                                                        +{Math.round(pctAdded)}%
-                                                    </span>
+                                                {isCharging && (
+                                                    <div className="flex flex-col items-center mt-0.5">
+                                                        <span className="text-sm font-bold text-blue-300 leading-tight">
+                                                            {targetPct}%
+                                                        </span>
+                                                        <span className="text-[10px] font-bold text-slate-500 leading-tight">
+                                                            {formatDecimal(totalRangeAtTarget, 0)} km
+                                                        </span>
+                                                    </div>
                                                 )}
                                             </div>
                                         );
@@ -1596,7 +1603,7 @@
             </div>
         );
       };
-
+ 
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
