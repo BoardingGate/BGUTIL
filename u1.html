@@ -855,7 +855,7 @@
         );
       };
 
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (FINAL: GRÁFICA GRADIENTE UNIFICADO) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICA LIMPIA + DATOS DE CARGA EN EJE X) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1286,7 +1286,7 @@
                     </div>
                 </div>
 
-                {/* GRAPH PANEL + SIDE CARDS (CORREGIDO: GRADIENTE UNIFICADO) */}
+                {/* GRAPH PANEL + SIDE CARDS (CORREGIDO: LEYENDA FUERA, DATOS EN EJE X) */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
                     {/* Gráfica Compacta */}
                     <div className="lg:col-span-8 bg-slate-900/50 border border-slate-800 rounded-xl p-6">
@@ -1330,26 +1330,25 @@
                                     </div>
                                 </div>
 
-                                {/* X-Axis Labels (Bottom - Outside Chart) */}
-                                <div className="flex w-full pt-3 h-8">
-                                    {results.map((row, i) => (
-                                        <div key={i} className={`flex-1 text-center text-xs font-bold ${['Sat','Sun'].includes(row.day) ? 'text-orange-400' : 'text-slate-400'}`}>
-                                            {dayInitials[row.day]}
-                                        </div>
-                                    ))}
+                                {/* X-Axis Labels (Bottom - Outside Chart with Added %) */}
+                                <div className="flex w-full pt-2 h-12">
+                                    {results.map((row, i) => {
+                                        // Calcular % añadido solo si hay carga
+                                        const pctAdded = (row.kwhAdded / state.battery) * 100;
+                                        return (
+                                            <div key={i} className="flex-1 flex flex-col items-center justify-start">
+                                                <span className={`text-xs font-bold ${['Sat','Sun'].includes(row.day) ? 'text-orange-400' : 'text-slate-400'}`}>
+                                                    {dayInitials[row.day]}
+                                                </span>
+                                                {row.chargeTime > 0 && (
+                                                    <span className="text-[10px] font-bold text-green-400 mt-0.5">
+                                                        +{Math.round(pctAdded)}%
+                                                    </span>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                            </div>
-                        </div>
-                        
-                        {/* Legend Updated */}
-                        <div className="flex justify-center gap-6 mt-4 text-xs font-bold">
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 bg-gradient-to-t from-green-900 to-green-600 rounded-sm"></div>
-                                <span className="text-slate-400">Inicio Día</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 bg-gradient-to-t from-green-900 to-green-600 rounded-sm"></div>
-                                <span className="text-slate-400">Fin Día</span>
                             </div>
                         </div>
                     </div>
@@ -1598,7 +1597,6 @@
         );
       };
 
-  
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
