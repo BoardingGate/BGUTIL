@@ -2173,7 +2173,7 @@
                             <div className="flex flex-col leading-none pt-2">
                                 <span className="text-xs text-orange-400 font-bold">P2</span>
                                 <span className="text-[10px] text-slate-400 font-bold mt-1">{formatDecimal(percentages.p2, 0)}%</span>
-                                <span className="text-[10px] text-slate-500 font-mono mt-0.5">[{formatDecimal(consumptionData.p2, 0)} kWh</span>
+                                <span className="text-[10px] text-slate-500 font-mono mt-0.5">{formatDecimal(consumptionData.p2, 0)} kWh</span>
                             </div>
                             <div className="col-span-4">
                                 <FormattedInput value={data.priceEnP2} onChange={v => onChange(propKey, 'priceEnP2', v)} decimals={6}/>
