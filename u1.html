@@ -1158,16 +1158,12 @@
                                 <div>
                                     <div className="text-xs font-bold text-slate-400 uppercase mb-1">Máx. Carga Posible</div>
                                     <div className="text-xl font-bold text-white font-mono">
-                                        +{formatDecimal(windowStats.pct, 0)}% 
+                                        +{formatDecimal(windowStats.pct, 0)}%  [+{formatDecimal(windowStats.km, 0)} km]
                                     </div>
                                     <div className="text-xl font-bold text-white font-mono">
-                                        <span className="text-sm text-slate-400 font-bold">(% mínimo para 100%: {formatDecimal(minStartPctToFull, 0)}%)</span>
-                                        <span className="text-slate-500 font-bold">[Idem KM: {formatDecimal(minStartKmToFull, 0)} km]</span>
+                                        <span className="text-sm text-slate-400 font-bold">Mínimo para 100%: {formatDecimal(minStartPctToFull, 0)}% [{formatDecimal(minStartKmToFull, 0)} km]</span>
                                     </div>
     
-                                    <div className="text-sm font-bold text-slate-500">
-                                        +{formatDecimal(windowStats.km, 0)} km 
-                                    </div>
                                 </div>
                             </div>
                             
