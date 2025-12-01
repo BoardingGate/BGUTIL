@@ -2108,7 +2108,7 @@
         };
 
      
-      const ProposalColumn = ({ propKey, title, data, powerData, onChange }) => {
+      const ProposalColumn = ({ propKey, title, data, powerData, percentages, onChange }) => {
             // Cálculos auxiliares para visualización
             const calcP1Annual = data.pricePotP1 * 365 * powerData.p1;
             const calcP1KwYear = data.pricePotP1 * 365;
@@ -2152,23 +2152,38 @@
                     <h4 className="text-xs uppercase font-bold text-slate-300 mb-2">Energía (€/kWh)</h4>
                     <div className="space-y-3 mb-6">
                         <div className="grid grid-cols-5 gap-2 items-center">
-                            <span className="text-xs text-red-400 font-bold">P1</span>
+                            <div className="flex flex-col leading-none">
+                                <span className="text-xs text-red-400 font-bold">P1</span>
+                                <span className="text-[10px] text-slate-500 font-bold mt-0.5">{formatDecimal(percentages.p1, 0)}%</span>
+                            </div>
                             <span className="col-span-4"><FormattedInput value={data.priceEnP1} onChange={v => onChange(propKey, 'priceEnP1', v)} decimals={6}/></span>
                         </div>
                         <div className="grid grid-cols-5 gap-2 items-center">
-                            <span className="text-xs text-orange-400 font-bold">P2</span>
+                            <div className="flex flex-col leading-none">
+                                <span className="text-xs text-orange-400 font-bold">P2</span>
+                                <span className="text-[10px] text-slate-500 font-bold mt-0.5">{formatDecimal(percentages.p2, 0)}%</span>
+                            </div>
                             <span className="col-span-4"><FormattedInput value={data.priceEnP2} onChange={v => onChange(propKey, 'priceEnP2', v)} decimals={6}/></span>
                         </div>
                         <div className="grid grid-cols-5 gap-2 items-center">
-                            <span className="text-xs text-green-400 font-bold">P3</span>
+                            <div className="flex flex-col leading-none">
+                                <span className="text-xs text-green-400 font-bold">P3</span>
+                                <span className="text-[10px] text-slate-500 font-bold mt-0.5">{formatDecimal(percentages.p3, 0)}%</span>
+                            </div>
                             <span className="col-span-4"><FormattedInput value={data.priceEnP3} onChange={v => onChange(propKey, 'priceEnP3', v)} decimals={6}/></span>
                         </div>
                         <div className="grid grid-cols-5 gap-2 items-center">
-                            <span className="text-xs text-blue-400 font-bold whitespace-nowrap">P3 VE</span>
+                            <div className="flex flex-col leading-none">
+                                <span className="text-xs text-blue-400 font-bold whitespace-nowrap">P3 VE</span>
+                                <span className="text-[10px] text-slate-500 font-bold mt-0.5">{formatDecimal(percentages.p3Ve, 0)}%</span>
+                            </div>
                             <span className="col-span-4"><FormattedInput value={data.priceEnP3Ve} onChange={v => onChange(propKey, 'priceEnP3Ve', v)} decimals={6}/></span>
                         </div>
                         <div className="grid grid-cols-5 gap-2 items-center">
-                            <span className="text-xs text-purple-400 font-bold">P4</span>
+                            <div className="flex flex-col leading-none">
+                                <span className="text-xs text-purple-400 font-bold">P4</span>
+                                <span className="text-[10px] text-slate-500 font-bold mt-0.5">{formatDecimal(percentages.p4, 0)}%</span>
+                            </div>
                             <span className="col-span-4"><FormattedInput value={data.priceEnP4} onChange={v => onChange(propKey, 'priceEnP4', v)} decimals={6}/></span>
                         </div>
                     </div>
@@ -2335,6 +2350,16 @@
         // If diff > 0, A is cheaper (B - A > 0). If diff < 0, B is cheaper.
         const winnerEVCost = diff > 0 ? evCostA : evCostB;
 
+        // --- CÁLCULO DE PORCENTAJES DE CONSUMO ---
+        const totalCons = tState.consTotal > 0 ? tState.consTotal : 1; // Evitar división por 0
+        const pctP1 = (tState.p1Kwh / totalCons) * 100;
+        const pctP2 = (tState.p2Kwh / totalCons) * 100;
+        const pctP3 = (tState.p3Kwh / totalCons) * 100;
+        const pctP3Ve = (tState.p3VeKwh / totalCons) * 100;
+        const pctP4 = (tState.p4Kwh / totalCons) * 100;
+
+        const percentages = { p1: pctP1, p2: pctP2, p3: pctP3, p3Ve: pctP3Ve, p4: pctP4 };
+
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
                 {/* CONFIGURACIÓN SUPERIOR (Full Width) */}
@@ -2372,22 +2397,27 @@
                             <div className="bg-red-900/20 p-3 rounded border border-red-900/30 text-center">
                                 <label className="text-[10px] font-bold text-red-300 block mb-1">P1 (Punta)</label>
                                 <FormattedInput value={tState.p1Kwh} onChange={v => handleConsChange('p1Kwh', v)} decimals={0}/>
+                                <div className="text-xs font-bold text-red-300 mt-1">{formatDecimal(pctP1, 1)}%</div>
                             </div>
                             <div className="bg-orange-900/20 p-3 rounded border border-orange-900/30 text-center">
                                 <label className="text-[10px] font-bold text-orange-300 block mb-1">P2 (Llano)</label>
                                 <FormattedInput value={tState.p2Kwh} onChange={v => handleConsChange('p2Kwh', v)} decimals={0}/>
+                                <div className="text-xs font-bold text-orange-300 mt-1">{formatDecimal(pctP2, 1)}%</div>
                             </div>
                             <div className="bg-green-900/20 p-3 rounded border border-green-900/30 text-center">
                                 <label className="text-[10px] font-bold text-green-300 block mb-1">P3 (Valle)</label>
                                 <FormattedInput value={tState.p3Kwh} onChange={v => handleConsChange('p3Kwh', v)} decimals={0}/>
+                                <div className="text-xs font-bold text-green-300 mt-1">{formatDecimal(pctP3, 1)}%</div>
                             </div>
                             <div className="bg-blue-900/20 p-3 rounded border border-blue-900/30 text-center relative overflow-hidden">
                                 <label className="text-[10px] font-bold text-blue-300 block mb-1">P3 (VE)</label>
                                 <FormattedInput value={tState.p3VeKwh} onChange={v => handleConsChange('p3VeKwh', v)} decimals={0}/>
+                                <div className="text-xs font-bold text-blue-300 mt-1">{formatDecimal(pctP3Ve, 1)}%</div>
                             </div>
                             <div className="bg-purple-900/20 p-3 rounded border border-purple-900/30 text-center">
                                 <label className="text-[10px] font-bold text-purple-300 block mb-1">P4 (Extra)</label>
                                 <FormattedInput value={tState.p4Kwh} onChange={v => handleConsChange('p4Kwh', v)} decimals={0}/>
+                                <div className="text-xs font-bold text-purple-300 mt-1">{formatDecimal(pctP4, 1)}%</div>
                             </div>
                         </div>
                     </div>
@@ -2395,11 +2425,11 @@
 
                 {/* COLUMNAS PROPUESTAS */}
                 <div className="lg:col-span-3">
-                    <ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} onChange={handlePropChange} />
+                    <ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} percentages={percentages} onChange={handlePropChange} />
                 </div>
                 
                 <div className="lg:col-span-3">
-                    <ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} onChange={handlePropChange} />
+                    <ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} percentages={percentages} onChange={handlePropChange} />
                 </div>
 
                 {/* RESULTADOS */}
