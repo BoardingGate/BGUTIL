@@ -2108,7 +2108,7 @@
         };
 
 
-      // --- PROPOSAL COLUMN (CORREGIDO: CÁLCULOS INTERMEDIOS DE EUROS Y PORCENTAJES) ---
+      // --- PROPOSAL COLUMN (CORREGIDO: kWh bajo etiquetas y texto % ajustado) ---
       const ProposalColumn = ({ propKey, title, data, powerData, consData, onChange }) => {
             // Protección contra undefined
             const p1Pot = powerData?.p1 || 0;
@@ -2171,46 +2171,62 @@
                     <div className="space-y-3 mb-6">
                         {/* P1 */}
                         <div className="grid grid-cols-12 gap-2 items-center">
-                            <span className="col-span-1 text-xs text-red-400 font-bold">P1</span>
-                            <div className="col-span-7"><FormattedInput value={data.priceEnP1} onChange={v => onChange(propKey, 'priceEnP1', v)} decimals={6}/></div>
+                            <div className="col-span-2 flex flex-col leading-tight">
+                                <span className="text-xs text-red-400 font-bold">P1</span>
+                                <span className="text-[9px] text-slate-500 font-mono">{formatDecimal(p1Kwh, 0)}</span>
+                            </div>
+                            <div className="col-span-6"><FormattedInput value={data.priceEnP1} onChange={v => onChange(propKey, 'priceEnP1', v)} decimals={6}/></div>
                             <div className="col-span-4 text-right flex flex-col justify-center">
                                 <span className="text-xs font-bold text-slate-200">{formatDecimal(costP1, 1)}€</span>
-                                <span className="text-[9px] font-bold text-slate-500">{formatDecimal(getPct(p1Kwh), 0)}% tot</span>
+                                <span className="text-[9px] font-bold text-slate-500">{formatDecimal(getPct(p1Kwh), 0)}% kWh</span>
                             </div>
                         </div>
                         {/* P2 */}
                         <div className="grid grid-cols-12 gap-2 items-center">
-                            <span className="col-span-1 text-xs text-orange-400 font-bold">P2</span>
-                            <div className="col-span-7"><FormattedInput value={data.priceEnP2} onChange={v => onChange(propKey, 'priceEnP2', v)} decimals={6}/></div>
+                            <div className="col-span-2 flex flex-col leading-tight">
+                                <span className="text-xs text-orange-400 font-bold">P2</span>
+                                <span className="text-[9px] text-slate-500 font-mono">{formatDecimal(p2Kwh, 0)}</span>
+                            </div>
+                            <div className="col-span-6"><FormattedInput value={data.priceEnP2} onChange={v => onChange(propKey, 'priceEnP2', v)} decimals={6}/></div>
                             <div className="col-span-4 text-right flex flex-col justify-center">
                                 <span className="text-xs font-bold text-slate-200">{formatDecimal(costP2, 1)}€</span>
-                                <span className="text-[9px] font-bold text-slate-500">{formatDecimal(getPct(p2Kwh), 0)}% tot</span>
+                                <span className="text-[9px] font-bold text-slate-500">{formatDecimal(getPct(p2Kwh), 0)}% kWh</span>
                             </div>
                         </div>
                         {/* P3 */}
                         <div className="grid grid-cols-12 gap-2 items-center">
-                            <span className="col-span-1 text-xs text-green-400 font-bold">P3</span>
-                            <div className="col-span-7"><FormattedInput value={data.priceEnP3} onChange={v => onChange(propKey, 'priceEnP3', v)} decimals={6}/></div>
+                            <div className="col-span-2 flex flex-col leading-tight">
+                                <span className="text-xs text-green-400 font-bold">P3</span>
+                                <span className="text-[9px] text-slate-500 font-mono">{formatDecimal(p3Kwh, 0)}</span>
+                            </div>
+                            <div className="col-span-6"><FormattedInput value={data.priceEnP3} onChange={v => onChange(propKey, 'priceEnP3', v)} decimals={6}/></div>
                             <div className="col-span-4 text-right flex flex-col justify-center">
                                 <span className="text-xs font-bold text-slate-200">{formatDecimal(costP3, 1)}€</span>
-                                <span className="text-[9px] font-bold text-slate-500">{formatDecimal(getPct(p3Kwh), 0)}% tot</span>
+                                <span className="text-[9px] font-bold text-slate-500">{formatDecimal(getPct(p3Kwh), 0)}% kWh</span>
                             </div>
                         </div>
                         {/* P3 VE */}
                         <div className="grid grid-cols-12 gap-2 items-center">
-                            <span className="col-span-1 text-xs text-blue-400 font-bold">VE</span>
-                            <div className="col-span-7"><FormattedInput value={data.priceEnP3Ve} onChange={v => onChange(propKey, 'priceEnP3Ve', v)} decimals={6}/></div>
+                            <div className="col-span-2 flex flex-col leading-tight">
+                                <span className="text-xs text-blue-400 font-bold">VE</span>
+                                <span className="text-[9px] text-slate-500 font-mono">{formatDecimal(p3VeKwh, 0)}</span>
+                            </div>
+                            <div className="col-span-6"><FormattedInput value={data.priceEnP3Ve} onChange={v => onChange(propKey, 'priceEnP3Ve', v)} decimals={6}/></div>
                             <div className="col-span-4 text-right flex flex-col justify-center">
                                 <span className="text-xs font-bold text-slate-200">{formatDecimal(costP3Ve, 1)}€</span>
-                                <span className="text-[9px] font-bold text-slate-500">{formatDecimal(getPct(p3VeKwh), 0)}% tot</span>
+                                <span className="text-[9px] font-bold text-slate-500">{formatDecimal(getPct(p3VeKwh), 0)}% kWh</span>
                             </div>
                         </div>
                         {/* P4 */}
                         <div className="grid grid-cols-12 gap-2 items-center">
-                            <span className="col-span-1 text-xs text-purple-400 font-bold">P4</span>
-                            <div className="col-span-7"><FormattedInput value={data.priceEnP4} onChange={v => onChange(propKey, 'priceEnP4', v)} decimals={6}/></div>
+                            <div className="col-span-2 flex flex-col leading-tight">
+                                <span className="text-xs text-purple-400 font-bold">P4</span>
+                                <span className="text-[9px] text-slate-500 font-mono">{formatDecimal(p4Kwh, 0)}</span>
+                            </div>
+                            <div className="col-span-6"><FormattedInput value={data.priceEnP4} onChange={v => onChange(propKey, 'priceEnP4', v)} decimals={6}/></div>
                             <div className="col-span-4 text-right flex flex-col justify-center">
                                 <span className="text-xs font-bold text-slate-200">{formatDecimal(costP4, 1)}€</span>
+                                <span className="text-[9px] font-bold text-slate-500">{formatDecimal(getPct(p4Kwh), 0)}% kWh</span>
                             </div>
                         </div>
                     </div>
@@ -2236,7 +2252,7 @@
             );
       };
 
-      // --- TARIFF COMPARATOR (LAYOUT FINAL) ---
+      // --- TARIFF COMPARATOR ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV5', {
             // Shared Data
@@ -2608,7 +2624,6 @@
             </div>
         );
       };
-
 
         
 
