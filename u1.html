@@ -2107,18 +2107,20 @@
             );
         };
 
-      const ProposalColumn = ({ propKey, title, data, powerData, consumptionData, percentages, onChange }) => {
-            // Cálculos auxiliares para visualización (Potencia)
-            const calcP1Annual = data.pricePotP1 * 365 * powerData.p1;
+      // --- PROPOSAL COLUMN (CON CÁLCULOS Y SEGURIDAD) ---
+      const ProposalColumn = ({ propKey, title, data, powerData, onChange }) => {
+            // Protección contra undefined
+            const p1 = powerData?.p1 || 0;
+            const p2 = powerData?.p2 || 0;
+
+            // Cálculos auxiliares
+            const calcP1Annual = data.pricePotP1 * 365 * p1;
             const calcP1KwYear = data.pricePotP1 * 365;
             
-            const calcP2Annual = data.pricePotP2 * 365 * powerData.p2;
+            const calcP2Annual = data.pricePotP2 * 365 * p2;
             const calcP2KwYear = data.pricePotP2 * 365;
             
             const savingsPct = data.pricePotP1 > 0 ? ((data.pricePotP1 - data.pricePotP2) / data.pricePotP1) * 100 : 0;
-
-            // Helper para calcular coste bruto de energía
-            const calcCost = (price, kwh) => (price || 0) * (kwh || 0);
 
             return (
                 <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
@@ -2152,80 +2154,26 @@
                     </div>
 
                     <h4 className="text-xs uppercase font-bold text-slate-300 mb-2">Energía (€/kWh)</h4>
-                    <div className="space-y-4 mb-6">
-                        {/* P1 */}
-                        <div className="grid grid-cols-5 gap-2 items-start">
-                            <div className="flex flex-col leading-none pt-2">
-                                <span className="text-xs text-red-400 font-bold">P1</span>
-                                <span className="text-[10px] text-slate-400 font-bold mt-1">{formatDecimal(percentages.p1, 0)}%</span>
-                                <span className="text-[10px] text-slate-500 font-mono mt-0.5">{formatDecimal(consumptionData.p1, 0)} kWh</span>
-                            </div>
-                            <div className="col-span-4">
-                                <FormattedInput value={data.priceEnP1} onChange={v => onChange(propKey, 'priceEnP1', v)} decimals={6}/>
-                                <div className="text-right text-[10px] font-mono text-slate-400 mt-1 font-bold">
-                                    {formatDecimal(calcCost(data.priceEnP1, consumptionData.p1), 2)} €
-                                </div>
-                            </div>
+                    <div className="space-y-3 mb-6">
+                        <div className="grid grid-cols-5 gap-2 items-center">
+                            <span className="text-xs text-red-400 font-bold">P1</span>
+                            <span className="col-span-4"><FormattedInput value={data.priceEnP1} onChange={v => onChange(propKey, 'priceEnP1', v)} decimals={6}/></span>
                         </div>
-
-                        {/* P2 */}
-                        <div className="grid grid-cols-5 gap-2 items-start">
-                            <div className="flex flex-col leading-none pt-2">
-                                <span className="text-xs text-orange-400 font-bold">P2</span>
-                                <span className="text-[10px] text-slate-400 font-bold mt-1">{formatDecimal(percentages.p2, 0)}%</span>
-                                <span className="text-[10px] text-slate-500 font-mono mt-0.5">{formatDecimal(consumptionData.p2, 0)} kWh</span>
-                            </div>
-                            <div className="col-span-4">
-                                <FormattedInput value={data.priceEnP2} onChange={v => onChange(propKey, 'priceEnP2', v)} decimals={6}/>
-                                <div className="text-right text-[10px] font-mono text-slate-400 mt-1 font-bold">
-                                    {formatDecimal(calcCost(data.priceEnP2, consumptionData.p2), 2)} €
-                                </div>
-                            </div>
+                        <div className="grid grid-cols-5 gap-2 items-center">
+                            <span className="text-xs text-orange-400 font-bold">P2</span>
+                            <span className="col-span-4"><FormattedInput value={data.priceEnP2} onChange={v => onChange(propKey, 'priceEnP2', v)} decimals={6}/></span>
                         </div>
-
-                        {/* P3 */}
-                        <div className="grid grid-cols-5 gap-2 items-start">
-                            <div className="flex flex-col leading-none pt-2">
-                                <span className="text-xs text-green-400 font-bold">P3</span>
-                                <span className="text-[10px] text-slate-400 font-bold mt-1">{formatDecimal(percentages.p3, 0)}%</span>
-                                <span className="text-[10px] text-slate-500 font-mono mt-0.5">{formatDecimal(consumptionData.p3, 0)} kWh</span>
-                            </div>
-                            <div className="col-span-4">
-                                <FormattedInput value={data.priceEnP3} onChange={v => onChange(propKey, 'priceEnP3', v)} decimals={6}/>
-                                <div className="text-right text-[10px] font-mono text-slate-400 mt-1 font-bold">
-                                    {formatDecimal(calcCost(data.priceEnP3, consumptionData.p3), 2)} €
-                                </div>
-                            </div>
+                        <div className="grid grid-cols-5 gap-2 items-center">
+                            <span className="text-xs text-green-400 font-bold">P3</span>
+                            <span className="col-span-4"><FormattedInput value={data.priceEnP3} onChange={v => onChange(propKey, 'priceEnP3', v)} decimals={6}/></span>
                         </div>
-
-                        {/* P3 VE */}
-                        <div className="grid grid-cols-5 gap-2 items-start">
-                            <div className="flex flex-col leading-none pt-2">
-                                <span className="text-xs text-blue-400 font-bold whitespace-nowrap">P3 VE</span>
-                                <span className="text-[10px] text-slate-400 font-bold mt-1">{formatDecimal(percentages.p3Ve, 0)}%</span>
-                                <span className="text-[10px] text-slate-500 font-mono mt-0.5">{formatDecimal(consumptionData.p3Ve, 0)} kWh</span>
-                            </div>
-                            <div className="col-span-4">
-                                <FormattedInput value={data.priceEnP3Ve} onChange={v => onChange(propKey, 'priceEnP3Ve', v)} decimals={6}/>
-                                <div className="text-right text-[10px] font-mono text-slate-400 mt-1 font-bold">
-                                    {formatDecimal(calcCost(data.priceEnP3Ve, consumptionData.p3Ve), 2)} €
-                                </div>
-                            </div>
+                        <div className="grid grid-cols-5 gap-2 items-center">
+                            <span className="text-xs text-blue-400 font-bold whitespace-nowrap">P3 VE</span>
+                            <span className="col-span-4"><FormattedInput value={data.priceEnP3Ve} onChange={v => onChange(propKey, 'priceEnP3Ve', v)} decimals={6}/></span>
                         </div>
-
-                        {/* P4 */}
-                        <div className="grid grid-cols-5 gap-2 items-start">
-                            <div className="flex flex-col leading-none pt-2">
-                                <span className="text-xs text-purple-400 font-bold">P4</span>
-                                <span className="text-[10px] text-slate-400 font-bold mt-1">{formatDecimal(percentages.p4, 0)}%</span>
-                                <span className="text-[10px] text-slate-500 font-mono mt-0.5">{formatDecimal(consumptionData.p4, 0)} kWh</span>
-                            </div>
-                            <div className="col-span-4">
-                                <FormattedInput value={data.priceEnP4} onChange={v => onChange(propKey, 'priceEnP4', v)} decimals={6}/>
-                                <div className="text-right text-[10px] font-mono text-slate-400 mt-1 font-bold">
-                                    {formatDecimal(calcCost(data.priceEnP4, consumptionData.p4), 2)} €
-                                </div>
-                            </div>
+                        <div className="grid grid-cols-5 gap-2 items-center">
+                            <span className="text-xs text-purple-400 font-bold">P4</span>
+                            <span className="col-span-4"><FormattedInput value={data.priceEnP4} onChange={v => onChange(propKey, 'priceEnP4', v)} decimals={6}/></span>
                         </div>
                     </div>
 
@@ -2250,8 +2198,7 @@
             );
       };
 
-     
-      // --- TARIFF COMPARATOR (DISEÑO MEJORADO) ---
+      // --- TARIFF COMPARATOR (DISEÑO MEJORADO Y SIN ERRORES) ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV5', {
             // Shared Data
