@@ -2107,60 +2107,92 @@
             );
         };
 
-        const ProposalColumn = ({ propKey, title, data, onChange }) => (
-            <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
-                <input type="text" value={data.name} onChange={(e) => onChange(propKey, 'name', e.target.value)} 
-                    className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-3 text-yellow-300 font-bold text-center mb-4 focus:outline-none focus:border-yellow-500 text-lg placeholder-zinc-500 transition-colors" />
-                
-                <h4 className="text-xs uppercase font-bold text-slate-300 mb-2">Potencia (€/kW/día)</h4>
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div><label className="text-[10px] font-bold text-slate-400 block">P1</label><FormattedInput value={data.pricePotP1} onChange={v => onChange(propKey, 'pricePotP1', v)} decimals={6}/></div>
-                    <div><label className="text-[10px] font-bold text-slate-400 block">P2</label><FormattedInput value={data.pricePotP2} onChange={v => onChange(propKey, 'pricePotP2', v)} decimals={6}/></div>
-                </div>
+     
+      const ProposalColumn = ({ propKey, title, data, powerData, onChange }) => {
+            // Cálculos auxiliares para visualización
+            const calcP1Annual = data.pricePotP1 * 365 * powerData.p1;
+            const calcP1KwYear = data.pricePotP1 * 365;
+            
+            const calcP2Annual = data.pricePotP2 * 365 * powerData.p2;
+            const calcP2KwYear = data.pricePotP2 * 365;
+            
+            const savingsPct = data.pricePotP1 > 0 ? ((data.pricePotP1 - data.pricePotP2) / data.pricePotP1) * 100 : 0;
 
-                <h4 className="text-xs uppercase font-bold text-slate-300 mb-2">Energía (€/kWh)</h4>
-                <div className="space-y-3 mb-6">
-                    <div className="grid grid-cols-5 gap-2 items-center">
-                         <span className="text-xs text-red-400 font-bold">P1</span>
-                         <span className="col-span-4"><FormattedInput value={data.priceEnP1} onChange={v => onChange(propKey, 'priceEnP1', v)} decimals={6}/></span>
-                    </div>
-                    <div className="grid grid-cols-5 gap-2 items-center">
-                         <span className="text-xs text-orange-400 font-bold">P2</span>
-                         <span className="col-span-4"><FormattedInput value={data.priceEnP2} onChange={v => onChange(propKey, 'priceEnP2', v)} decimals={6}/></span>
-                    </div>
-                    <div className="grid grid-cols-5 gap-2 items-center">
-                         <span className="text-xs text-green-400 font-bold">P3</span>
-                         <span className="col-span-4"><FormattedInput value={data.priceEnP3} onChange={v => onChange(propKey, 'priceEnP3', v)} decimals={6}/></span>
-                    </div>
-                    <div className="grid grid-cols-5 gap-2 items-center">
-                         <span className="text-xs text-blue-400 font-bold whitespace-nowrap">P3 VE</span>
-                         <span className="col-span-4"><FormattedInput value={data.priceEnP3Ve} onChange={v => onChange(propKey, 'priceEnP3Ve', v)} decimals={6}/></span>
-                    </div>
-                    <div className="grid grid-cols-5 gap-2 items-center">
-                         <span className="text-xs text-purple-400 font-bold">P4</span>
-                         <span className="col-span-4"><FormattedInput value={data.priceEnP4} onChange={v => onChange(propKey, 'priceEnP4', v)} decimals={6}/></span>
-                    </div>
-                </div>
+            return (
+                <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
+                    <input type="text" value={data.name} onChange={(e) => onChange(propKey, 'name', e.target.value)} 
+                        className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-3 text-yellow-300 font-bold text-center mb-4 focus:outline-none focus:border-yellow-500 text-lg placeholder-zinc-500 transition-colors" />
+                    
+                    <h4 className="text-xs uppercase font-bold text-slate-300 mb-2">Potencia (€/kW/día)</h4>
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                        {/* P1 INPUT + CÁLCULOS */}
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 block">P1</label>
+                            <FormattedInput value={data.pricePotP1} onChange={v => onChange(propKey, 'pricePotP1', v)} decimals={6}/>
+                            <div className="mt-2 text-[10px] font-mono leading-tight">
+                                <div className="text-yellow-400 font-bold">{formatDecimal(calcP1Annual, 2)} €/año</div>
+                                <div className="text-slate-500">({formatDecimal(calcP1KwYear, 2)} €/kW/año)</div>
+                            </div>
+                        </div>
 
-                <h4 className="text-xs uppercase font-bold text-slate-300 mb-2">Descuentos y Extras</h4>
-                <div className="grid grid-cols-2 gap-3 mb-4">
-                    <div><label className="text-[10px] font-bold text-slate-400 block">% Dto Pot</label><FormattedInput value={data.discPot} onChange={v => onChange(propKey, 'discPot', v)} decimals={1}/></div>
-                    <div><label className="text-[10px] font-bold text-slate-400 block">% Dto Ener</label><FormattedInput value={data.discEn} onChange={v => onChange(propKey, 'discEn', v)} decimals={1}/></div>
-                    <div className="col-span-2"><label className="text-[10px] font-bold text-slate-400 block">Comisión Mensual (€)</label><FormattedInput value={data.comision} onChange={v => onChange(propKey, 'comision', v)} decimals={2}/></div>
-                </div>
+                        {/* P2 INPUT + CÁLCULOS */}
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 block">P2</label>
+                            <FormattedInput value={data.pricePotP2} onChange={v => onChange(propKey, 'pricePotP2', v)} decimals={6}/>
+                            <div className="mt-2 text-[10px] font-mono leading-tight">
+                                <div className="text-yellow-400 font-bold">{formatDecimal(calcP2Annual, 2)} €/año</div>
+                                <div className="text-slate-500">({formatDecimal(calcP2KwYear, 2)} €/kW/año)</div>
+                                {savingsPct > 0 && (
+                                    <div className="text-green-400 font-bold mt-1">-{formatDecimal(savingsPct, 1)}% vs P1</div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
 
-                <h4 className="text-xs uppercase font-bold text-yellow-600 mb-2">Solar / Excedentes</h4>
-                <div className="grid grid-cols-2 gap-3 items-end">
-                    <div><label className="text-[10px] font-bold text-slate-400 block">Precio (€/kWh)</label><FormattedInput value={data.solarPrice} onChange={v => onChange(propKey, 'solarPrice', v)} decimals={3}/></div>
-                    <button 
-                        onClick={() => onChange(propKey, 'virtualBat', !data.virtualBat)} 
-                        className={`text-xs font-bold py-3 px-1 border rounded transition-colors h-[54px] ${data.virtualBat ? 'bg-blue-900 border-blue-500 text-blue-100' : 'bg-slate-800 border-slate-600 text-slate-400'}`}
-                    >
-                        {data.virtualBat ? 'Bat. Virtual ON' : 'Bat. Virtual OFF'}
-                    </button>
+                    <h4 className="text-xs uppercase font-bold text-slate-300 mb-2">Energía (€/kWh)</h4>
+                    <div className="space-y-3 mb-6">
+                        <div className="grid grid-cols-5 gap-2 items-center">
+                            <span className="text-xs text-red-400 font-bold">P1</span>
+                            <span className="col-span-4"><FormattedInput value={data.priceEnP1} onChange={v => onChange(propKey, 'priceEnP1', v)} decimals={6}/></span>
+                        </div>
+                        <div className="grid grid-cols-5 gap-2 items-center">
+                            <span className="text-xs text-orange-400 font-bold">P2</span>
+                            <span className="col-span-4"><FormattedInput value={data.priceEnP2} onChange={v => onChange(propKey, 'priceEnP2', v)} decimals={6}/></span>
+                        </div>
+                        <div className="grid grid-cols-5 gap-2 items-center">
+                            <span className="text-xs text-green-400 font-bold">P3</span>
+                            <span className="col-span-4"><FormattedInput value={data.priceEnP3} onChange={v => onChange(propKey, 'priceEnP3', v)} decimals={6}/></span>
+                        </div>
+                        <div className="grid grid-cols-5 gap-2 items-center">
+                            <span className="text-xs text-blue-400 font-bold whitespace-nowrap">P3 VE</span>
+                            <span className="col-span-4"><FormattedInput value={data.priceEnP3Ve} onChange={v => onChange(propKey, 'priceEnP3Ve', v)} decimals={6}/></span>
+                        </div>
+                        <div className="grid grid-cols-5 gap-2 items-center">
+                            <span className="text-xs text-purple-400 font-bold">P4</span>
+                            <span className="col-span-4"><FormattedInput value={data.priceEnP4} onChange={v => onChange(propKey, 'priceEnP4', v)} decimals={6}/></span>
+                        </div>
+                    </div>
+
+                    <h4 className="text-xs uppercase font-bold text-slate-300 mb-2">Descuentos y Extras</h4>
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                        <div><label className="text-[10px] font-bold text-slate-400 block">% Dto Pot</label><FormattedInput value={data.discPot} onChange={v => onChange(propKey, 'discPot', v)} decimals={1}/></div>
+                        <div><label className="text-[10px] font-bold text-slate-400 block">% Dto Ener</label><FormattedInput value={data.discEn} onChange={v => onChange(propKey, 'discEn', v)} decimals={1}/></div>
+                        <div className="col-span-2"><label className="text-[10px] font-bold text-slate-400 block">Comisión Mensual (€)</label><FormattedInput value={data.comision} onChange={v => onChange(propKey, 'comision', v)} decimals={2}/></div>
+                    </div>
+
+                    <h4 className="text-xs uppercase font-bold text-yellow-600 mb-2">Solar / Excedentes</h4>
+                    <div className="grid grid-cols-2 gap-3 items-end">
+                        <div><label className="text-[10px] font-bold text-slate-400 block">Precio (€/kWh)</label><FormattedInput value={data.solarPrice} onChange={v => onChange(propKey, 'solarPrice', v)} decimals={3}/></div>
+                        <button 
+                            onClick={() => onChange(propKey, 'virtualBat', !data.virtualBat)} 
+                            className={`text-xs font-bold py-3 px-1 border rounded transition-colors h-[54px] ${data.virtualBat ? 'bg-blue-900 border-blue-500 text-blue-100' : 'bg-slate-800 border-slate-600 text-slate-400'}`}
+                        >
+                            {data.virtualBat ? 'Bat. Virtual ON' : 'Bat. Virtual OFF'}
+                        </button>
+                    </div>
                 </div>
-            </div>
-        );
+            );
+      };
 
       // --- TARIFF COMPARATOR (LETRAS MÁS GRANDES + CÁLCULO VE) ---
       const TariffComparator = () => {
@@ -2363,11 +2395,11 @@
 
                 {/* COLUMNAS PROPUESTAS */}
                 <div className="lg:col-span-3">
-                    <ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} onChange={handlePropChange} />
+                    <ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} onChange={handlePropChange} />
                 </div>
                 
                 <div className="lg:col-span-3">
-                    <ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} onChange={handlePropChange} />
+                    <ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} onChange={handlePropChange} />
                 </div>
 
                 {/* RESULTADOS */}
@@ -2513,6 +2545,7 @@
             </div>
         );
       };
+
 
       // --- APP PRINCIPAL ---
 
