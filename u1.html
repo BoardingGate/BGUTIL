@@ -2250,7 +2250,8 @@
             );
       };
 
-      // --- TARIFF COMPARATOR (LETRAS MÁS GRANDES + CÁLCULO VE) ---
+     
+      // --- TARIFF COMPARATOR (DISEÑO MEJORADO) ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV5', {
             // Shared Data
@@ -2349,28 +2350,15 @@
         };
 
         const calculateEVCost = (proposal) => {
-            // 1. Calcular el consumo total en periodo valle (P3 Doméstico + P3 VE)
             const totalP3Volume = (tState.p3Kwh || 0) + (tState.p3VeKwh || 0);
-
-            // 2. Calcular el ratio que representa el coche sobre el total nocturno
             const evRatio = totalP3Volume > 0 ? ((tState.p3VeKwh || 0) / totalP3Volume) : 0;
-
-            // 3. Coste Total de la Potencia P2
             const fullTermPotP2 = (tState.potP2 * proposal.pricePotP2 * tState.days) * (1 - proposal.discPot / 100);
-
-            // 4. Imputar solo la parte proporcional de la Potencia P2 al coche
             const evTermPotP2 = fullTermPotP2 * evRatio;
-
-            // 5. Coste de la Energía específica del VE
             const termEnP3Ve = (tState.p3VeKwh * proposal.priceEnP3Ve) * (1 - proposal.discEn / 100);
-
-            // 6. Sumar y aplicar impuestos
             const base = evTermPotP2 + termEnP3Ve;
             const withIEE = base * (1 + tState.impuestoElec / 100);
             const total = withIEE * (1 + tState.iva / 100);
-
             const pricePerKwh = tState.p3VeKwh > 0 ? total / tState.p3VeKwh : 0;
-
             return { total, pricePerKwh };
         };
 
@@ -2387,45 +2375,50 @@
         
         const diffEn = billB.termEnNet - billA.termEnNet;
         const diffEnPct = Math.min(billA.termEnNet, billB.termEnNet) > 0 ? (Math.abs(diffEn) / Math.max(billA.termEnNet, billB.termEnNet)) * 100 : 0;
-
-        // If diff > 0, A is cheaper (B - A > 0). If diff < 0, B is cheaper.
         const winnerEVCost = diff > 0 ? evCostA : evCostB;
-
-        // --- CÁLCULO DE PORCENTAJES DE CONSUMO ---
-        const totalCons = tState.consTotal > 0 ? tState.consTotal : 1; // Evitar división por 0
-        const pctP1 = (tState.p1Kwh / totalCons) * 100;
-        const pctP2 = (tState.p2Kwh / totalCons) * 100;
-        const pctP3 = (tState.p3Kwh / totalCons) * 100;
-        const pctP3Ve = (tState.p3VeKwh / totalCons) * 100;
-        const pctP4 = (tState.p4Kwh / totalCons) * 100;
-
-        const percentages = { p1: pctP1, p2: pctP2, p3: pctP3, p3Ve: pctP3Ve, p4: pctP4 };
-        
-        // Objeto con los consumos para pasarlo a las columnas
-        const consumptionData = { p1: tState.p1Kwh, p2: tState.p2Kwh, p3: tState.p3Kwh, p3Ve: tState.p3VeKwh, p4: tState.p4Kwh };
 
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
-                {/* CONFIGURACIÓN SUPERIOR (Full Width) */}
+                
+                {/* CONFIGURACIÓN SUPERIOR (DATOS COMUNES) */}
                 <div className="lg:col-span-12 space-y-4">
-                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4 flex flex-wrap gap-6 items-center">
-                        <h3 className="text-sm text-slate-300 font-bold uppercase flex items-center gap-2"><Icons.Euro /> DATOS COMUNES</h3>
-                        <div className="w-px h-8 bg-slate-700"></div>
-                        
-                        <div className="flex gap-4">
-                             <div><label className="text-[10px] font-bold text-slate-400 block">Días Factura</label><div className="w-20"><FormattedInput value={tState.days} onChange={v => setTState({...tState, days: v})} decimals={0}/></div></div>
-                             <div><label className="text-[10px] font-bold text-slate-400 block">Pot P1 (kW)</label><div className="w-20"><FormattedInput value={tState.potP1} onChange={v => setTState({...tState, potP1: v})} decimals={1}/></div></div>
-                             <div><label className="text-[10px] font-bold text-slate-400 block">Pot P2 (kW)</label><div className="w-20"><FormattedInput value={tState.potP2} onChange={v => setTState({...tState, potP2: v})} decimals={1}/></div></div>
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5">
+                        {/* Título arriba */}
+                        <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2">
+                             <Icons.Euro className="w-5 h-5 text-slate-400" />
+                             <h3 className="text-sm text-slate-300 font-bold uppercase">DATOS COMUNES</h3>
                         </div>
-                        <div className="w-px h-8 bg-slate-700"></div>
-                        <div className="flex gap-4">
-                             <div><label className="text-[10px] font-bold text-slate-400 block">IVA (%)</label><div className="w-20"><FormattedInput value={tState.iva} onChange={v => setTState({...tState, iva: v})} decimals={0}/></div></div>
-                             <div><label className="text-[10px] font-bold text-slate-400 block">Imp. Elec (%)</label><div className="w-20"><FormattedInput value={tState.impuestoElec} onChange={v => setTState({...tState, impuestoElec: v})} decimals={2}/></div></div>
-                        </div>
-                        <div className="w-px h-8 bg-slate-700"></div>
-                        <div className="flex gap-4">
-                             <div><label className="text-[10px] font-bold text-slate-400 block">Alquiler/día</label><div className="w-28"><FormattedInput value={tState.alquiler} onChange={v => setTState({...tState, alquiler: v})} decimals={4}/></div></div>
-                             <div><label className="text-[10px] font-bold text-slate-400 block">Bono Soc/día</label><div className="w-28"><FormattedInput value={tState.bonoSocial} onChange={v => setTState({...tState, bonoSocial: v})} decimals={4}/></div></div>
+
+                        {/* Grid de campos: En LG (Escritorio) 7 columnas para que entren en una línea */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 block mb-1">Días Factura</label>
+                                <FormattedInput value={tState.days} onChange={v => setTState({...tState, days: v})} decimals={0}/>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 block mb-1">Pot P1 (kW)</label>
+                                <FormattedInput value={tState.potP1} onChange={v => setTState({...tState, potP1: v})} decimals={1}/>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 block mb-1">Pot P2 (kW)</label>
+                                <FormattedInput value={tState.potP2} onChange={v => setTState({...tState, potP2: v})} decimals={1}/>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 block mb-1">IVA (%)</label>
+                                <FormattedInput value={tState.iva} onChange={v => setTState({...tState, iva: v})} decimals={0}/>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 block mb-1">Imp. Elec (%)</label>
+                                <FormattedInput value={tState.impuestoElec} onChange={v => setTState({...tState, impuestoElec: v})} decimals={2}/>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold text-slate-400 block mb-1">Alquiler/día</label>
+                                <FormattedInput value={tState.alquiler} onChange={v => setTState({...tState, alquiler: v})} decimals={4}/>
+                            </div>
+                            <div className="col-span-2 sm:col-span-1">
+                                <label className="text-[10px] font-bold text-slate-400 block mb-1">Bono Soc/día</label>
+                                <FormattedInput value={tState.bonoSocial} onChange={v => setTState({...tState, bonoSocial: v})} decimals={4}/>
+                            </div>
                         </div>
                     </div>
 
@@ -2441,27 +2434,22 @@
                             <div className="bg-red-900/20 p-3 rounded border border-red-900/30 text-center">
                                 <label className="text-[10px] font-bold text-red-300 block mb-1">P1 (Punta)</label>
                                 <FormattedInput value={tState.p1Kwh} onChange={v => handleConsChange('p1Kwh', v)} decimals={0}/>
-                                <div className="text-xs font-bold text-red-300 mt-1">{formatDecimal(pctP1, 1)}%</div>
                             </div>
                             <div className="bg-orange-900/20 p-3 rounded border border-orange-900/30 text-center">
                                 <label className="text-[10px] font-bold text-orange-300 block mb-1">P2 (Llano)</label>
                                 <FormattedInput value={tState.p2Kwh} onChange={v => handleConsChange('p2Kwh', v)} decimals={0}/>
-                                <div className="text-xs font-bold text-orange-300 mt-1">{formatDecimal(pctP2, 1)}%</div>
                             </div>
                             <div className="bg-green-900/20 p-3 rounded border border-green-900/30 text-center">
                                 <label className="text-[10px] font-bold text-green-300 block mb-1">P3 (Valle)</label>
                                 <FormattedInput value={tState.p3Kwh} onChange={v => handleConsChange('p3Kwh', v)} decimals={0}/>
-                                <div className="text-xs font-bold text-green-300 mt-1">{formatDecimal(pctP3, 1)}%</div>
                             </div>
                             <div className="bg-blue-900/20 p-3 rounded border border-blue-900/30 text-center relative overflow-hidden">
                                 <label className="text-[10px] font-bold text-blue-300 block mb-1">P3 (VE)</label>
                                 <FormattedInput value={tState.p3VeKwh} onChange={v => handleConsChange('p3VeKwh', v)} decimals={0}/>
-                                <div className="text-xs font-bold text-blue-300 mt-1">{formatDecimal(pctP3Ve, 1)}%</div>
                             </div>
                             <div className="bg-purple-900/20 p-3 rounded border border-purple-900/30 text-center">
                                 <label className="text-[10px] font-bold text-purple-300 block mb-1">P4 (Extra)</label>
                                 <FormattedInput value={tState.p4Kwh} onChange={v => handleConsChange('p4Kwh', v)} decimals={0}/>
-                                <div className="text-xs font-bold text-purple-300 mt-1">{formatDecimal(pctP4, 1)}%</div>
                             </div>
                         </div>
                     </div>
@@ -2469,11 +2457,11 @@
 
                 {/* COLUMNAS PROPUESTAS */}
                 <div className="lg:col-span-3">
-                    <ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} consumptionData={consumptionData} percentages={percentages} onChange={handlePropChange} />
+                    <ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} onChange={handlePropChange} />
                 </div>
                 
                 <div className="lg:col-span-3">
-                    <ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} consumptionData={consumptionData} percentages={percentages} onChange={handlePropChange} />
+                    <ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} onChange={handlePropChange} />
                 </div>
 
                 {/* RESULTADOS */}
@@ -2619,8 +2607,6 @@
             </div>
         );
       };
-
-    
 
 
       // --- APP PRINCIPAL ---
