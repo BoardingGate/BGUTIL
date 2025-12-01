@@ -2107,19 +2107,22 @@
             );
         };
 
-      // --- PROPOSAL COLUMN (CON CÁLCULOS Y SEGURIDAD) ---
+      // --- PROPOSAL COLUMN (CON CÁLCULOS, PORCENTAJES Y SEGURIDAD) ---
       const ProposalColumn = ({ propKey, title, data, powerData, onChange }) => {
-            // Protección contra undefined
+            // Protección contra undefined (evita el error 'reading p1')
             const p1 = powerData?.p1 || 0;
             const p2 = powerData?.p2 || 0;
 
-            // Cálculos auxiliares
+            // CÁLCULOS MATEMÁTICOS DE POTENCIA
+            // P1
             const calcP1Annual = data.pricePotP1 * 365 * p1;
             const calcP1KwYear = data.pricePotP1 * 365;
             
+            // P2
             const calcP2Annual = data.pricePotP2 * 365 * p2;
             const calcP2KwYear = data.pricePotP2 * 365;
             
+            // Porcentaje de ahorro P2 vs P1
             const savingsPct = data.pricePotP1 > 0 ? ((data.pricePotP1 - data.pricePotP2) / data.pricePotP1) * 100 : 0;
 
             return (
@@ -2129,7 +2132,7 @@
                     
                     <h4 className="text-xs uppercase font-bold text-slate-300 mb-2">Potencia (€/kW/día)</h4>
                     <div className="grid grid-cols-2 gap-3 mb-4">
-                        {/* P1 INPUT + CÁLCULOS */}
+                        {/* P1 INPUT + DESGLOSE CÁLCULOS */}
                         <div>
                             <label className="text-[10px] font-bold text-slate-400 block">P1</label>
                             <FormattedInput value={data.pricePotP1} onChange={v => onChange(propKey, 'pricePotP1', v)} decimals={6}/>
@@ -2139,7 +2142,7 @@
                             </div>
                         </div>
 
-                        {/* P2 INPUT + CÁLCULOS */}
+                        {/* P2 INPUT + DESGLOSE CÁLCULOS + PORCENTAJE */}
                         <div>
                             <label className="text-[10px] font-bold text-slate-400 block">P2</label>
                             <FormattedInput value={data.pricePotP2} onChange={v => onChange(propKey, 'pricePotP2', v)} decimals={6}/>
@@ -2198,7 +2201,7 @@
             );
       };
 
-      // --- TARIFF COMPARATOR (DISEÑO MEJORADO Y SIN ERRORES) ---
+      // --- TARIFF COMPARATOR (DISEÑO NUEVO + LÓGICA COMPLETA) ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV5', {
             // Shared Data
@@ -2327,16 +2330,16 @@
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
                 
-                {/* CONFIGURACIÓN SUPERIOR (DATOS COMUNES) */}
+                {/* CONFIGURACIÓN SUPERIOR (DISEÑO MEJORADO) */}
                 <div className="lg:col-span-12 space-y-4">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5">
-                        {/* Título arriba */}
+                        {/* Título arriba separado */}
                         <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2">
                              <Icons.Euro className="w-5 h-5 text-slate-400" />
                              <h3 className="text-sm text-slate-300 font-bold uppercase">DATOS COMUNES</h3>
                         </div>
 
-                        {/* Grid de campos: En LG (Escritorio) 7 columnas para que entren en una línea */}
+                        {/* Grid de campos: En LG (Escritorio) 7 columnas para que entren en una sola línea */}
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 block mb-1">Días Factura</label>
@@ -2402,7 +2405,7 @@
                     </div>
                 </div>
 
-                {/* COLUMNAS PROPUESTAS */}
+                {/* COLUMNAS PROPUESTAS (CON CÁLCULOS RESTAURADOS) */}
                 <div className="lg:col-span-3">
                     <ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} onChange={handlePropChange} />
                 </div>
