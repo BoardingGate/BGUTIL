@@ -2107,7 +2107,8 @@
             );
         };
 
-      // --- PROPOSAL COLUMN (DISEÑO ORIGINAL RESTAURADO + CÁLCULOS) ---
+
+      // --- PROPOSAL COLUMN (DISEÑO RESTAURADO: ETIQUETA IZQ + INPUT ANCHO + CÁLCULOS DEBAJO) ---
       const ProposalColumn = ({ propKey, title, data, powerData, consData, onChange }) => {
             // Protección contra undefined
             const p1Pot = powerData?.p1 || 0;
@@ -2125,14 +2126,14 @@
             
             const savingsPct = data.pricePotP1 > 0 ? ((data.pricePotP1 - data.pricePotP2) / data.pricePotP1) * 100 : 0;
 
-            // -- CÁLCULOS ENERGÍA (Importes por tramo) --
+            // -- CÁLCULOS ENERGÍA --
             const costP1 = p1Kwh * data.priceEnP1;
             const costP2 = p2Kwh * data.priceEnP2;
             const costP3 = p3Kwh * data.priceEnP3;
             const costP3Ve = p3VeKwh * data.priceEnP3Ve;
             const costP4 = p4Kwh * data.priceEnP4;
 
-            // Helper para porcentajes visuales
+            // Helper para porcentajes
             const getPct = (val) => totalKwh > 0 ? (val / totalKwh) * 100 : 0;
 
             return (
@@ -2141,94 +2142,124 @@
                         className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-3 text-yellow-300 font-bold text-center mb-4 focus:outline-none focus:border-yellow-500 text-lg placeholder-zinc-500 transition-colors" />
                     
                     {/* SECCIÓN POTENCIA */}
-                    <h4 className="text-xs uppercase font-bold text-slate-300 mb-2">Potencia (€/kW/día)</h4>
+                    <h4 className="text-xs uppercase font-bold text-slate-300 mb-2 border-b border-slate-700/50 pb-1">Potencia (€/kW/día)</h4>
                     <div className="grid grid-cols-2 gap-3 mb-4">
+                        {/* P1 */}
                         <div>
-                            <label className="text-[10px] font-bold text-slate-400 block">P1</label>
+                            <label className="text-[10px] font-bold text-slate-400 block mb-1">P1</label>
                             <FormattedInput value={data.pricePotP1} onChange={v => onChange(propKey, 'pricePotP1', v)} decimals={6}/>
-                            <div className="mt-1 text-[10px] font-mono leading-tight flex justify-between">
-                                <span className="text-yellow-400 font-bold">{formatDecimal(calcP1Annual, 0)} €/año</span>
+                            <div className="mt-1 flex flex-col gap-0.5">
+                                <div className="text-[11px] font-bold text-yellow-400 font-mono">
+                                    {formatDecimal(calcP1Annual, 2)} €/año
+                                </div>
+                                <div className="text-[9px] font-bold text-slate-500 font-mono">
+                                    {formatDecimal(calcP1KwYear, 2)} €/kW/año
+                                </div>
                             </div>
                         </div>
 
+                        {/* P2 */}
                         <div>
-                            <label className="text-[10px] font-bold text-slate-400 block">P2</label>
+                            <label className="text-[10px] font-bold text-slate-400 block mb-1">P2</label>
                             <FormattedInput value={data.pricePotP2} onChange={v => onChange(propKey, 'pricePotP2', v)} decimals={6}/>
-                            <div className="mt-1 text-[10px] font-mono leading-tight flex justify-between">
-                                <span className="text-yellow-400 font-bold">{formatDecimal(calcP2Annual, 0)} €/año</span>
-                                {savingsPct > 0 && <span className="text-green-400 font-bold">-{formatDecimal(savingsPct, 0)}%</span>}
+                            <div className="mt-1 flex flex-col gap-0.5">
+                                <div className="text-[11px] font-bold text-yellow-400 font-mono">
+                                    {formatDecimal(calcP2Annual, 2)} €/año
+                                </div>
+                                <div className="text-[9px] font-bold text-slate-500 font-mono">
+                                    {formatDecimal(calcP2KwYear, 2)} €/kW/año
+                                </div>
+                                {savingsPct > 0 && (
+                                    <div className="text-[10px] font-bold text-green-400">
+                                        -{formatDecimal(savingsPct, 1)}% vs P1
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
 
-                    {/* SECCIÓN ENERGÍA (DISEÑO ORIGINAL RECUPERADO GRID-COLS-5) */}
-                    <h4 className="text-xs uppercase font-bold text-slate-300 mb-2">Energía (€/kWh)</h4>
+                    {/* SECCIÓN ENERGÍA */}
+                    <h4 className="text-xs uppercase font-bold text-slate-300 mb-2 border-b border-slate-700/50 pb-1">Energía (€/kWh)</h4>
                     <div className="space-y-3 mb-6">
                         {/* P1 */}
-                        <div className="grid grid-cols-5 gap-2 items-center">
-                            <span className="text-xs text-red-400 font-bold">P1</span>
-                            <div className="col-span-4">
-                                <FormattedInput value={data.priceEnP1} onChange={v => onChange(propKey, 'priceEnP1', v)} decimals={6}/>
-                                <div className="flex justify-between mt-1 px-1">
-                                    <span className="text-[10px] font-bold text-slate-300">{formatDecimal(costP1, 1)} €</span>
-                                    <span className="text-[9px] font-bold text-slate-500">{formatDecimal(getPct(p1Kwh), 0)}% del total</span>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-red-400 font-bold w-8">P1</span>
+                                <div className="flex-1">
+                                    <FormattedInput value={data.priceEnP1} onChange={v => onChange(propKey, 'priceEnP1', v)} decimals={6}/>
                                 </div>
                             </div>
+                            <div className="flex justify-between pl-10 mt-1 text-[10px] font-bold font-mono">
+                                <span className="text-yellow-400">{formatDecimal(costP1, 2)} €</span>
+                                <span className="text-slate-500">{formatDecimal(getPct(p1Kwh), 1)}% del total</span>
+                            </div>
                         </div>
+
                         {/* P2 */}
-                        <div className="grid grid-cols-5 gap-2 items-center">
-                            <span className="text-xs text-orange-400 font-bold">P2</span>
-                            <div className="col-span-4">
-                                <FormattedInput value={data.priceEnP2} onChange={v => onChange(propKey, 'priceEnP2', v)} decimals={6}/>
-                                <div className="flex justify-between mt-1 px-1">
-                                    <span className="text-[10px] font-bold text-slate-300">{formatDecimal(costP2, 1)} €</span>
-                                    <span className="text-[9px] font-bold text-slate-500">{formatDecimal(getPct(p2Kwh), 0)}% del total</span>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-orange-400 font-bold w-8">P2</span>
+                                <div className="flex-1">
+                                    <FormattedInput value={data.priceEnP2} onChange={v => onChange(propKey, 'priceEnP2', v)} decimals={6}/>
                                 </div>
                             </div>
+                            <div className="flex justify-between pl-10 mt-1 text-[10px] font-bold font-mono">
+                                <span className="text-yellow-400">{formatDecimal(costP2, 2)} €</span>
+                                <span className="text-slate-500">{formatDecimal(getPct(p2Kwh), 1)}% del total</span>
+                            </div>
                         </div>
+
                         {/* P3 */}
-                        <div className="grid grid-cols-5 gap-2 items-center">
-                            <span className="text-xs text-green-400 font-bold">P3</span>
-                            <div className="col-span-4">
-                                <FormattedInput value={data.priceEnP3} onChange={v => onChange(propKey, 'priceEnP3', v)} decimals={6}/>
-                                <div className="flex justify-between mt-1 px-1">
-                                    <span className="text-[10px] font-bold text-slate-300">{formatDecimal(costP3, 1)} €</span>
-                                    <span className="text-[9px] font-bold text-slate-500">{formatDecimal(getPct(p3Kwh), 0)}% del total</span>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-green-400 font-bold w-8">P3</span>
+                                <div className="flex-1">
+                                    <FormattedInput value={data.priceEnP3} onChange={v => onChange(propKey, 'priceEnP3', v)} decimals={6}/>
                                 </div>
                             </div>
+                            <div className="flex justify-between pl-10 mt-1 text-[10px] font-bold font-mono">
+                                <span className="text-yellow-400">{formatDecimal(costP3, 2)} €</span>
+                                <span className="text-slate-500">{formatDecimal(getPct(p3Kwh), 1)}% del total</span>
+                            </div>
                         </div>
+
                         {/* P3 VE */}
-                        <div className="grid grid-cols-5 gap-2 items-center">
-                            <span className="text-xs text-blue-400 font-bold whitespace-nowrap">VE</span>
-                            <div className="col-span-4">
-                                <FormattedInput value={data.priceEnP3Ve} onChange={v => onChange(propKey, 'priceEnP3Ve', v)} decimals={6}/>
-                                <div className="flex justify-between mt-1 px-1">
-                                    <span className="text-[10px] font-bold text-slate-300">{formatDecimal(costP3Ve, 1)} €</span>
-                                    <span className="text-[9px] font-bold text-slate-500">{formatDecimal(getPct(p3VeKwh), 0)}% del total</span>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-blue-400 font-bold w-8 whitespace-nowrap">VE</span>
+                                <div className="flex-1">
+                                    <FormattedInput value={data.priceEnP3Ve} onChange={v => onChange(propKey, 'priceEnP3Ve', v)} decimals={6}/>
                                 </div>
                             </div>
+                            <div className="flex justify-between pl-10 mt-1 text-[10px] font-bold font-mono">
+                                <span className="text-yellow-400">{formatDecimal(costP3Ve, 2)} €</span>
+                                <span className="text-slate-500">{formatDecimal(getPct(p3VeKwh), 1)}% del total</span>
+                            </div>
                         </div>
+
                         {/* P4 */}
-                        <div className="grid grid-cols-5 gap-2 items-center">
-                            <span className="text-xs text-purple-400 font-bold">P4</span>
-                            <div className="col-span-4">
-                                <FormattedInput value={data.priceEnP4} onChange={v => onChange(propKey, 'priceEnP4', v)} decimals={6}/>
-                                <div className="flex justify-between mt-1 px-1">
-                                    <span className="text-[10px] font-bold text-slate-300">{formatDecimal(costP4, 1)} €</span>
-                                    <span className="text-[9px] font-bold text-slate-500">{formatDecimal(getPct(p4Kwh), 0)}% del total</span>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs text-purple-400 font-bold w-8">P4</span>
+                                <div className="flex-1">
+                                    <FormattedInput value={data.priceEnP4} onChange={v => onChange(propKey, 'priceEnP4', v)} decimals={6}/>
                                 </div>
+                            </div>
+                            <div className="flex justify-between pl-10 mt-1 text-[10px] font-bold font-mono">
+                                <span className="text-yellow-400">{formatDecimal(costP4, 2)} €</span>
+                                <span className="text-slate-500">{formatDecimal(getPct(p4Kwh), 1)}% del total</span>
                             </div>
                         </div>
                     </div>
 
-                    <h4 className="text-xs uppercase font-bold text-slate-300 mb-2">Descuentos y Extras</h4>
+                    <h4 className="text-xs uppercase font-bold text-slate-300 mb-2 border-b border-slate-700/50 pb-1">Descuentos y Extras</h4>
                     <div className="grid grid-cols-2 gap-3 mb-4">
                         <div><label className="text-[10px] font-bold text-slate-400 block">% Dto Pot</label><FormattedInput value={data.discPot} onChange={v => onChange(propKey, 'discPot', v)} decimals={1}/></div>
                         <div><label className="text-[10px] font-bold text-slate-400 block">% Dto Ener</label><FormattedInput value={data.discEn} onChange={v => onChange(propKey, 'discEn', v)} decimals={1}/></div>
                         <div className="col-span-2"><label className="text-[10px] font-bold text-slate-400 block">Comisión Mensual (€)</label><FormattedInput value={data.comision} onChange={v => onChange(propKey, 'comision', v)} decimals={2}/></div>
                     </div>
 
-                    <h4 className="text-xs uppercase font-bold text-yellow-600 mb-2">Solar / Excedentes</h4>
+                    <h4 className="text-xs uppercase font-bold text-yellow-600 mb-2 border-b border-yellow-600/30 pb-1">Solar / Excedentes</h4>
                     <div className="grid grid-cols-2 gap-3 items-end">
                         <div><label className="text-[10px] font-bold text-slate-400 block">Precio (€/kWh)</label><FormattedInput value={data.solarPrice} onChange={v => onChange(propKey, 'solarPrice', v)} decimals={3}/></div>
                         <button 
@@ -2242,7 +2273,7 @@
             );
       };
 
-      // --- TARIFF COMPARATOR ---
+      // --- TARIFF COMPARATOR (CABECERA NUEVA + LOGICA FINAL) ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV5', {
             // Shared Data
@@ -2368,7 +2399,7 @@
         const diffEnPct = Math.min(billA.termEnNet, billB.termEnNet) > 0 ? (Math.abs(diffEn) / Math.max(billA.termEnNet, billB.termEnNet)) * 100 : 0;
         const winnerEVCost = diff > 0 ? evCostA : evCostB;
 
-        // Helper para mostrar % en inputs
+        // Helper para mostrar % en inputs de consumo
         const getConsPct = (val) => tState.consTotal > 0 ? (val / tState.consTotal) * 100 : 0;
 
         // Objeto con datos de consumo para pasar a las columnas
@@ -2384,7 +2415,7 @@
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
                 
-                {/* CONFIGURACIÓN SUPERIOR (DATOS COMUNES) */}
+                {/* CONFIGURACIÓN SUPERIOR (DATOS COMUNES - NUEVO DISEÑO) */}
                 <div className="lg:col-span-12 space-y-4">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5">
                         <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2">
@@ -2392,6 +2423,7 @@
                              <h3 className="text-sm text-slate-300 font-bold uppercase">DATOS COMUNES</h3>
                         </div>
 
+                        {/* Grid de campos: 7 columnas en escritorio */}
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
                             <div>
                                 <label className="text-[10px] font-bold text-slate-400 block mb-1">Días Factura</label>
@@ -2462,7 +2494,7 @@
                     </div>
                 </div>
 
-                {/* COLUMNAS PROPUESTAS (CON TODOS LOS CÁLCULOS) */}
+                {/* COLUMNAS PROPUESTAS (CON TODOS LOS CÁLCULOS RESTAURADOS) */}
                 <div className="lg:col-span-3">
                     <ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} />
                 </div>
