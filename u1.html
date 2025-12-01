@@ -131,7 +131,7 @@
             return new Intl.NumberFormat('es-ES', { 
                 minimumFractionDigits: 0, 
                 maximumFractionDigits: Math.max(decimals, 6), 
-                useGrouping: grouped // Controlado por prop (default false para no romper compatibilidad)
+                useGrouping: grouped 
             }).format(val);
         };
 
@@ -1157,7 +1157,8 @@
                                 <div>
                                     <div className="text-xs font-bold text-slate-400 uppercase mb-1">Máx. Carga Posible</div>
                                     <div className="text-xl font-bold text-white font-mono">
-                                        +{formatDecimal(windowStats.pct, 0)}% </div> <span className="text-sm text-slate-500 font-bold">(min. para 100%: {formatDecimal(minStartPctToFull, 0)}% {formatDecimal(minStartKmToFull, 0)} km])</span>
+                                        +{formatDecimal(windowStats.pct, 0)}% </div> <div className="text-xl font-bold text-white font-mono">
+<span className="text-sm text-slate-500 font-bold">(min. para 100%: {formatDecimal(minStartPctToFull, 0)}% {formatDecimal(minStartKmToFull, 0)} km])</span>
                                     </div>
                                     <div className="text-sm font-bold text-slate-500">
                                         +{formatDecimal(windowStats.km, 0)} km</span>
