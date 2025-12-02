@@ -626,7 +626,8 @@
         );
       };
 
-      // --- CALCULADORA DE CARGA (LETRAS MÁS GRANDES) ---
+
+      // --- CALCULADORA DE CARGA (DISTRIBUCIÓN FULL WIDTH) ---
       const ChargingCalculator = () => {
         const [state, setState] = usePersistentState('chargeState', { 
             capacity: 60, 
@@ -635,11 +636,15 @@
             power: 7.4, 
             consumption: 14.5, 
             energyPrice: 0.07, 
-            dailyKm: 50,
-            batType: 'LFP' // Default
+            monthlyKm: 1500, 
+            dailyKm: 0, 
+            batType: 'LFP',
+            costPremium: 9.99,
+            costFSD: 0,
+            costOther: 0
         });
 
-        // CURVE DATA (DUPLICATED FOR SAFETY)
+        // CURVE DATA
         const curvePoints = {
             LFP: [{p:0, v:170}, {p:10, v:168}, {p:20, v:155}, {p:30, v:135}, {p:45, v:110}, {p:55, v:85}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}],
             NCA: [{p:0, v:200}, {p:5, v:250}, {p:15, v:250}, {p:25, v:210}, {p:40, v:150}, {p:60, v:100}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}]
@@ -679,11 +684,31 @@
         }
 
         const rangeAdded = state.consumption > 0 ? (energyAdded / state.consumption) * 100 : 0;
-        const totalCost = energyAdded * state.energyPrice;
+        const totalCostCharge = energyAdded * state.energyPrice;
         const totalRangeAtTarget = state.consumption > 0 ? (state.capacity * (validTarget/100) / state.consumption) * 100 : 0;
-        const dailyCost = (state.dailyKm / 100) * state.consumption * state.energyPrice;
-        const monthlyCost = dailyCost * 30.41; 
-        const annualCost = dailyCost * 365;
+        
+        // --- CÁLCULOS DE PROYECCIÓN ---
+        const monthlyKm = state.monthlyKm || 0;
+        
+        // 1. Energía
+        const costEnergyMonthly = (monthlyKm / 100) * state.consumption * state.energyPrice;
+        const costEnergyDaily = costEnergyMonthly / 30.41; 
+        const costEnergyAnnual = costEnergyMonthly * 12;
+
+        // 2. Servicios Fijos
+        const fixedMonthly = (state.costPremium || 0) + (state.costFSD || 0) + (state.costOther || 0);
+        const fixedDaily = fixedMonthly / 30.41;
+        const fixedAnnual = fixedMonthly * 12;
+
+        // 3. Totales (Energía + Servicios)
+        const totalMonthly = costEnergyMonthly + fixedMonthly;
+        const totalDaily = costEnergyDaily + fixedDaily;
+        const totalAnnual = costEnergyAnnual + fixedAnnual;
+
+        // 4. Coste por Km
+        const perKmEnergy = monthlyKm > 0 ? costEnergyMonthly / monthlyKm : 0;
+        const perKmServices = monthlyKm > 0 ? fixedMonthly / monthlyKm : 0;
+        const perKmTotal = monthlyKm > 0 ? totalMonthly / monthlyKm : 0;
 
         const handleChange = (k, v) => {
             const val = parseFloat(v) || 0;
@@ -697,12 +722,12 @@
         const powerPresets = [ { l: "Schuko", v: 2.3 }, { l: "GreenUp", v: 3.7 }, { l: "Wallbox 1F", v: 7.4 }, { l: "Wallbox 3F", v: 11 }, { l: "AC Público", v: 22 }, { l: "DC 50", v: 50 }, { l: "Supercharger", v: 150 } ];
 
         return (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in">
+                {/* COLUMNA IZQUIERDA: PARÁMETROS DE CARGA */}
                 <div className="lg:col-span-5 space-y-6">
-                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 h-full">
                         <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Icons.BatteryCharging /> Parámetros de Carga</h2>
                         
-                        {/* Battery Type Selector */}
                         <div className="flex gap-2 mb-4 bg-slate-800/50 p-2 rounded-lg border border-slate-700">
                              <button onClick={() => setState(p => ({...p, batType: 'LFP'}))} className={`flex-1 py-3 text-sm font-bold rounded-md transition-colors ${state.batType === 'LFP' ? 'bg-green-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}>LFP (RWD)</button>
                              <button onClick={() => setState(p => ({...p, batType: 'NCA'}))} className={`flex-1 py-3 text-sm font-bold rounded-md transition-colors ${state.batType === 'NCA' ? 'bg-red-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}>NCA/NMC (LR,PF)</button>
@@ -717,7 +742,10 @@
                         </div>
                     </div>
                 </div>
+
+                {/* COLUMNA DERECHA: RESULTADOS INMEDIATOS */}
                 <div className="lg:col-span-7 space-y-6">
+                     {/* BATERÍA VISUAL */}
                      <div className="bg-black/40 border border-slate-800 rounded-xl p-8 flex items-center justify-center relative overflow-hidden h-48">
                         <div className="relative w-full max-w-md h-28 border-4 border-slate-600 rounded-2xl p-1 flex items-center">
                             <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-10 bg-slate-600 rounded-r-md"></div>
@@ -727,24 +755,144 @@
                              <div className="absolute inset-0 flex items-center justify-center text-4xl font-display font-bold text-white drop-shadow-md z-10">{state.startPct}% <span className="text-slate-400 mx-4">➔</span> <span className="text-green-400">{state.targetPct}%</span></div>
                         </div>
                      </div>
+
+                     {/* GRID RESULTADOS CARGA INMEDIATA */}
                      <div className="grid grid-cols-2 gap-4">
                         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center">
                             <div className="text-slate-300 font-bold text-sm uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Clock className="w-5 h-5"/> Tiempo Estimado</div>
                             <div className="text-5xl font-display font-bold text-white">{formatTimeShort(minutesCurve)}</div>
                             <div className="text-xs font-bold text-slate-400 mt-2">Teórico: {formatTimeShort(minutesLin)} (a {state.power} kW)</div>
                         </div>
-                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-300 font-bold text-sm uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Euro className="w-5 h-5"/> Coste Recarga</div><div className="text-5xl font-display font-bold text-white">{formatDecimal(totalCost)}<span className="text-xl text-slate-400">€</span></div><div className="text-xs font-bold text-slate-400 mt-2">a {state.energyPrice} €/kWh</div></div>
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-300 font-bold text-sm uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Euro className="w-5 h-5"/> Coste Recarga</div><div className="text-5xl font-display font-bold text-white">{formatDecimal(totalCostCharge)}<span className="text-xl text-slate-400">€</span></div><div className="text-xs font-bold text-slate-400 mt-2">a {state.energyPrice} €/kWh</div></div>
                         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-300 font-bold text-sm uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Zap className="w-5 h-5"/> Energía Añadida</div><div className="text-5xl font-display font-bold text-green-400">+{formatDecimal(energyAdded)} <span className="text-xl text-green-400/50">kWh</span></div><div className="text-xs font-bold text-slate-400 mt-2">del {state.startPct}% al {state.targetPct}%</div></div>
                         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center"><div className="text-slate-300 font-bold text-sm uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.TrendingUp className="w-5 h-5"/> Km Añadidos</div><div className="text-5xl font-display font-bold text-blue-400">+{formatMoney(rangeAdded)} <span className="text-xl text-blue-400/50">km</span></div><div className="text-xs font-bold text-slate-400 mt-2">Autonomía Total: <span className="text-white">{formatMoney(totalRangeAtTarget)} km</span></div></div>
                      </div>
-                     <div className="mt-8 pt-6 border-t border-slate-800 animate-fade-in"><h3 className="text-xl font-display font-bold text-slate-300 mb-4 flex items-center gap-2"><Icons.Calendar /> Proyección de Costes</h3><div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-center bg-slate-900/80 p-6 rounded-xl border border-slate-700"><div className="col-span-1"><label className="text-sm font-bold text-slate-400 block mb-2">Kilómetros Diarios</label><FormattedInput value={state.dailyKm} onChange={v => handleChange('dailyKm', v)} /></div><div className="col-span-3 grid grid-cols-3 gap-4"><div className="bg-slate-800/50 rounded p-4 text-center"><div className="text-xs font-bold text-slate-400 uppercase">Diario</div><div className="text-2xl font-bold text-white">{formatDecimal(dailyCost)}€</div></div><div className="bg-slate-800/50 rounded p-4 text-center"><div className="text-xs font-bold text-slate-400 uppercase">Mensual</div><div className="text-2xl font-bold text-white">{formatDecimal(monthlyCost)}€</div></div><div className="bg-slate-800/50 rounded p-4 text-center"><div className="text-xs font-bold text-slate-400 uppercase">Anual</div><div className="text-2xl font-bold text-blue-400">{formatMoney(annualCost)}€</div></div></div></div></div>
-                     <div className="mt-6 p-4 bg-slate-900/80 border border-slate-700 rounded-xl text-sm font-bold text-slate-400 text-center">
-                        <p>(*) La mejor app del mercado para controlar y gestionar tu Tesla, según mi experiencia es Tessie. Referido: <a href="https://share.tessie.com/JDukqlINZMb" target="_blank" className="text-purple-400 font-bold underline hover:text-purple-300">https://share.tessie.com/JDukqlINZMb</a></p>
-                     </div>
+                </div>
+
+                {/* FULL WIDTH: PROYECCIÓN DE COSTES */}
+                <div className="lg:col-span-12 mt-4 pt-6 border-t border-slate-800 animate-fade-in">
+                    <h3 className="text-xl font-display font-bold text-slate-300 mb-6 flex items-center gap-2">
+                        <Icons.Calendar /> Proyección de Costes
+                    </h3>
+                    
+                    <div className="bg-slate-900/80 p-6 rounded-xl border border-slate-700 space-y-8">
+                        
+                        {/* 1. INPUTS: KM Y COSTES FIJOS */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div>
+                                <label className="text-sm font-bold text-blue-400 block mb-2 uppercase tracking-wider">Uso del Vehículo</label>
+                                <label className="text-xs font-bold text-slate-400 block mb-1">Kilómetros Mensuales</label>
+                                <FormattedInput value={state.monthlyKm} onChange={v => handleChange('monthlyKm', v)} grouped={true} />
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-blue-400 block mb-2 uppercase tracking-wider">Otros Costes Fijos Mensuales</label>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-400 block mb-1 truncate" title="Servicio Premium">Serv. Premium</label>
+                                        <FormattedInput value={state.costPremium} onChange={v => handleChange('costPremium', v)} decimals={2} grouped={true} />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-400 block mb-1 truncate" title="Otros Servicios">Otros Serv.</label>
+                                        <FormattedInput value={state.costOther} onChange={v => handleChange('costOther', v)} decimals={2} grouped={true} />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] font-bold text-slate-400 block mb-1 truncate" title="FSD o Similar">FSD / Otros</label>
+                                        <FormattedInput value={state.costFSD} onChange={v => handleChange('costFSD', v)} decimals={2} grouped={true} />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="border-t border-slate-700/50"></div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            {/* 2. RESULTADOS: COSTES ENERGÍA */}
+                            <div className="bg-slate-800/20 p-4 rounded-xl border border-slate-700/50">
+                                <h4 className="text-sm font-bold text-slate-300 mb-3 uppercase text-center">Coste Energía</h4>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-400 font-bold uppercase text-xs">Diario</span>
+                                        <span className="text-xl font-bold text-white">{formatDecimal(costEnergyDaily)}€</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-400 font-bold uppercase text-xs">Mensual</span>
+                                        <span className="text-xl font-bold text-white">{formatDecimal(costEnergyMonthly)}€</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm border-t border-slate-700 pt-2">
+                                        <span className="text-slate-400 font-bold uppercase text-xs">Anual</span>
+                                        <span className="text-xl font-bold text-blue-400">{formatMoney(costEnergyAnnual)}€</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 3. RESULTADOS: COSTES SERVICIOS */}
+                            <div className="bg-slate-800/20 p-4 rounded-xl border border-slate-700/50">
+                                <h4 className="text-sm font-bold text-slate-300 mb-3 uppercase text-center">Coste Servicios</h4>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-400 font-bold uppercase text-xs">Diario</span>
+                                        <span className="text-xl font-bold text-white">{formatDecimal(fixedDaily)}€</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-400 font-bold uppercase text-xs">Mensual</span>
+                                        <span className="text-xl font-bold text-white">{formatDecimal(fixedMonthly)}€</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm border-t border-slate-700 pt-2">
+                                        <span className="text-slate-400 font-bold uppercase text-xs">Anual</span>
+                                        <span className="text-xl font-bold text-purple-400">{formatMoney(fixedAnnual)}€</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* 4. RESULTADOS: TOTALES (ENERGÍA + SERVICIOS) */}
+                            <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-600 shadow-lg">
+                                <h4 className="text-sm font-bold text-slate-300 mb-3 uppercase text-center">Total (Energía + Servicios)</h4>
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-400 font-bold uppercase text-xs">Diario</span>
+                                        <span className="text-2xl font-bold text-white">{formatDecimal(totalDaily)}€</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-slate-400 font-bold uppercase text-xs">Mensual</span>
+                                        <span className="text-2xl font-bold text-white">{formatDecimal(totalMonthly)}€</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm border-t border-slate-600 pt-2">
+                                        <span className="text-slate-400 font-bold uppercase text-xs">Anual</span>
+                                        <span className="text-2xl font-bold text-green-400">{formatMoney(totalAnnual)}€</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 5. RESULTADOS: COSTE POR KM */}
+                        <div className="bg-slate-800/30 rounded-xl p-4 border border-slate-700/50">
+                            <h4 className="text-sm font-bold text-slate-300 mb-3 uppercase text-center">Desglose Coste por Km</h4>
+                            <div className="grid grid-cols-3 gap-4 text-center divide-x divide-slate-700">
+                                <div>
+                                    <div className="text-[10px] font-bold text-slate-500 uppercase">Solo Energía</div>
+                                    <div className="text-lg font-bold text-blue-300">{formatDecimal(perKmEnergy, 3)} €/km</div>
+                                </div>
+                                <div>
+                                    <div className="text-[10px] font-bold text-slate-500 uppercase">Solo Servicios</div>
+                                    <div className="text-lg font-bold text-purple-300">{formatDecimal(perKmServices, 3)} €/km</div>
+                                </div>
+                                <div>
+                                    <div className="text-[10px] font-bold text-slate-500 uppercase">Total (Ambos)</div>
+                                    <div className="text-lg font-bold text-green-400">{formatDecimal(perKmTotal, 3)} €/km</div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                    
+                    <div className="mt-6 p-4 bg-slate-900/80 border border-slate-700 rounded-xl text-sm font-bold text-slate-400 text-center">
+                    <p>(*) La mejor app del mercado para controlar y gestionar tu Tesla, según mi experiencia es Tessie. Referido: <a href="https://share.tessie.com/JDukqlINZMb" target="_blank" className="text-purple-400 font-bold underline hover:text-purple-300">https://share.tessie.com/JDukqlINZMb</a></p>
+                    </div>
                 </div>
             </div>
         );
       };
+        
       
       // --- DRENAJE (LETRAS MÁS GRANDES) ---
       const DrainCalculator = () => {
