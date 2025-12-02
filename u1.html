@@ -626,6 +626,8 @@
         );
       };
 
+      
+
       // --- CALCULADORA DE CARGA (DISTRIBUCIÓN FULL WIDTH) ---
       const ChargingCalculator = () => {
         const [state, setState] = usePersistentState('chargeState', { 
@@ -641,10 +643,9 @@
             costPremium: 9.99,
             costFSD: 0,
             costOther: 0,
-            // Nuevos estados para la funcionalidad solicitada
             isFsdOneTime: false,
-            fsdOneTimeCost: 7500, // Valor por defecto (ej. precio FSD actual)
-            fsdAmortYears: 10     // Valor por defecto (vida útil estimada)
+            fsdOneTimeCost: 7500,
+            fsdAmortYears: 10
         });
 
         // CURVE DATA
@@ -722,7 +723,6 @@
             });
         };
         
-        // Handler específico para cálculo de amortización FSD
         const handleFsdOneTimeCalc = (costTotal, years) => {
              const c = parseFloat(costTotal) || 0;
              const y = parseFloat(years) || 0;
@@ -733,7 +733,7 @@
                  ...prev,
                  fsdOneTimeCost: c,
                  fsdAmortYears: y,
-                 costFSD: monthlyCost // Actualizamos el coste mensual automáticamente
+                 costFSD: monthlyCost
              }));
         };
 
@@ -742,7 +742,6 @@
             setState(prev => {
                 let newMonthly = prev.costFSD;
                 if(isChecked) {
-                    // Recalcular al activar con los valores guardados o por defecto
                     const cost = prev.fsdOneTimeCost || 7500;
                     const years = prev.fsdAmortYears || 10;
                     const months = years * 12;
@@ -820,7 +819,9 @@
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div>
                                 <label className="text-sm font-bold text-blue-400 block mb-2 uppercase tracking-wider">Uso del Vehículo</label>
-                                <label className="text-xs font-bold text-slate-400 block mb-1">Kilómetros Mensuales</label>
+                                <label className="text-xs font-bold text-slate-400 block mb-1">
+                                    Kilómetros Mensuales <span className="text-slate-500">[{formatDecimal(state.monthlyKm / 30, 0)} km/día]</span>
+                                </label>
                                 <FormattedInput value={state.monthlyKm} onChange={v => handleChange('monthlyKm', v)} grouped={true} />
                             </div>
                             <div>
@@ -968,7 +969,6 @@
             </div>
         );
       };
-
 
         
       
