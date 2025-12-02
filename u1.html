@@ -2865,7 +2865,7 @@
 
         useEffect(() => { setConsumption(calculateConsumption(simParams)); }, [simParams]);
 
-        const handleBack = () => { if (window.history.length > 1) window.history.back(); else window.close(); };
+        const handleBack = () => { window.location.href = "https://boardinggate.github.io/Tesla/tesla.html"; };  
 
         const renderContent = () => {
             switch(activeTab) {
