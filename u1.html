@@ -626,7 +626,6 @@
         );
       };
 
-
       // --- CALCULADORA DE CARGA (DISTRIBUCIÓN FULL WIDTH) ---
       const ChargingCalculator = () => {
         const [state, setState] = usePersistentState('chargeState', { 
@@ -641,7 +640,11 @@
             batType: 'LFP',
             costPremium: 9.99,
             costFSD: 0,
-            costOther: 0
+            costOther: 0,
+            // Nuevos estados para la funcionalidad solicitada
+            isFsdOneTime: false,
+            fsdOneTimeCost: 7500, // Valor por defecto (ej. precio FSD actual)
+            fsdAmortYears: 10     // Valor por defecto (vida útil estimada)
         });
 
         // CURVE DATA
@@ -719,6 +722,42 @@
             });
         };
         
+        // Handler específico para cálculo de amortización FSD
+        const handleFsdOneTimeCalc = (costTotal, years) => {
+             const c = parseFloat(costTotal) || 0;
+             const y = parseFloat(years) || 0;
+             const months = y * 12;
+             const monthlyCost = months > 0 ? c / months : 0;
+             
+             setState(prev => ({
+                 ...prev,
+                 fsdOneTimeCost: c,
+                 fsdAmortYears: y,
+                 costFSD: monthlyCost // Actualizamos el coste mensual automáticamente
+             }));
+        };
+
+        const toggleFsdOneTime = (e) => {
+            const isChecked = e.target.checked;
+            setState(prev => {
+                let newMonthly = prev.costFSD;
+                if(isChecked) {
+                    // Recalcular al activar con los valores guardados o por defecto
+                    const cost = prev.fsdOneTimeCost || 7500;
+                    const years = prev.fsdAmortYears || 10;
+                    const months = years * 12;
+                    newMonthly = months > 0 ? cost / months : 0;
+                }
+                return {
+                    ...prev,
+                    isFsdOneTime: isChecked,
+                    costFSD: newMonthly,
+                    fsdOneTimeCost: prev.fsdOneTimeCost || 7500,
+                    fsdAmortYears: prev.fsdAmortYears || 10
+                };
+            });
+        };
+        
         const powerPresets = [ { l: "Schuko", v: 2.3 }, { l: "GreenUp", v: 3.7 }, { l: "Wallbox 1F", v: 7.4 }, { l: "Wallbox 3F", v: 11 }, { l: "AC Público", v: 22 }, { l: "DC 50", v: 50 }, { l: "Supercharger", v: 150 } ];
 
         return (
@@ -786,7 +825,7 @@
                             </div>
                             <div>
                                 <label className="text-sm font-bold text-blue-400 block mb-2 uppercase tracking-wider">Otros Costes Fijos Mensuales</label>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-3 gap-3 items-start">
                                     <div>
                                         <label className="text-[10px] font-bold text-slate-400 block mb-1 truncate" title="Servicio Premium">Serv. Premium</label>
                                         <FormattedInput value={state.costPremium} onChange={v => handleChange('costPremium', v)} decimals={2} grouped={true} />
@@ -795,10 +834,47 @@
                                         <label className="text-[10px] font-bold text-slate-400 block mb-1 truncate" title="Otros Servicios">Otros Serv.</label>
                                         <FormattedInput value={state.costOther} onChange={v => handleChange('costOther', v)} decimals={2} grouped={true} />
                                     </div>
-                                    <div>
-                                        <label className="text-[10px] font-bold text-slate-400 block mb-1 truncate" title="FSD o Similar">FSD / Otros</label>
-                                        <FormattedInput value={state.costFSD} onChange={v => handleChange('costFSD', v)} decimals={2} grouped={true} />
+                                    
+                                    {/* BLOQUE FSD CON OPCIÓN PAGO ÚNICO */}
+                                    <div className={`transition-all duration-300 ${state.isFsdOneTime ? 'col-span-1 md:col-span-3 bg-slate-800/50 p-3 rounded border border-slate-700' : ''}`}>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <label className="text-[10px] font-bold text-slate-400 truncate" title="FSD o Similar">
+                                                {state.isFsdOneTime ? 'Amortización FSD/Pago Único' : 'FSD / Otros (Mensual)'}
+                                            </label>
+                                            <div className="flex items-center gap-1">
+                                                 <input 
+                                                    type="checkbox" 
+                                                    checked={state.isFsdOneTime || false} 
+                                                    onChange={toggleFsdOneTime}
+                                                    className="w-3 h-3 accent-blue-500 cursor-pointer" 
+                                                 />
+                                                 <span className="text-[9px] text-slate-400 font-bold uppercase cursor-pointer" onClick={() => toggleFsdOneTime({target: {checked: !state.isFsdOneTime}})}>Pago Único</span>
+                                            </div>
+                                        </div>
+
+                                        {state.isFsdOneTime ? (
+                                            <div className="grid grid-cols-3 gap-2">
+                                                <div>
+                                                    <label className="text-[9px] text-slate-500 block">Coste Total (€)</label>
+                                                    <FormattedInput value={state.fsdOneTimeCost} onChange={(v) => handleFsdOneTimeCalc(v, state.fsdAmortYears)} grouped={true} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[9px] text-slate-500 block">Años Amortizar</label>
+                                                    <FormattedInput value={state.fsdAmortYears} onChange={(v) => handleFsdOneTimeCalc(state.fsdOneTimeCost, v)} decimals={1} />
+                                                </div>
+                                                <div>
+                                                    <label className="text-[9px] text-blue-400 block font-bold">Mensual (Calc)</label>
+                                                     <div className="w-full bg-slate-900/50 border border-slate-700 rounded px-2 py-3 text-blue-400 font-mono font-bold text-right text-lg h-[54px] flex items-center justify-end">
+                                                        {formatDecimal(state.costFSD)}€
+                                                     </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <FormattedInput value={state.costFSD} onChange={v => handleChange('costFSD', v)} decimals={2} grouped={true} />
+                                        )}
                                     </div>
+                                    {/* FIN BLOQUE FSD */}
+
                                 </div>
                             </div>
                         </div>
@@ -892,6 +968,8 @@
             </div>
         );
       };
+
+
         
       
       // --- DRENAJE (LETRAS MÁS GRANDES) ---
