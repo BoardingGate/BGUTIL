@@ -1065,7 +1065,7 @@
         const timeDiff = totalTimeA - totalTimeB; 
         const costA = netChargeNeededA * state.costPerKwh; 
         const costB = netChargeNeededB * state.costPerKwh;
-    const costDiff = costB - costA;
+        const costDiff = costB - costA;
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v) || 0}));
         const handleStrategy = (val) => setState(prev => ({...prev, chargingStrategy: val}));
         
@@ -1871,7 +1871,7 @@
             </div>
         );
       };
-  
+
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
