@@ -731,6 +731,22 @@
                 return { ...prev, ...updates };
             });
         };
+
+        // Handlers para el Slider Dual
+        const handleDualSliderChange = (key, value) => {
+            const val = parseInt(value);
+            setState(prev => {
+                let newStart = prev.startPct;
+                let newTarget = prev.targetPct;
+
+                if (key === 'startPct') {
+                    newStart = Math.min(val, prev.targetPct - 1);
+                } else if (key === 'targetPct') {
+                    newTarget = Math.max(val, prev.startPct + 1);
+                }
+                return { ...prev, startPct: newStart, targetPct: newTarget };
+            });
+        };
         
         const handleFsdOneTimeCalc = (costTotal, years) => {
              const c = parseFloat(costTotal) || 0;
@@ -768,8 +784,18 @@
         
         const powerPresets = [ { l: "Schuko", v: 2.3 }, { l: "GreenUp", v: 3.7 }, { l: "Wallbox 1F", v: 7.4 }, { l: "Wallbox 3F", v: 11 }, { l: "AC Público", v: 22 }, { l: "DC 50", v: 50 }, { l: "Supercharger", v: 150 } ];
 
+        // Estilos específicos para el slider dual (inyectados localmente)
+        const sliderStyle = `
+            .range-slider-input { pointer-events: none; -webkit-appearance: none; z-index: 10; }
+            .range-slider-input::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; position: relative; z-index: 20; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+            .range-slider-input::-moz-range-thumb { pointer-events: auto; width: 24px; height: 24px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; position: relative; z-index: 20; }
+            #slider-dual-start::-webkit-slider-thumb { border-color: #eab308; } 
+            #slider-dual-target::-webkit-slider-thumb { border-color: #22c55e; }
+        `;
+
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in">
+                <style>{sliderStyle}</style>
                 {/* COLUMNA IZQUIERDA: PARÁMETROS DE CARGA */}
                 <div className="lg:col-span-5 space-y-6">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 h-full">
@@ -782,8 +808,50 @@
 
                         <div className="space-y-6">
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.capacity} onChange={v => handleChange('capacity', v)} decimals={1}/></div>
-                            <div><div className="flex justify-between mb-2"><label className="text-sm font-bold text-slate-400">Porcentaje de Inicio</label><span className="text-base font-bold text-white">{state.startPct}%</span></div><input type="range" min="0" max="100" value={state.startPct} onChange={e => { const val = parseInt(e.target.value); setState(prev => ({...prev, startPct: val, targetPct: Math.max(val, prev.targetPct)})); }} className="w-full h-4 bg-slate-700 rounded-lg accent-yellow-500" /></div>
-                            <div><div className="flex justify-between mb-2"><label className="text-sm font-bold text-slate-400">Objetivo de Carga</label><span className="text-base font-bold text-green-400">{state.targetPct}%</span></div><input type="range" min="0" max="100" value={state.targetPct} onChange={e => handleChange('targetPct', e.target.value)} className="w-full h-4 bg-slate-700 rounded-lg accent-green-500" /></div>
+                            
+                            {/* NUEVO SLIDER DUAL PARA PORCENTAJE */}
+                            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50">
+                                <div className="flex justify-between mb-2 items-end">
+                                    <label className="text-sm font-bold text-slate-300">Rango de Carga</label>
+                                    <div className="flex gap-2 text-sm font-mono font-bold">
+                                        <span className="text-yellow-400">{state.startPct}%</span>
+                                        <span className="text-slate-500">➜</span>
+                                        <span className="text-green-400">{state.targetPct}%</span>
+                                    </div>
+                                </div>
+                                
+                                <div className="relative h-10 select-none mt-2">
+                                    {/* Barra de fondo */}
+                                    <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-3 bg-slate-900 rounded-full border border-slate-700 overflow-hidden">
+                                        {/* Relleno visual entre inicio y fin */}
+                                        <div className="absolute top-0 bottom-0 bg-gradient-to-r from-yellow-500 to-green-500 opacity-80" 
+                                             style={{left: `${state.startPct}%`, right: `${100-state.targetPct}%`}}></div>
+                                    </div>
+                                    
+                                    {/* Inputs Superpuestos */}
+                                    <input 
+                                        id="slider-dual-start"
+                                        type="range" min="0" max="99" 
+                                        value={state.startPct} 
+                                        onChange={e => handleDualSliderChange('startPct', e.target.value)} 
+                                        className="range-slider-input absolute inset-0 w-full opacity-0 sm:opacity-100 bg-transparent" 
+                                    />
+                                    <input 
+                                        id="slider-dual-target"
+                                        type="range" min="1" max="100" 
+                                        value={state.targetPct} 
+                                        onChange={e => handleDualSliderChange('targetPct', e.target.value)} 
+                                        className="range-slider-input absolute inset-0 w-full bg-transparent" 
+                                    />
+                                </div>
+                                <div className="flex justify-between text-[10px] text-slate-500 font-bold px-1 mt-1">
+                                    <span>0%</span>
+                                    <span>50%</span>
+                                    <span>100%</span>
+                                </div>
+                            </div>
+                            {/* FIN SLIDER DUAL */}
+
                             <div className="pt-4 border-t border-slate-800"><label className="text-sm font-bold text-slate-400 block mb-2">Potencia de Carga (kW)</label><FormattedInput value={state.power} onChange={v => handleChange('power', v)} decimals={1}/><div className="flex flex-wrap gap-3 mt-4">{powerPresets.map(p => (<button key={p.v} onClick={() => handleChange('power', p.v)} className={`px-3 py-2 text-xs rounded border transition-colors font-bold ${state.power === p.v ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>{p.l}</button>))}</div></div>
                             <div className="pt-4 grid grid-cols-2 gap-6"><div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo (kWh/100)</label><FormattedInput value={state.consumption} onChange={v => handleChange('consumption', v)} decimals={1}/></div><div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Energía (€/kWh)</label><FormattedInput value={state.energyPrice} onChange={v => handleChange('energyPrice', v)} decimals={3}/></div></div>
                         </div>
@@ -979,6 +1047,7 @@
         );
       };
 
+
         
       
       // --- DRENAJE (LETRAS MÁS GRANDES) ---
@@ -1125,8 +1194,10 @@
 
         // Helper para calcular hora de inicio
         const calculateStartTime = (endTime, durationMinutes) => {
-            if(!endTime) return "--:--";
+            if(!endTime || !endTime.includes(':')) return "--:--";
             const [h, m] = endTime.split(':').map(Number);
+            if (isNaN(h) || isNaN(m)) return "--:--";
+            
             const endTotal = h * 60 + m;
             let startTotal = endTotal - durationMinutes;
             if (startTotal < 0) startTotal += 1440; // Handle previous day
@@ -1172,8 +1243,10 @@
         const chargeSpeedPctH = state.battery > 0 ? (state.power / state.battery) * 100 : 0;
         
         const getChargeWindowStats = () => {
-            if(!state.chargeEndTime) return { hours: 0, kwh: 0, km: 0, pct: 0 };
+            if(!state.chargeEndTime || !state.chargeEndTime.includes(':')) return { hours: 0, kwh: 0, km: 0, pct: 0 };
             const [h, m] = state.chargeEndTime.split(':').map(Number);
+            if(isNaN(h) || isNaN(m)) return { hours: 0, kwh: 0, km: 0, pct: 0 };
+
             const totalHours = h + (m/60);
             const totalKwh = totalHours * state.power;
             const totalKm = state.consumption > 0 ? (totalKwh / state.consumption) * 100 : 0;
@@ -1362,8 +1435,10 @@
                             <div><label className="text-sm font-bold text-yellow-500 block mb-2">Carga Profunda (%)</label><FormattedInput decimals={0} value={state.deepDischargeLimit} onChange={v => handleNumChange('deepDischargeLimit', v)} /></div>
                             <div>
                                 <label className="text-sm font-bold text-green-400 block mb-2">Hora Fin Carga (Mañana)</label>
+                                {/* MODIFICACIÓN: TYPE TEXT PARA ENTRADA MANUAL DE HORA */}
                                 <input 
-                                    type="time" 
+                                    type="text" 
+                                    placeholder="HH:MM"
                                     value={state.chargeEndTime} 
                                     onChange={(e) => handleChange('chargeEndTime', e.target.value)} 
                                     className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-3 text-yellow-300 font-mono font-bold focus:outline-none focus:border-yellow-500 text-lg shadow-inner text-center h-[54px]"
@@ -1871,7 +1946,6 @@
             </div>
         );
       };
-
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
