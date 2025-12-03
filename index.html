@@ -731,6 +731,22 @@
                 return { ...prev, ...updates };
             });
         };
+
+        // Handlers para el Slider Dual
+        const handleDualSliderChange = (key, value) => {
+            const val = parseInt(value);
+            setState(prev => {
+                let newStart = prev.startPct;
+                let newTarget = prev.targetPct;
+
+                if (key === 'startPct') {
+                    newStart = Math.min(val, prev.targetPct - 1);
+                } else if (key === 'targetPct') {
+                    newTarget = Math.max(val, prev.startPct + 1);
+                }
+                return { ...prev, startPct: newStart, targetPct: newTarget };
+            });
+        };
         
         const handleFsdOneTimeCalc = (costTotal, years) => {
              const c = parseFloat(costTotal) || 0;
@@ -768,8 +784,18 @@
         
         const powerPresets = [ { l: "Schuko", v: 2.3 }, { l: "GreenUp", v: 3.7 }, { l: "Wallbox 1F", v: 7.4 }, { l: "Wallbox 3F", v: 11 }, { l: "AC Público", v: 22 }, { l: "DC 50", v: 50 }, { l: "Supercharger", v: 150 } ];
 
+        // Estilos específicos para el slider dual (inyectados localmente)
+        const sliderStyle = `
+            .range-slider-input { pointer-events: none; -webkit-appearance: none; z-index: 10; }
+            .range-slider-input::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; position: relative; z-index: 20; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+            .range-slider-input::-moz-range-thumb { pointer-events: auto; width: 24px; height: 24px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; position: relative; z-index: 20; }
+            #slider-dual-start::-webkit-slider-thumb { border-color: #eab308; } 
+            #slider-dual-target::-webkit-slider-thumb { border-color: #22c55e; }
+        `;
+
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in">
+                <style>{sliderStyle}</style>
                 {/* COLUMNA IZQUIERDA: PARÁMETROS DE CARGA */}
                 <div className="lg:col-span-5 space-y-6">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 h-full">
@@ -782,8 +808,50 @@
 
                         <div className="space-y-6">
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.capacity} onChange={v => handleChange('capacity', v)} decimals={1}/></div>
-                            <div><div className="flex justify-between mb-2"><label className="text-sm font-bold text-slate-400">Porcentaje de Inicio</label><span className="text-base font-bold text-white">{state.startPct}%</span></div><input type="range" min="0" max="100" value={state.startPct} onChange={e => { const val = parseInt(e.target.value); setState(prev => ({...prev, startPct: val, targetPct: Math.max(val, prev.targetPct)})); }} className="w-full h-4 bg-slate-700 rounded-lg accent-yellow-500" /></div>
-                            <div><div className="flex justify-between mb-2"><label className="text-sm font-bold text-slate-400">Objetivo de Carga</label><span className="text-base font-bold text-green-400">{state.targetPct}%</span></div><input type="range" min="0" max="100" value={state.targetPct} onChange={e => handleChange('targetPct', e.target.value)} className="w-full h-4 bg-slate-700 rounded-lg accent-green-500" /></div>
+                            
+                            {/* NUEVO SLIDER DUAL PARA PORCENTAJE */}
+                            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50">
+                                <div className="flex justify-between mb-2 items-end">
+                                    <label className="text-sm font-bold text-slate-300">Rango de Carga</label>
+                                    <div className="flex gap-2 text-sm font-mono font-bold">
+                                        <span className="text-yellow-400">{state.startPct}%</span>
+                                        <span className="text-slate-500">➜</span>
+                                        <span className="text-green-400">{state.targetPct}%</span>
+                                    </div>
+                                </div>
+                                
+                                <div className="relative h-10 select-none mt-2">
+                                    {/* Barra de fondo */}
+                                    <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-3 bg-slate-900 rounded-full border border-slate-700 overflow-hidden">
+                                        {/* Relleno visual entre inicio y fin */}
+                                        <div className="absolute top-0 bottom-0 bg-gradient-to-r from-yellow-500 to-green-500 opacity-80" 
+                                             style={{left: `${state.startPct}%`, right: `${100-state.targetPct}%`}}></div>
+                                    </div>
+                                    
+                                    {/* Inputs Superpuestos */}
+                                    <input 
+                                        id="slider-dual-start"
+                                        type="range" min="0" max="99" 
+                                        value={state.startPct} 
+                                        onChange={e => handleDualSliderChange('startPct', e.target.value)} 
+                                        className="range-slider-input absolute inset-0 w-full opacity-0 sm:opacity-100 bg-transparent" 
+                                    />
+                                    <input 
+                                        id="slider-dual-target"
+                                        type="range" min="1" max="100" 
+                                        value={state.targetPct} 
+                                        onChange={e => handleDualSliderChange('targetPct', e.target.value)} 
+                                        className="range-slider-input absolute inset-0 w-full bg-transparent" 
+                                    />
+                                </div>
+                                <div className="flex justify-between text-[10px] text-slate-500 font-bold px-1 mt-1">
+                                    <span>0%</span>
+                                    <span>50%</span>
+                                    <span>100%</span>
+                                </div>
+                            </div>
+                            {/* FIN SLIDER DUAL */}
+
                             <div className="pt-4 border-t border-slate-800"><label className="text-sm font-bold text-slate-400 block mb-2">Potencia de Carga (kW)</label><FormattedInput value={state.power} onChange={v => handleChange('power', v)} decimals={1}/><div className="flex flex-wrap gap-3 mt-4">{powerPresets.map(p => (<button key={p.v} onClick={() => handleChange('power', p.v)} className={`px-3 py-2 text-xs rounded border transition-colors font-bold ${state.power === p.v ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>{p.l}</button>))}</div></div>
                             <div className="pt-4 grid grid-cols-2 gap-6"><div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo (kWh/100)</label><FormattedInput value={state.consumption} onChange={v => handleChange('consumption', v)} decimals={1}/></div><div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Energía (€/kWh)</label><FormattedInput value={state.energyPrice} onChange={v => handleChange('energyPrice', v)} decimals={3}/></div></div>
                         </div>
@@ -979,6 +1047,7 @@
         );
       };
 
+
         
       
       // --- DRENAJE (LETRAS MÁS GRANDES) ---
@@ -1065,7 +1134,7 @@
         const timeDiff = totalTimeA - totalTimeB; 
         const costA = netChargeNeededA * state.costPerKwh; 
         const costB = netChargeNeededB * state.costPerKwh;
-    const costDiff = costB - costA;
+        const costDiff = costB - costA;
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v) || 0}));
         const handleStrategy = (val) => setState(prev => ({...prev, chargingStrategy: val}));
         
@@ -1108,6 +1177,46 @@
             targets: { Mon: 0, Tue: 0, Wed: 0, Thu: 70, Fri: 0, Sat: 0, Sun: 100 }
         });
 
+        // Estado para la fecha de guardado de la copia manual
+        const [savedDate, setSavedDate] = useState(null);
+
+        // Cargar fecha de guardado al montar el componente
+        useEffect(() => {
+            try {
+                const date = localStorage.getItem('strategySnapshotTime');
+                if(date) setSavedDate(date);
+            } catch (e) { console.error(e); }
+        }, []);
+
+        // --- LÓGICA DE SNAPSHOT ---
+        const handleSaveSnapshot = () => {
+            try {
+                const now = new Date().toLocaleString('es-ES');
+                localStorage.setItem('strategySnapshot', JSON.stringify(state));
+                localStorage.setItem('strategySnapshotTime', now);
+                setSavedDate(now);
+            } catch (error) {
+                console.error("Error guardando snapshot", error);
+                alert("No se pudo guardar la copia (espacio insuficiente o error local).");
+            }
+        };
+
+        const handleRestoreSnapshot = () => {
+            try {
+                const data = localStorage.getItem('strategySnapshot');
+                if (data) {
+                    const parsed = JSON.parse(data);
+                    // Restauración directa sin confirmación
+                    setState(parsed);
+                } else {
+                    alert("No hay ninguna copia guardada previamente.");
+                }
+            } catch (error) {
+                console.error("Error restaurando snapshot", error);
+                alert("Error al intentar restaurar los datos.");
+            }
+        };
+
         const dayLabels = { Mon: 'Lunes', Tue: 'Martes', Wed: 'Miércoles', Thu: 'Jueves', Fri: 'Viernes', Sat: 'Sábado', Sun: 'Domingo' };
         const dayInitials = { Mon: 'LU', Tue: 'MA', Wed: 'MI', Thu: 'JU', Fri: 'VI', Sat: 'SA', Sun: 'DO' };
         const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -1135,10 +1244,34 @@
             return `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
         };
 
+        // Helper para parsear fecha europea (DD-MM-AAAA) a Objeto Date
+        const parseEuroDate = (dateStr) => {
+            if (!dateStr) return null;
+            // Acepta separadores - o /
+            const parts = dateStr.split(/[-/]/);
+            if (parts.length !== 3) return null;
+            
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1; // Meses en JS son 0-11
+            const year = parseInt(parts[2], 10);
+            
+            if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+            
+            const date = new Date(year, month, day);
+            // Validar que la fecha sea real (ej: evitar 31 de febrero)
+            if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) return null;
+            
+            return date;
+        };
+
         // Helper para antigüedad
         const getCarAge = () => {
             if (!state.purchaseDate) return null;
-            const start = new Date(state.purchaseDate);
+            
+            // USAMOS EL PARSEADOR EUROPEO AQUÍ
+            const start = parseEuroDate(state.purchaseDate);
+            if (!start) return null;
+            
             const now = new Date();
             const diffTime = Math.abs(now - start);
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
@@ -1335,8 +1468,40 @@
             { r: "0 al 70%", c: 5000 }, { r: "10 al 70%", c: 5500 }, { r: "20 al 70%", c: 6000 },
         ];
 
+        // Estilos específicos para el slider dual (inyectados localmente)
+        const sliderStyle = `
+            .range-slider-input { pointer-events: none; -webkit-appearance: none; z-index: 10; }
+            .range-slider-input::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; position: relative; z-index: 20; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+            .range-slider-input::-moz-range-thumb { pointer-events: auto; width: 24px; height: 24px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; position: relative; z-index: 20; }
+            #slider-dual-start::-webkit-slider-thumb { border-color: #eab308; } 
+            #slider-dual-target::-webkit-slider-thumb { border-color: #22c55e; }
+        `;
+
+        // Handlers para el Slider Dual
+        const handleDualSliderChange = (day, key, value) => {
+            const val = parseInt(value);
+            setState(prev => {
+                // Esto es complejo porque 'startPct' en la tabla es calculado, no state directo
+                // El slider dual en la tabla de Estrategia es un poco diferente al de la Calculadora
+                // En la tabla, 'startPct' viene del día anterior. Solo podemos editar el TARGET del día actual.
+                // Si quieres editar el startPct, tendrías que editar el target del día anterior.
+                // PERO, para mantener la funcionalidad visual del slider dual:
+                // Solo permitiremos mover el TARGET (el segundo tirador). El primero será solo lectura visual.
+                
+                if (key === 'targets') {
+                    // Actualizamos el target del día
+                    return {
+                        ...prev,
+                        targets: { ...prev.targets, [day]: val }
+                    };
+                }
+                return prev;
+            });
+        };
+
         return (
             <div className="grid grid-cols-1 gap-8 animate-fade-in">
+                <style>{sliderStyle}</style>
                 {/* Global Settings */}
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                     <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
@@ -1360,7 +1525,8 @@
                             <div>
                                 <label className="text-sm font-bold text-green-400 block mb-2">Hora Fin Carga (Mañana)</label>
                                 <input 
-                                    type="time" 
+                                    type="text" 
+                                    placeholder="HH:MM"
                                     value={state.chargeEndTime} 
                                     onChange={(e) => handleChange('chargeEndTime', e.target.value)} 
                                     className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-3 text-yellow-300 font-mono font-bold focus:outline-none focus:border-yellow-500 text-lg shadow-inner text-center h-[54px]"
@@ -1688,7 +1854,14 @@
                         </h3>
                         <div className="flex items-center gap-2 bg-slate-900/50 p-2 rounded-lg border border-slate-700">
                             <label className="text-xs font-bold text-slate-400 uppercase">FECHA ÚLTIMA CARGA PROFUNDA:</label>
-                            <input type="date" value={state.lastCalibrationDate} onChange={(e) => handleChange('lastCalibrationDate', e.target.value)} className="bg-slate-700 text-white text-sm font-bold rounded px-3 py-2 outline-none border border-slate-600 focus:border-blue-500" />
+                            {/* MODIFICACIÓN: TYPE TEXT PARA PERMITIR ENTRADA DIRECTA EN TESLA */}
+                            <input 
+                                type="text" 
+                                placeholder="DD-MM-AAAA"
+                                value={state.lastCalibrationDate} 
+                                onChange={(e) => handleChange('lastCalibrationDate', e.target.value)} 
+                                className="bg-slate-700 text-white text-sm font-bold rounded px-3 py-2 outline-none border border-slate-600 focus:border-blue-500 w-40 text-center" 
+                            />
                         </div>
                     </div>
                     {calibrationOpportunity ? (
@@ -1736,7 +1909,14 @@
                             <div>
                                 <label className="text-sm font-bold text-slate-400 block mb-2">FECHA DE COMPRA</label>
                                 <div className="flex items-center gap-4">
-                                    <input type="date" value={state.purchaseDate} onChange={(e) => handleChange('purchaseDate', e.target.value)} className="bg-zinc-700 text-yellow-300 text-lg font-mono font-bold rounded px-3 py-3 outline-none border border-zinc-600 focus:border-yellow-500 flex-grow h-[54px]" />
+                                    {/* MODIFICACIÓN: TYPE TEXT PARA PERMITIR ENTRADA DIRECTA EN TESLA */}
+                                    <input 
+                                        type="text"
+                                        placeholder="DD-MM-AAAA" 
+                                        value={state.purchaseDate} 
+                                        onChange={(e) => handleChange('purchaseDate', e.target.value)} 
+                                        className="bg-zinc-700 text-yellow-300 text-lg font-mono font-bold rounded px-3 py-3 outline-none border border-zinc-600 focus:border-yellow-500 flex-grow h-[54px]" 
+                                    />
                                     {carAge && (<div className="bg-slate-800 px-4 py-3 rounded-lg border border-slate-700"><div className="text-xs font-bold text-slate-400 uppercase">Antigüedad</div><div className="text-base font-bold text-white whitespace-nowrap">{carAge.text}</div></div>)}
                                 </div>
                             </div>
@@ -1851,11 +2031,45 @@
                         </div>
                     </div>
                 </div>
+
+                {/* BOTONES DE SNAPSHOT / COPIA DE SEGURIDAD */}
+                <div className="lg:col-span-12">
+                    <div className="flex flex-col md:flex-row gap-6 justify-center items-center p-6 bg-slate-900/50 rounded-xl border border-slate-700/50">
+                        <div className="flex flex-col items-center gap-2 w-full md:w-auto">
+                            <button 
+                                onClick={handleSaveSnapshot} 
+                                className="w-full md:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"
+                            >
+                                <Icons.Settings className="w-5 h-5" />
+                                GUARDAR DATOS (solo guarda 1 copia)
+                            </button>
+                            {savedDate && (
+                                <span className="text-xs font-bold text-slate-400">
+                                    Copia actual: <span className="text-blue-300">{savedDate}</span>
+                                </span>
+                            )}
+                        </div>
+
+                        {savedDate && (
+                            <div className="flex flex-col items-center gap-2 w-full md:w-auto">
+                                <button 
+                                    onClick={handleRestoreSnapshot} 
+                                    className="w-full md:w-auto px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"
+                                >
+                                    <Icons.Activity className="w-5 h-5" />
+                                    RESTAURAR DATOS
+                                </button>
+                                <span className="text-xs font-bold text-orange-400/70">
+                                    Sobrescribirá los datos actuales
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
         );
       };
-
-      
+  
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
@@ -2520,6 +2734,46 @@
             }
         });
 
+        // Estado para la fecha de guardado de la copia manual
+        const [savedDate, setSavedDate] = useState(null);
+
+        // Cargar fecha de guardado al montar el componente
+        useEffect(() => {
+            try {
+                const date = localStorage.getItem('tariffCompSnapshotTime');
+                if(date) setSavedDate(date);
+            } catch (e) { console.error(e); }
+        }, []);
+
+        // --- LÓGICA DE SNAPSHOT ---
+        const handleSaveSnapshot = () => {
+            try {
+                const now = new Date().toLocaleString('es-ES');
+                localStorage.setItem('tariffCompSnapshot', JSON.stringify(tState));
+                localStorage.setItem('tariffCompSnapshotTime', now);
+                setSavedDate(now);
+                // Feedback visual simple (opcional, por ahora solo actualiza la fecha)
+            } catch (error) {
+                console.error("Error guardando snapshot", error);
+                alert("No se pudo guardar la copia (espacio insuficiente o error local).");
+            }
+        };
+
+        const handleRestoreSnapshot = () => {
+            try {
+                const data = localStorage.getItem('tariffCompSnapshot');
+                if (data) {
+                    const parsed = JSON.parse(data);
+                        setTState(parsed);
+                } else {
+                    alert("No hay ninguna copia guardada previamente.");
+                }
+            } catch (error) {
+                console.error("Error restaurando snapshot", error);
+                alert("Error al intentar restaurar los datos.");
+            }
+        };
+
         // Handler for shared consumption updates
         const handleConsChange = (key, val) => {
             if (key === 'consTotal') {
@@ -2852,8 +3106,43 @@
                     </div>
                 </div>
 
+                {/* BOTONES DE SNAPSHOT / COPIA DE SEGURIDAD */}
+                <div className="lg:col-span-12">
+                    <div className="flex flex-col md:flex-row gap-6 justify-center items-center p-6 bg-slate-900/50 rounded-xl border border-slate-700/50">
+                        <div className="flex flex-col items-center gap-2 w-full md:w-auto">
+                            <button 
+                                onClick={handleSaveSnapshot} 
+                                className="w-full md:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"
+                            >
+                                <Icons.Settings className="w-5 h-5" />
+                                GUARDAR DATOS (solo guarda 1 copia)
+                            </button>
+                            {savedDate && (
+                                <span className="text-xs font-bold text-slate-400">
+                                    Copia actual: <span className="text-blue-300">{savedDate}</span>
+                                </span>
+                            )}
+                        </div>
+
+                        {savedDate && (
+                            <div className="flex flex-col items-center gap-2 w-full md:w-auto">
+                                <button 
+                                    onClick={handleRestoreSnapshot} 
+                                    className="w-full md:w-auto px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"
+                                >
+                                    <Icons.Activity className="w-5 h-5" />
+                                    RESTAURAR DATOS
+                                </button>
+                                <span className="text-xs font-bold text-orange-400/70">
+                                    Sobrescribirá los datos actuales
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
             {/* FOOTER OCTOPUS - MODIFICADO CON BOTÓN LILA */}
-                <div className="lg:col-span-12 mt-6 p-6 bg-purple-900/20 border border-purple-500/30 rounded-xl flex flex-col items-center gap-4 text-center">
+                <div className="lg:col-span-12 mt-2 p-6 bg-purple-900/20 border border-purple-500/30 rounded-xl flex flex-col items-center gap-4 text-center">
                     <p className="text-sm font-bold text-slate-300 leading-relaxed max-w-4xl">
                         (*) Una de las mejores Comercializadoras del Mercado es Octopus Energy. Aprovecha mi referido para colaborar con el proyecto y ahorrarte dinero (50€ gratis). El trámite se realiza en 5 minutos, sin permanencia y puedes cambiar las veces que quieras.
                     </p>
@@ -2868,6 +3157,7 @@
             </div>
         );
       };
+      
 
         
 
