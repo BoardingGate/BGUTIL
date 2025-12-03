@@ -649,7 +649,6 @@
       };
 
       
-
       // --- CALCULADORA DE CARGA (DISTRIBUCIÓN FULL WIDTH) ---
       const ChargingCalculator = () => {
         const [state, setState] = usePersistentState('chargeState', { 
@@ -822,48 +821,7 @@
                         <div className="space-y-6">
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.capacity} onChange={v => handleChange('capacity', v)} decimals={1}/></div>
                             
-                            {/* NUEVO SLIDER DUAL PARA PORCENTAJE */}
-                            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50">
-                                <div className="flex justify-between mb-2 items-end">
-                                    <label className="text-sm font-bold text-slate-300">Rango de Carga</label>
-                                    <div className="flex gap-2 text-sm font-mono font-bold">
-                                        <span className="text-yellow-400">{state.startPct}%</span>
-                                        <span className="text-slate-500">➜</span>
-                                        <span className="text-green-400">{state.targetPct}%</span>
-                                    </div>
-                                </div>
-                                
-                                <div className="relative h-10 select-none mt-2">
-                                    {/* Barra de fondo */}
-                                    <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-3 bg-slate-900 rounded-full border border-slate-700 overflow-hidden">
-                                        {/* Relleno visual entre inicio y fin */}
-                                        <div className="absolute top-0 bottom-0 bg-gradient-to-r from-yellow-500 to-green-500 opacity-80" 
-                                             style={{left: `${state.startPct}%`, right: `${100-state.targetPct}%`}}></div>
-                                    </div>
-                                    
-                                    {/* Inputs Superpuestos */}
-                                    <input 
-                                        id="slider-dual-start"
-                                        type="range" min="0" max="99" 
-                                        value={state.startPct} 
-                                        onChange={e => handleDualSliderChange('startPct', e.target.value)} 
-                                        className="range-slider-input absolute inset-0 w-full opacity-0 sm:opacity-100 bg-transparent" 
-                                    />
-                                    <input 
-                                        id="slider-dual-target"
-                                        type="range" min="1" max="100" 
-                                        value={state.targetPct} 
-                                        onChange={e => handleDualSliderChange('targetPct', e.target.value)} 
-                                        className="range-slider-input absolute inset-0 w-full bg-transparent" 
-                                    />
-                                </div>
-                                <div className="flex justify-between text-[10px] text-slate-500 font-bold px-1 mt-1">
-                                    <span>0%</span>
-                                    <span>50%</span>
-                                    <span>100%</span>
-                                </div>
-                            </div>
-                            {/* FIN SLIDER DUAL */}
+                            {/* SLIDER DUAL ELIMINADO DE AQUÍ */}
 
                             <div className="pt-4 border-t border-slate-800"><label className="text-sm font-bold text-slate-400 block mb-2">Potencia de Carga (kW)</label><FormattedInput value={state.power} onChange={v => handleChange('power', v)} decimals={1}/><div className="flex flex-wrap gap-3 mt-4">{powerPresets.map(p => (<button key={p.v} onClick={() => handleChange('power', p.v)} className={`px-3 py-2 text-xs rounded border transition-colors font-bold ${state.power === p.v ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>{p.l}</button>))}</div></div>
                             <div className="pt-4 grid grid-cols-2 gap-6"><div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo (kWh/100)</label><FormattedInput value={state.consumption} onChange={v => handleChange('consumption', v)} decimals={1}/></div><div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Energía (€/kWh)</label><FormattedInput value={state.energyPrice} onChange={v => handleChange('energyPrice', v)} decimals={3}/></div></div>
@@ -883,6 +841,53 @@
                              <div className="absolute inset-0 flex items-center justify-center text-4xl font-display font-bold text-white drop-shadow-md z-10">{state.startPct}% <span className="text-slate-400 mx-4">▶</span> <span className="text-green-400">{state.targetPct}%</span></div>
                         </div>
                      </div>
+
+                     {/* TARJETA SLIDER DUAL MOVIDA AQUÍ */}
+                     <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+                        <div className="flex justify-between mb-2 items-end">
+                            <label className="text-sm font-bold text-slate-300">Rango de Carga</label>
+                            <div className="flex gap-2 text-sm font-mono font-bold">
+                                <span className="text-yellow-400">{state.startPct}%</span>
+                                <span className="text-slate-500">➜</span>
+                                <span className="text-green-400">{state.targetPct}%</span>
+                            </div>
+                        </div>
+                        
+                        <div className="relative h-10 select-none mt-2">
+                            {/* Barra de fondo */}
+                            <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-3 bg-slate-900 rounded-full border border-slate-700 overflow-hidden">
+                                {/* Relleno visual entre inicio y fin */}
+                                <div className="absolute top-0 bottom-0 bg-gradient-to-r from-yellow-500 to-green-500 opacity-80" 
+                                     style={{left: `${state.startPct}%`, right: `${100-state.targetPct}%`}}></div>
+                            </div>
+                            
+                            {/* Inputs Superpuestos */}
+                            <input 
+                                id="slider-dual-start"
+                                type="range" min="0" max="99" 
+                                value={state.startPct} 
+                                onChange={e => handleDualSliderChange('startPct', e.target.value)} 
+                                className="range-slider-input absolute inset-0 w-full opacity-0 sm:opacity-100 bg-transparent" 
+                            />
+                            <input 
+                                id="slider-dual-target"
+                                type="range" min="1" max="100" 
+                                value={state.targetPct} 
+                                onChange={e => handleDualSliderChange('targetPct', e.target.value)} 
+                                className="range-slider-input absolute inset-0 w-full bg-transparent" 
+                            />
+                        </div>
+                        {/* ESCALA MODIFICADA A 20% */}
+                        <div className="flex justify-between text-[10px] text-slate-500 font-bold px-1 mt-1">
+                            <span>0%</span>
+                            <span>20%</span>
+                            <span>40%</span>
+                            <span>60%</span>
+                            <span>80%</span>
+                            <span>100%</span>
+                        </div>
+                    </div>
+                    {/* FIN TARJETA SLIDER */}
 
                      {/* GRID RESULTADOS CARGA INMEDIATA */}
                      <div className="grid grid-cols-2 gap-4">
@@ -1059,7 +1064,6 @@
             </div>
         );
       };
-
 
         
       
