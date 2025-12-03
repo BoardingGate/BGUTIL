@@ -1160,11 +1160,6 @@
       };
 
       
-Entendido. Te pido disculpas por el malentendido anterior. Al intentar cambiar a `flex` para "asegurar", rompí la estructura de rejilla (`grid`) que mantiene las tarjetas alineadas correctamente (especialmente la sección de Ciclos de Carga que va en dos columnas grandes).
-
-Aquí tienes el código **corregido**. He vuelto a la estructura original de `grid` para mantener el diseño idéntico al resto de la aplicación, y he insertado los botones de GUARDAR/RESTAURAR al final del todo, como un bloque independiente dentro del flujo principal, asegurándome de que todas las etiquetas `</div>` anteriores están perfectamente cerradas para que no afecten al diseño de las columnas superiores.
-
-```javascript
       // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICO CON LÍNEAS POR ENCIMA) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
