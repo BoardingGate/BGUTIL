@@ -2109,6 +2109,9 @@
             ]
         };
 
+        // Presets de potencia solicitados
+        const powerPresets = [3.3, 7.4, 11, 22, 50, 60, 100, 150, 180, 200, 250, 300, 400, 800];
+
         const getBatteryLimitAtSoC = (soc, type, chargerPowerInput) => {
             const safeType = curvePoints[type] ? type : 'LFP';
             const points = curvePoints[safeType];
@@ -2229,31 +2232,17 @@
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.capacity} onChange={v => handleChange('capacity', v)} /></div>
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo Medio (kWh/100km)</label><FormattedInput value={state.consumption} decimals={1} onChange={v => handleChange('consumption', v)} /></div>
                             
-                            <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50">
-                                <div className="flex justify-between mb-2">
-                                    <label className="text-sm font-bold text-slate-300">Potencia Cargador</label>
-                                    <span className="text-sm font-bold text-blue-400 font-mono">{state.chargerPower} kW</span>
-                                </div>
-                                <input type="range" min="3" max="800" step="1" value={state.chargerPower} onChange={e => handleChange('chargerPower', parseInt(e.target.value))} className="w-full h-4 bg-slate-700 rounded-lg cursor-pointer accent-blue-500" />
-                                
-                                <div className="relative w-full h-4 mt-2">
-                                    <span className="absolute left-0 text-[10px] text-slate-400 font-bold">Home (3)</span>
-                                    <span className="absolute text-[10px] text-slate-400 font-bold -translate-x-1/2" style={{left: '18.4%'}}>V2 (150)</span>
-                                    <span className="absolute text-[10px] text-slate-400 font-bold -translate-x-1/2" style={{left: '31%'}}>V3 (250)</span>
-                                    <span className="absolute right-0 text-[10px] text-slate-400 font-bold">800kW</span>
-                                </div>
-                            </div>
-
+                            {/* PRECIO MOVIDO AQUÍ PARA RELLENAR HUECO */}
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Coste (€/kWh)</label><FormattedInput decimals={2} value={state.costPerKwh} onChange={v => handleChange('costPerKwh', v)} /></div>
                         </div>
                     </div>
                 </div>
 
                 <div className="lg:col-span-8 space-y-6">
-                    {/* AUMENTADA ALTURA PARA ACOMODAR ETIQUETAS */}
-                    <div className="h-[650px] bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col relative shadow-2xl overflow-hidden">
+                    {/* Tarjeta Gráfica AHORA AUTO HEIGHT */}
+                    <div className="h-auto bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col relative shadow-2xl overflow-hidden">
                          
-                         {/* CAJA DE ESTADÍSTICAS (Línea superior) */}
+                         {/* CAJA DE ESTADÍSTICAS */}
                          <div className="flex justify-center gap-8 mb-4 bg-slate-800/40 rounded-xl p-4 border border-slate-700/50 backdrop-blur-sm z-20 relative">
                              <div className="text-center">
                                  <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">+KM</div>
@@ -2276,7 +2265,7 @@
                              </div>
                          </div>
 
-                         {/* LÍNEA DE ETIQUETAS (Justo encima de la gráfica) */}
+                         {/* LÍNEA DE ETIQUETAS */}
                          <div className="flex items-center justify-center gap-4 mb-2 z-20 relative">
                              <div className="text-yellow-500 font-display font-bold text-xl px-2">INICIO {state.startPct}%</div>
                              <div className="text-slate-500 text-lg">➜</div>
@@ -2285,8 +2274,8 @@
                              <div className="text-green-500 font-display font-bold text-xl px-2">FIN {state.endPct}%</div>
                          </div>
                          
-                         {/* GRÁFICA */}
-                         <div className="flex-1 flex gap-2 relative pt-2 pb-10 border-b border-slate-700">
+                         {/* GRÁFICA (Altura fija para mantener proporción) */}
+                         <div className="h-[300px] flex gap-2 relative pt-2 pb-2 border-b border-slate-700">
                              <div className="w-8 flex flex-col justify-end relative h-full">
                                 {gridLines.map(p => (
                                     <div key={p} className="absolute w-full text-right" style={{bottom: `${(p / peakGraphHeight) * 100}%`, transform: 'translateY(50%)'}}>
@@ -2337,7 +2326,6 @@
                                 className="range-slider-input absolute inset-0 w-full bg-transparent" 
                              />
                              
-                             {/* ESCALA MODIFICADA A 20% */}
                              <div className="flex justify-between text-xs text-slate-400 font-bold mt-10 font-mono px-1">
                                 <span>0%</span>
                                 <span>20%</span>
@@ -2347,6 +2335,35 @@
                                 <span>100%</span>
                              </div>
                          </div>
+
+                         {/* NUEVA SECCIÓN DE POTENCIA DEL CARGADOR */}
+                         <div className="mt-8 pt-6 border-t border-slate-700/50">
+                            <div className="flex justify-between mb-2">
+                                <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Potencia Cargador</label>
+                                <span className="text-lg font-bold text-blue-400 font-mono">{state.chargerPower} kW</span>
+                            </div>
+                            <input 
+                                type="range" 
+                                min="1" max="800" step="0.1" 
+                                value={state.chargerPower} 
+                                onChange={e => handleChange('chargerPower', parseFloat(e.target.value))} 
+                                className="w-full h-4 bg-slate-700 rounded-lg cursor-pointer accent-blue-500" 
+                            />
+                            
+                            {/* BOTONERA RÁPIDA DE POTENCIA */}
+                            <div className="flex flex-wrap gap-2 mt-4 justify-between">
+                                {powerPresets.map(p => (
+                                    <button 
+                                        key={p} 
+                                        onClick={() => handleChange('chargerPower', p)}
+                                        className={`px-3 py-1.5 text-xs font-bold rounded border transition-colors ${state.chargerPower === p ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
+                                    >
+                                        {p}
+                                    </button>
+                                ))}
+                            </div>
+                         </div>
+
                     </div>
 
                     {/* OPTIMIZADORES */}
@@ -2382,7 +2399,7 @@
             </div>
         );
       };
-        
+            
      
       // --- EQUIVALENCE CALCULATOR (LETRAS MÁS GRANDES) ---
       const EquivalenceCalculator = () => {
