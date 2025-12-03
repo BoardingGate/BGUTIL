@@ -2610,6 +2610,48 @@
             }
         });
 
+        // Estado para la fecha de guardado de la copia manual
+        const [savedDate, setSavedDate] = useState(null);
+
+        // Cargar fecha de guardado al montar el componente
+        useEffect(() => {
+            try {
+                const date = localStorage.getItem('tariffCompSnapshotTime');
+                if(date) setSavedDate(date);
+            } catch (e) { console.error(e); }
+        }, []);
+
+        // --- LÓGICA DE SNAPSHOT ---
+        const handleSaveSnapshot = () => {
+            try {
+                const now = new Date().toLocaleString('es-ES');
+                localStorage.setItem('tariffCompSnapshot', JSON.stringify(tState));
+                localStorage.setItem('tariffCompSnapshotTime', now);
+                setSavedDate(now);
+                // Feedback visual simple (opcional, por ahora solo actualiza la fecha)
+            } catch (error) {
+                console.error("Error guardando snapshot", error);
+                alert("No se pudo guardar la copia (espacio insuficiente o error local).");
+            }
+        };
+
+        const handleRestoreSnapshot = () => {
+            try {
+                const data = localStorage.getItem('tariffCompSnapshot');
+                if (data) {
+                    const parsed = JSON.parse(data);
+                    if(confirm("¿Estás seguro? Se sobrescribirán los datos actuales con la copia guardada el " + savedDate)) {
+                        setTState(parsed);
+                    }
+                } else {
+                    alert("No hay ninguna copia guardada previamente.");
+                }
+            } catch (error) {
+                console.error("Error restaurando snapshot", error);
+                alert("Error al intentar restaurar los datos.");
+            }
+        };
+
         // Handler for shared consumption updates
         const handleConsChange = (key, val) => {
             if (key === 'consTotal') {
@@ -2942,8 +2984,43 @@
                     </div>
                 </div>
 
+                {/* BOTONES DE SNAPSHOT / COPIA DE SEGURIDAD */}
+                <div className="lg:col-span-12">
+                    <div className="flex flex-col md:flex-row gap-6 justify-center items-center p-6 bg-slate-900/50 rounded-xl border border-slate-700/50">
+                        <div className="flex flex-col items-center gap-2 w-full md:w-auto">
+                            <button 
+                                onClick={handleSaveSnapshot} 
+                                className="w-full md:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"
+                            >
+                                <Icons.Settings className="w-5 h-5" />
+                                GUARDAR DATOS (solo guarda 1 copia)
+                            </button>
+                            {savedDate && (
+                                <span className="text-xs font-bold text-slate-400">
+                                    Copia actual: <span className="text-blue-300">{savedDate}</span>
+                                </span>
+                            )}
+                        </div>
+
+                        {savedDate && (
+                            <div className="flex flex-col items-center gap-2 w-full md:w-auto">
+                                <button 
+                                    onClick={handleRestoreSnapshot} 
+                                    className="w-full md:w-auto px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"
+                                >
+                                    <Icons.Activity className="w-5 h-5" />
+                                    RESTAURAR DATOS
+                                </button>
+                                <span className="text-xs font-bold text-orange-400/70">
+                                    Sobrescribirá los datos actuales
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
             {/* FOOTER OCTOPUS - MODIFICADO CON BOTÓN LILA */}
-                <div className="lg:col-span-12 mt-6 p-6 bg-purple-900/20 border border-purple-500/30 rounded-xl flex flex-col items-center gap-4 text-center">
+                <div className="lg:col-span-12 mt-2 p-6 bg-purple-900/20 border border-purple-500/30 rounded-xl flex flex-col items-center gap-4 text-center">
                     <p className="text-sm font-bold text-slate-300 leading-relaxed max-w-4xl">
                         (*) Una de las mejores Comercializadoras del Mercado es Octopus Energy. Aprovecha mi referido para colaborar con el proyecto y ahorrarte dinero (50€ gratis). El trámite se realiza en 5 minutos, sin permanencia y puedes cambiar las veces que quieras.
                     </p>
@@ -2958,6 +3035,7 @@
             </div>
         );
       };
+      
 
         
 
