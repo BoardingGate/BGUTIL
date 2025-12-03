@@ -2640,9 +2640,7 @@
                 const data = localStorage.getItem('tariffCompSnapshot');
                 if (data) {
                     const parsed = JSON.parse(data);
-                    if(confirm("¿Estás seguro? Se sobrescribirán los datos actuales con la copia guardada el " + savedDate)) {
                         setTState(parsed);
-                    }
                 } else {
                     alert("No hay ninguna copia guardada previamente.");
                 }
