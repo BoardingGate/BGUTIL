@@ -1090,8 +1090,7 @@
         );
       };
 
-   
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (EJE Y ALINEADO PERFECTO + FUENTES XL + GRADIENTE PROFUNDO) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICO CON LÍNEAS POR ENCIMA) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1525,54 +1524,54 @@
 
                 {/* GRAPH PANEL + SIDE CARDS (CORREGIDO: ALINEACIÓN Y Y TAMAÑOS) */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
-                    {/* Gráfica Compacta */}
+                    {/* Gráfica Compacta - AHORA SUAVIZADA */}
                     <div className="lg:col-span-8 bg-slate-900/50 border border-slate-800 rounded-xl p-6">
                         <h4 className="text-sm font-bold text-slate-300 uppercase mb-2 flex items-center gap-2">
                             <Icons.Activity className="w-4 h-4" /> Evolución de Carga Diaria (Inicio vs Fin)
                         </h4>
                         
-                        {/* Se separa el contenedor para que la altura de los ejes sea correcta */}
                         <div className="mt-4">
                             <div className="flex h-64">
-                                {/* Y-Axis Labels (Left) - CORREGIDO: flex-col-reverse */}
-                                <div className="w-12 flex flex-col-reverse justify-between text-xs text-slate-500 font-bold py-0 h-full pr-2 text-right">
-                                    <span>0%</span>
-                                    <span>25%</span>
-                                    <span>50%</span>
-                                    <span>75%</span>
-                                    <span>100%</span>
+                                {/* Y-Axis Labels (Left) - GRADUADO EN 10% */}
+                                <div className="w-12 flex flex-col-reverse justify-between text-[10px] text-slate-500 font-bold py-0 h-full pr-2 text-right">
+                                    {[...Array(11)].map((_, i) => <span key={i}>{i * 10}%</span>)}
                                 </div>
 
-                                {/* Chart Area (Bars) */}
+                                {/* Chart Area (Smooth Bars) */}
                                 <div className="relative flex-1 border-l border-b border-slate-700 h-full">
-                                    {/* Grid Lines */}
-                                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none z-0">
-                                        {[...Array(5)].map((_, i) => <div key={i} className="w-full h-px bg-slate-800/50 dashed"></div>)}
+                                    {/* Grid Lines - 11 Líneas para 0, 10, ... 100% Z-20 PARA ESTAR ARRIBA */}
+                                    <div className="absolute inset-0 flex flex-col-reverse justify-between pointer-events-none z-20">
+                                        {[...Array(11)].map((_, i) => <div key={i} className="w-full border-t border-white/10 border-dashed"></div>)}
                                     </div>
 
-                                    {/* Bars Container */}
+                                    {/* Sliced Bars for Smooth Effect Z-10 PARA ESTAR ABAJO */}
                                     <div className="absolute inset-0 flex items-end z-10">
                                         {results.map((row, i) => {
-                                            // ESTILO GRADIENTE FIJO (Negro Verdoso -> Verde Brillante)
-                                            // Fixed height (h-64 = 256px) para continuidad de color
-                                            const getGradientStyle = (pct) => ({
-                                                height: `${Math.min(100, Math.max(0, pct))}%`,
-                                                backgroundImage: 'linear-gradient(to top, #022c22 0%, #22c55e 100%)', 
-                                                backgroundSize: '100% 256px', 
-                                                backgroundRepeat: 'no-repeat',
-                                                backgroundPosition: 'bottom'
-                                            });
-
+                                            const isLast = i === results.length - 1;
+                                            
+                                            // Dividimos cada día en 20 slices
                                             return (
-                                                <div key={i} className="flex-1 h-full flex items-end group">
-                                                    {/* Start Bar (Solido, mismo gradiente) */}
-                                                    <div style={getGradientStyle(row.startPct)} 
-                                                         className="w-1/2 rounded-tl-sm transition-all hover:brightness-110">
-                                                    </div>
-                                                    {/* End Bar (Solido, mismo gradiente) */}
-                                                    <div style={getGradientStyle(row.endPct)} 
-                                                         className="w-1/2 rounded-tr-sm transition-all hover:brightness-110">
-                                                    </div>
+                                                <div key={i} className="flex-1 h-full flex items-end gap-0">
+                                                    {Array.from({ length: 20 }).map((_, sliceIdx) => {
+                                                        const t = sliceIdx / 19; // 0 to 1
+                                                        // Interpolar altura entre startPct y endPct
+                                                        const sliceHeight = row.startPct + (row.endPct - row.startPct) * t;
+                                                        
+                                                        return (
+                                                            <div 
+                                                                key={sliceIdx}
+                                                                className="flex-1 transition-all hover:brightness-110"
+                                                                style={{
+                                                                    height: `${Math.max(0, sliceHeight)}%`,
+                                                                    // Mantenemos el gradiente visual para que el color coincida con la altura absoluta
+                                                                    backgroundImage: 'linear-gradient(to top, #022c22 0%, #22c55e 100%)', 
+                                                                    backgroundSize: '100% 256px', 
+                                                                    backgroundRepeat: 'no-repeat',
+                                                                    backgroundPosition: 'bottom'
+                                                                }}
+                                                            ></div>
+                                                        );
+                                                    })}
                                                 </div>
                                             );
                                         })}
@@ -1580,7 +1579,7 @@
                                 </div>
                             </div>
 
-                            {/* X-Axis Labels (Bottom - SEPARADO para alineación) */}
+                            {/* X-Axis Labels (Bottom - SEPARADO para alineación) - FUENTES REDUCIDAS */}
                             <div className="flex w-full pt-3 h-20 pl-12">
                                 {results.map((row, i) => {
                                     const isCharging = row.chargeTime > 0;
@@ -1589,18 +1588,18 @@
 
                                     return (
                                         <div key={i} className="flex-1 flex flex-col items-center justify-start">
-                                            {/* DÍA: TAMAÑO XL */}
-                                            <span className={`text-xl font-bold ${['Sat','Sun'].includes(row.day) ? 'text-orange-400' : 'text-slate-400'}`}>
+                                            {/* DÍA: TAMAÑO LG (antes XL) */}
+                                            <span className={`text-lg font-bold ${['Sat','Sun'].includes(row.day) ? 'text-orange-400' : 'text-slate-400'}`}>
                                                 {dayInitials[row.day]}
                                             </span>
                                             {isCharging && (
                                                 <div className="flex flex-col items-center mt-1">
-                                                    {/* PORCENTAJE: TAMAÑO XL */}
-                                                    <span className="text-xl font-bold text-blue-300 leading-none mb-1">
+                                                    {/* PORCENTAJE: TAMAÑO LG (antes XL) */}
+                                                    <span className="text-lg font-bold text-blue-300 leading-none mb-1">
                                                         {targetPct}%
                                                     </span>
-                                                    {/* KM: TAMAÑO XL (IGUALADO) */}
-                                                    <span className="text-xl font-bold text-slate-500 leading-none">
+                                                    {/* KM: TAMAÑO BASE (antes XL) */}
+                                                    <span className="text-base font-bold text-slate-500 leading-none">
                                                         {formatDecimal(totalRangeAtTarget, 0)} km
                                                     </span>
                                                 </div>
@@ -1856,6 +1855,7 @@
         );
       };
 
+      
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
