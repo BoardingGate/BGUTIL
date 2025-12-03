@@ -1090,8 +1090,7 @@
         );
       };
 
-   
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICO SUAVIZADO + FUENTES AJUSTADAS) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICO CON LÍNEAS POR ENCIMA) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1533,23 +1532,19 @@
                         
                         <div className="mt-4">
                             <div className="flex h-64">
-                                {/* Y-Axis Labels (Left) */}
-                                <div className="w-12 flex flex-col-reverse justify-between text-xs text-slate-500 font-bold py-0 h-full pr-2 text-right">
-                                    <span>0%</span>
-                                    <span>25%</span>
-                                    <span>50%</span>
-                                    <span>75%</span>
-                                    <span>100%</span>
+                                {/* Y-Axis Labels (Left) - GRADUADO EN 10% */}
+                                <div className="w-12 flex flex-col-reverse justify-between text-[10px] text-slate-500 font-bold py-0 h-full pr-2 text-right">
+                                    {[...Array(11)].map((_, i) => <span key={i}>{i * 10}%</span>)}
                                 </div>
 
                                 {/* Chart Area (Smooth Bars) */}
                                 <div className="relative flex-1 border-l border-b border-slate-700 h-full">
-                                    {/* Grid Lines */}
-                                    <div className="absolute inset-0 flex flex-col justify-between pointer-events-none z-0">
-                                        {[...Array(5)].map((_, i) => <div key={i} className="w-full h-px bg-slate-800/50 dashed"></div>)}
+                                    {/* Grid Lines - 11 Líneas para 0, 10, ... 100% Z-20 PARA ESTAR ARRIBA */}
+                                    <div className="absolute inset-0 flex flex-col-reverse justify-between pointer-events-none z-20">
+                                        {[...Array(11)].map((_, i) => <div key={i} className="w-full border-t border-white/10 border-dashed"></div>)}
                                     </div>
 
-                                    {/* Sliced Bars for Smooth Effect */}
+                                    {/* Sliced Bars for Smooth Effect Z-10 PARA ESTAR ABAJO */}
                                     <div className="absolute inset-0 flex items-end z-10">
                                         {results.map((row, i) => {
                                             const isLast = i === results.length - 1;
@@ -1858,7 +1853,9 @@
                 </div>
             </div>
         );
-      }; 
+      };
+
+      
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
