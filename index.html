@@ -618,9 +618,18 @@
                         </div>
                     )}
                 </div>
-
-                <div className="mt-6 p-4 bg-slate-900/80 border border-slate-700 rounded-xl text-sm font-bold text-slate-400 text-center">
-                    <p>(*) Si quieres comprar un Tesla puedes usar mi referido: <a href="https://ts.la/juancarlos162231" target="_blank" className="text-blue-400 font-bold underline hover:text-blue-300">https://ts.la/juancarlos162231</a></p>
+                {/* FOOTER REFERIDO TESLA - MODIFICADO CON BOTÓN GRANDE */}
+                <div className="mt-8 p-6 bg-blue-900/20 border border-blue-500/30 rounded-xl flex flex-col items-center gap-4 text-center">
+                    <p className="text-sm font-bold text-slate-300 leading-relaxed max-w-4xl">
+                        (*) Si estás pensando en comprar un Tesla, utiliza mi enlace de referido para obtener beneficios exclusivos (descuentos o meses de carga gratuita según la promoción vigente).
+                    </p>
+                    <a 
+                        href="https://ts.la/juancarlos162231" 
+                        target="_blank" 
+                        className="bg-blue-600 hover:bg-blue-500 text-white text-lg md:text-xl font-bold px-8 py-4 rounded-xl transition-all shadow-lg hover:shadow-blue-500/20 transform hover:-translate-y-1 flex items-center gap-2"
+                    >
+                        CONSEGUIR BENEFICIOS AL COMPRAR UN TESLA
+                    </a>
                 </div>
             </div>
         );
@@ -2843,9 +2852,18 @@
                     </div>
                 </div>
 
-                {/* FOOTER OCTOPUS */}
-                <div className="lg:col-span-12 mt-4 p-4 bg-purple-900/30 border border-purple-500/30 rounded-xl text-sm font-bold text-slate-300 text-center leading-relaxed">
-                    <p>(*) Una de las mejores Comercializadoras del Mercado es Octopus Energy, aprovecha mi referido para colaborar con el proyecto y a su vez ahorrarte dinero en la contratación de tu consumo eléctrico. El trámite de cambio se realiza en 5 minutos y puedes cambiar de tarifas las veces que quieras y cuando quieras. Todo sin penalizaciones. REFERIDO: <a href="https://share.octopusenergy.es/topaz-boar-888" target="_blank" className="text-purple-400 font-bold underline hover:text-purple-300">https://share.octopusenergy.es/topaz-boar-888</a></p>
+            {/* FOOTER OCTOPUS - MODIFICADO CON BOTÓN LILA */}
+                <div className="lg:col-span-12 mt-6 p-6 bg-purple-900/20 border border-purple-500/30 rounded-xl flex flex-col items-center gap-4 text-center">
+                    <p className="text-sm font-bold text-slate-300 leading-relaxed max-w-4xl">
+                        (*) Una de las mejores Comercializadoras del Mercado es Octopus Energy. Aprovecha mi referido para colaborar con el proyecto y ahorrarte dinero (50€ gratis). El trámite se realiza en 5 minutos, sin permanencia y puedes cambiar las veces que quieras.
+                    </p>
+                    <a 
+                        href="https://share.octopusenergy.es/topaz-boar-888" 
+                        target="_blank" 
+                        className="bg-purple-600 hover:bg-purple-500 text-white text-lg md:text-xl font-bold px-8 py-4 rounded-xl transition-all shadow-lg hover:shadow-purple-500/20 transform hover:-translate-y-1 flex items-center gap-2"
+                    >
+                        CONSEGUIR 50€ DE DESCUENTO EN OCTOPUS ENERGY
+                    </a>
                 </div>
             </div>
         );
