@@ -1159,6 +1159,7 @@
         );
       };
 
+      
       // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICO CON LÍNEAS POR ENCIMA) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
@@ -1481,15 +1482,7 @@
         const handleDualSliderChange = (day, key, value) => {
             const val = parseInt(value);
             setState(prev => {
-                // Esto es complejo porque 'startPct' en la tabla es calculado, no state directo
-                // El slider dual en la tabla de Estrategia es un poco diferente al de la Calculadora
-                // En la tabla, 'startPct' viene del día anterior. Solo podemos editar el TARGET del día actual.
-                // Si quieres editar el startPct, tendrías que editar el target del día anterior.
-                // PERO, para mantener la funcionalidad visual del slider dual:
-                // Solo permitiremos mover el TARGET (el segundo tirador). El primero será solo lectura visual.
-                
                 if (key === 'targets') {
-                    // Actualizamos el target del día
                     return {
                         ...prev,
                         targets: { ...prev.targets, [day]: val }
@@ -2032,44 +2025,41 @@
                     </div>
                 </div>
 
-                {/* BOTONES DE SNAPSHOT / COPIA DE SEGURIDAD */}
-                <div className="lg:col-span-12">
-                    <div className="flex flex-col md:flex-row gap-6 justify-center items-center p-6 bg-slate-900/50 rounded-xl border border-slate-700/50">
-                        <div className="flex flex-col items-center gap-2 w-full md:w-auto">
-                            <button 
-                                onClick={handleSaveSnapshot} 
-                                className="w-full md:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"
-                            >
-                                <Icons.Settings className="w-5 h-5" />
-                                GUARDAR DATOS (solo guarda 1 copia)
-                            </button>
-                            {savedDate && (
-                                <span className="text-xs font-bold text-slate-400">
-                                    Copia actual: <span className="text-blue-300">{savedDate}</span>
-                                </span>
-                            )}
-                        </div>
-
+                {/* BOTONES DE SNAPSHOT / COPIA DE SEGURIDAD (FUERA DE LA GRID SUPERIOR) */}
+                <div className="flex flex-col md:flex-row gap-6 justify-center items-center p-6 bg-slate-900/50 rounded-xl border border-slate-700/50 mt-4">
+                    <div className="flex flex-col items-center gap-2 w-full md:w-auto">
+                        <button 
+                            onClick={handleSaveSnapshot} 
+                            className="w-full md:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"
+                        >
+                            <Icons.Settings className="w-5 h-5" />
+                            GUARDAR DATOS (solo guarda 1 copia)
+                        </button>
                         {savedDate && (
-                            <div className="flex flex-col items-center gap-2 w-full md:w-auto">
-                                <button 
-                                    onClick={handleRestoreSnapshot} 
-                                    className="w-full md:w-auto px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"
-                                >
-                                    <Icons.Activity className="w-5 h-5" />
-                                    RESTAURAR DATOS
-                                </button>
-                                <span className="text-xs font-bold text-orange-400/70">
-                                    Sobrescribirá los datos actuales
-                                </span>
-                            </div>
+                            <span className="text-xs font-bold text-slate-400">
+                                Copia actual: <span className="text-blue-300">{savedDate}</span>
+                            </span>
                         )}
                     </div>
+
+                    {savedDate && (
+                        <div className="flex flex-col items-center gap-2 w-full md:w-auto">
+                            <button 
+                                onClick={handleRestoreSnapshot} 
+                                className="w-full md:w-auto px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"
+                            >
+                                <Icons.Activity className="w-5 h-5" />
+                                RESTAURAR DATOS
+                            </button>
+                            <span className="text-xs font-bold text-orange-400/70">
+                                Sobrescribirá los datos actuales
+                            </span>
+                        </div>
+                    )}
                 </div>
             </div>
         );
       };
-  
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
