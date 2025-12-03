@@ -675,6 +675,9 @@
             NCA: [{p:0, v:200}, {p:5, v:250}, {p:15, v:250}, {p:25, v:210}, {p:40, v:150}, {p:60, v:100}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}]
         };
 
+        // NUEVA LISTA DE PRESETS NUMÉRICOS
+        const powerPresets = [3.3, 7.4, 11, 22, 50, 60, 100, 150, 170, 200, 250, 300, 400, 800];
+
         const getBatteryLimitAtSoC = (soc, type, chargerPowerInput) => {
             const points = curvePoints[type];
             const baseRef = type === 'NCA' ? 250 : 170; 
@@ -794,8 +797,6 @@
             });
         };
         
-        const powerPresets = [ { l: "Schuko", v: 2.3 }, { l: "GreenUp", v: 3.7 }, { l: "Wallbox 1F", v: 7.4 }, { l: "Wallbox 3F", v: 11 }, { l: "AC Público", v: 22 }, { l: "DC 50", v: 50 }, { l: "Supercharger", v: 150 } ];
-
         // Estilos específicos para el slider dual (inyectados localmente)
         const sliderStyle = `
             .range-slider-input { pointer-events: none; -webkit-appearance: none; z-index: 10; }
@@ -821,9 +822,24 @@
                         <div className="space-y-6">
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.capacity} onChange={v => handleChange('capacity', v)} decimals={1}/></div>
                             
-                            {/* SLIDER DUAL ELIMINADO DE AQUÍ */}
+                            <div className="pt-4 border-t border-slate-800">
+                                <label className="text-sm font-bold text-slate-400 block mb-2">Potencia de Carga (kW)</label>
+                                <FormattedInput value={state.power} onChange={v => handleChange('power', v)} decimals={1}/>
+                                
+                                {/* NUEVA BOTONERA NUMÉRICA */}
+                                <div className="flex flex-wrap gap-2 mt-4 justify-between">
+                                    {powerPresets.map(p => (
+                                        <button 
+                                            key={p} 
+                                            onClick={() => handleChange('power', p)} 
+                                            className={`px-3 py-1.5 text-xs font-bold rounded border transition-colors ${state.power === p ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
+                                        >
+                                            {p}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
 
-                            <div className="pt-4 border-t border-slate-800"><label className="text-sm font-bold text-slate-400 block mb-2">Potencia de Carga (kW)</label><FormattedInput value={state.power} onChange={v => handleChange('power', v)} decimals={1}/><div className="flex flex-wrap gap-3 mt-4">{powerPresets.map(p => (<button key={p.v} onClick={() => handleChange('power', p.v)} className={`px-3 py-2 text-xs rounded border transition-colors font-bold ${state.power === p.v ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>{p.l}</button>))}</div></div>
                             <div className="pt-4 grid grid-cols-2 gap-6"><div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo (kWh/100)</label><FormattedInput value={state.consumption} onChange={v => handleChange('consumption', v)} decimals={1}/></div><div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Energía (€/kWh)</label><FormattedInput value={state.energyPrice} onChange={v => handleChange('energyPrice', v)} decimals={3}/></div></div>
                         </div>
                     </div>
@@ -842,7 +858,7 @@
                         </div>
                      </div>
 
-                     {/* TARJETA SLIDER DUAL MOVIDA AQUÍ */}
+                     {/* TARJETA SLIDER DUAL */}
                      <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
                         <div className="flex justify-between mb-2 items-end">
                             <label className="text-sm font-bold text-slate-300">Rango de Carga</label>
@@ -877,7 +893,6 @@
                                 className="range-slider-input absolute inset-0 w-full bg-transparent" 
                             />
                         </div>
-                        {/* ESCALA MODIFICADA A 20% */}
                         <div className="flex justify-between text-[10px] text-slate-500 font-bold px-1 mt-1">
                             <span>0%</span>
                             <span>20%</span>
