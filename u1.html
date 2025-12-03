@@ -1139,6 +1139,9 @@
         const getCarAge = () => {
             if (!state.purchaseDate) return null;
             const start = new Date(state.purchaseDate);
+            // Validar fecha inválida si el usuario escribe texto incorrecto
+            if (isNaN(start.getTime())) return null;
+            
             const now = new Date();
             const diffTime = Math.abs(now - start);
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
@@ -1688,7 +1691,14 @@
                         </h3>
                         <div className="flex items-center gap-2 bg-slate-900/50 p-2 rounded-lg border border-slate-700">
                             <label className="text-xs font-bold text-slate-400 uppercase">FECHA ÚLTIMA CARGA PROFUNDA:</label>
-                            <input type="date" value={state.lastCalibrationDate} onChange={(e) => handleChange('lastCalibrationDate', e.target.value)} className="bg-slate-700 text-white text-sm font-bold rounded px-3 py-2 outline-none border border-slate-600 focus:border-blue-500" />
+                            {/* MODIFICACIÓN: TYPE TEXT PARA PERMITIR ENTRADA DIRECTA EN TESLA */}
+                            <input 
+                                type="text" 
+                                placeholder="AAAA-MM-DD"
+                                value={state.lastCalibrationDate} 
+                                onChange={(e) => handleChange('lastCalibrationDate', e.target.value)} 
+                                className="bg-slate-700 text-white text-sm font-bold rounded px-3 py-2 outline-none border border-slate-600 focus:border-blue-500 w-40 text-center" 
+                            />
                         </div>
                     </div>
                     {calibrationOpportunity ? (
@@ -1736,7 +1746,14 @@
                             <div>
                                 <label className="text-sm font-bold text-slate-400 block mb-2">FECHA DE COMPRA</label>
                                 <div className="flex items-center gap-4">
-                                    <input type="date" value={state.purchaseDate} onChange={(e) => handleChange('purchaseDate', e.target.value)} className="bg-zinc-700 text-yellow-300 text-lg font-mono font-bold rounded px-3 py-3 outline-none border border-zinc-600 focus:border-yellow-500 flex-grow h-[54px]" />
+                                    {/* MODIFICACIÓN: TYPE TEXT PARA PERMITIR ENTRADA DIRECTA EN TESLA */}
+                                    <input 
+                                        type="text"
+                                        placeholder="AAAA-MM-DD" 
+                                        value={state.purchaseDate} 
+                                        onChange={(e) => handleChange('purchaseDate', e.target.value)} 
+                                        className="bg-zinc-700 text-yellow-300 text-lg font-mono font-bold rounded px-3 py-3 outline-none border border-zinc-600 focus:border-yellow-500 flex-grow h-[54px]" 
+                                    />
                                     {carAge && (<div className="bg-slate-800 px-4 py-3 rounded-lg border border-slate-700"><div className="text-xs font-bold text-slate-400 uppercase">Antigüedad</div><div className="text-base font-bold text-white whitespace-nowrap">{carAge.text}</div></div>)}
                                 </div>
                             </div>
@@ -1854,8 +1871,7 @@
             </div>
         );
       };
-
-      
+  
 
         
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
