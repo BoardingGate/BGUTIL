@@ -3425,33 +3425,35 @@
 
 
 
-// --- TRACKER DE ACTUALIZACIONES (SOLO LIVE O LINKS) ---
+      // --- TRACKER DE ACTUALIZACIONES (GOOGLE NEWS BACKDOOR) ---
       const UpdateTracker = () => {
         const [updates, setUpdates] = useState([]);
         const [loading, setLoading] = useState(true);
-        const [hasError, setHasError] = useState(false);
+        const [error, setError] = useState(null);
 
         useEffect(() => {
             const fetchUpdates = async () => {
                 try {
-                    // INTENTO: TeslaFi vía Proxy (AllOrigins)
-                    // Usamos TeslaFi porque su RSS es más ligero y a veces pasa los filtros
-                    const FEED_URL = 'https://teslafi.com/feed.php';
-                    const PROXY_URL = `https://api.allorigins.win/get?url=${encodeURIComponent(FEED_URL)}`;
+                    // ESTRATEGIA "PUERTA TRASERA":
+                    // En lugar de atacar la web protegida, pedimos el RSS a Google News filtrando por esa web.
+                    // Google no bloquea peticiones CORS vía AllOrigins.
+                    // Query: site:notateslaapp.com "Software Update"
+                    const GOOGLE_RSS = 'https://news.google.com/rss/search?q=site:notateslaapp.com+intitle:"Software+Update"&hl=en-US&gl=US&ceid=US:en';
+                    
+                    // Usamos el proxy AllOrigins para leer el RSS de Google
+                    const PROXY_URL = `https://api.allorigins.win/get?url=${encodeURIComponent(GOOGLE_RSS)}`;
                     
                     const response = await fetch(PROXY_URL);
-                    const wrapper = await response.json();
+                    const data = await response.json();
                     
-                    if (!wrapper.contents) throw new Error("Respuesta vacía del proxy");
+                    if (!data.contents) throw new Error("Google no devolvió datos.");
 
-                    // PARSEO XML
+                    // Parseamos el XML de Google
                     const parser = new DOMParser();
-                    const xmlDoc = parser.parseFromString(wrapper.contents, "text/xml");
+                    const xmlDoc = parser.parseFromString(data.contents, "text/xml");
                     const items = Array.from(xmlDoc.querySelectorAll("item"));
 
-                    if (items.length === 0) throw new Error("XML inválido o vacío");
-
-                    // Regex preparada para el futuro (2024, 2025, 2026...)
+                    // Regex para encontrar versiones (2024.x, 2025.x...)
                     const versionRegex = /\b202[4-9]\.\d+(\.\d+)?\b/;
 
                     const parsedItems = items.map(item => {
@@ -3459,7 +3461,7 @@
                         const link = item.querySelector("link")?.textContent || "";
                         const pubDateRaw = item.querySelector("pubDate")?.textContent || "";
                         
-                        // Solo procesamos si el título contiene un número de versión válido
+                        // Google News pone el titulo tipo: "Tesla Software Update 2024.8.9 Release Notes..."
                         const match = title.match(versionRegex);
                         if (!match) return null;
 
@@ -3467,51 +3469,54 @@
                         const dateObj = new Date(pubDateRaw);
                         const dateStr = !isNaN(dateObj) ? dateObj.toISOString().split('T')[0] : "Reciente";
 
+                        // Descripción: Google da un snippet corto. Limpiamos el HTML.
+                        const descHTML = item.querySelector("description")?.textContent || "";
+                        const tempDiv = document.createElement("div");
+                        tempDiv.innerHTML = descHTML;
+                        const cleanDesc = tempDiv.textContent || "";
+
                         return {
                             version: version,
-                            title: "Nueva versión detectada",
-                            link: link,
+                            title: "Notas de lanzamiento",
+                            link: link, // Este link lleva a Google, que redirige a la web original
                             date: dateStr,
                             dateObj: dateObj,
-                            // TeslaFi no da descripción en el RSS, ponemos texto genérico
-                            description: "Versión identificada en la flota global. Pulsa para ver detalles de instalación." 
+                            description: cleanDesc // Es un resumen corto, pero real
                         };
-                    }).filter(Boolean); // Eliminar nulos
+                    }).filter(Boolean);
 
-                    // Eliminar duplicados
-                    const uniqueItems = [];
-                    const seenVersions = new Set();
+                    // Eliminamos versiones duplicadas (Google a veces indexa la misma update dos veces)
+                    const uniqueVersions = [];
+                    const seen = new Set();
                     parsedItems.forEach(item => {
-                        if (!seenVersions.has(item.version)) {
-                            seenVersions.add(item.version);
-                            uniqueItems.push(item);
+                        // Solo guardamos si la versión no está ya y es más larga de 5 caracteres (evitar "2024")
+                        if (!seen.has(item.version) && item.version.length > 5) {
+                            seen.add(item.version);
+                            uniqueVersions.push(item);
                         }
                     });
 
-                    // Si tras filtrar no queda nada, error
-                    if (uniqueItems.length === 0) throw new Error("No hay versiones recientes");
+                    // Ordenar por fecha (más reciente primero)
+                    uniqueVersions.sort((a, b) => b.dateObj - a.dateObj);
 
                     // Calcular días entre versiones
-                    const finalData = uniqueItems.map((item, index) => {
-                        let daysSincePrev = null;
-                        if (index < uniqueItems.length - 1) {
-                            const current = item.dateObj;
-                            const prev = uniqueItems[index + 1].dateObj;
-                            if (!isNaN(current) && !isNaN(prev)) {
-                                const diffTime = Math.abs(current - prev);
-                                daysSincePrev = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                            }
+                    const finalData = uniqueVersions.map((item, index) => {
+                        let days = null;
+                        if (index < uniqueVersions.length - 1) {
+                            const diff = Math.abs(item.dateObj - uniqueVersions[index + 1].dateObj);
+                            days = Math.ceil(diff / (1000 * 60 * 60 * 24));
                         }
-                        return { ...item, daysSincePrev };
+                        return { ...item, daysSincePrev: days };
                     });
 
+                    if (finalData.length === 0) throw new Error("No se encontraron versiones en Google News.");
+
                     setUpdates(finalData);
-                    setHasError(false);
+                    setLoading(false);
 
                 } catch (err) {
-                    console.error("Error al obtener actualizaciones:", err);
-                    setHasError(true); // ACTIVA EL MODO SOLO LINKS
-                } finally {
+                    console.error("Fallo Google News:", err);
+                    setError("No se pudo conectar con el índice de noticias.");
                     setLoading(false);
                 }
             };
@@ -3522,64 +3527,38 @@
         return (
             <div className="space-y-6 animate-fade-in">
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
-                    
-                    {/* CABECERA */}
                     <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
                         <div>
                             <h2 className="text-xl font-display font-bold text-white flex items-center gap-2">
                                 <Icons.List className="w-6 h-6 text-blue-400" /> Timeline de Software
                             </h2>
-                            <p className="text-sm text-slate-400 mt-1 font-bold">Monitor de versiones en tiempo real</p>
+                            <p className="text-sm text-slate-400 mt-1 font-bold">Datos en tiempo real (Fuente: Google News Index)</p>
                         </div>
                         <div className="text-right">
-                            {loading && <div className="text-blue-400 font-bold text-sm animate-pulse">Conectando con servidores...</div>}
+                            {loading && <div className="text-blue-400 font-bold text-sm animate-pulse">Consultando índice global...</div>}
                         </div>
                     </div>
 
-                    {/* MODO ERROR: MOSTRAR SOLO LINKS (SIN DATOS FALSOS) */}
-                    {(hasError || (!loading && updates.length === 0)) ? (
-                        <div className="bg-red-900/10 border border-red-500/30 p-8 rounded-xl text-center animate-fade-in">
-                            <div className="inline-block p-4 bg-red-500/10 rounded-full mb-4 text-red-400">
-                                <Icons.AlertTriangle className="w-10 h-10" />
-                            </div>
-                            <h3 className="text-xl font-bold text-white mb-2">Conexión bloqueada por el proveedor</h3>
-                            <p className="text-sm text-slate-400 mb-6 max-w-lg mx-auto leading-relaxed">
-                                Los servidores de noticias han impedido la carga automática de datos en esta web. 
-                                Para ver la lista oficial actualizada y fiable, por favor consulta directamente las fuentes originales:
-                            </p>
-                            
-                            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                                <a 
-                                    href="https://www.notateslaapp.com/software-updates/" 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-green-500 text-white font-bold py-3 px-6 rounded-xl transition-all group"
-                                >
-                                    <span className="text-green-400 group-hover:scale-110 transition-transform">🌐</span> NotATeslaApp
-                                </a>
-                                <a 
-                                    href="https://www.teslafi.com/firmware.php" 
-                                    target="_blank" 
-                                    rel="noopener noreferrer"
-                                    className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-blue-500 text-white font-bold py-3 px-6 rounded-xl transition-all group"
-                                >
-                                    <span className="text-blue-400 group-hover:scale-110 transition-transform">🚙</span> TeslaFi Tracker
-                                </a>
-                            </div>
+                    {error ? (
+                        <div className="bg-red-900/10 border border-red-500/30 p-8 rounded-xl text-center">
+                            <h3 className="text-xl font-bold text-white mb-2">Imposible obtener datos automáticos</h3>
+                            <p className="text-sm text-slate-400 mb-6">Tu navegador o red está impidiendo la consulta al índice de noticias.</p>
+                            <a href="https://www.notateslaapp.com/software-updates/" target="_blank" className="bg-slate-800 border border-slate-600 hover:border-green-500 text-white font-bold py-3 px-6 rounded-xl transition-all">
+                                Ver Lista Oficial Manualmente
+                            </a>
                         </div>
                     ) : (
-                        /* MODO ÉXITO: MOSTRAR TIMELINE */
                         <div className="relative border-l-2 border-slate-800 ml-3 md:ml-6 space-y-8 pb-4">
                             {updates.map((update, idx) => (
                                 <div key={idx} className="relative pl-8 md:pl-12 group animate-fade-in">
-                                    <div className={`absolute -left-[9px] top-0 w-5 h-5 rounded-full border-4 border-slate-900 ${idx === 0 ? 'bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.6)]' : 'bg-slate-600'}`}></div>
+                                    <div className={`absolute -left-[9px] top-0 w-5 h-5 rounded-full border-4 border-slate-900 ${idx === 0 ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]' : 'bg-slate-600'}`}></div>
                                     
                                     <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 hover:bg-slate-800/60 transition-colors">
                                         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-2 mb-3 border-b border-slate-700/50 pb-3">
                                             <div>
                                                 <div className="flex items-center gap-3">
                                                     <span className="text-xl font-mono font-bold text-white">{update.version}</span>
-                                                    {idx === 0 && <span className="bg-blue-500/20 text-blue-400 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Más Reciente</span>}
+                                                    {idx === 0 && <span className="bg-green-500/20 text-green-400 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider">Nueva</span>}
                                                 </div>
                                             </div>
                                             <div className="text-right">
@@ -3594,12 +3573,13 @@
                                             </div>
                                         </div>
 
-                                        <div className="text-sm text-slate-400 leading-relaxed mb-4">
-                                            {update.description}
+                                        <div className="text-sm text-slate-300 leading-relaxed mb-4">
+                                            {/* Google News snippets are short, so we add a generic text if too short */}
+                                            {update.description.length > 20 ? update.description : "Detalles completos de la actualización disponibles en la fuente oficial."}
                                         </div>
 
                                         <a href={update.link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-xs font-bold text-blue-400 hover:text-white bg-slate-900/50 px-3 py-2 rounded border border-blue-500/20 hover:bg-blue-600 hover:border-blue-500 transition-all">
-                                            <Icons.Activity className="w-3 h-3" /> Ver detalles en TeslaFi
+                                            <Icons.List className="w-3 h-3" /> Leer Noticia Completa
                                         </a>
                                     </div>
                                 </div>
@@ -3609,7 +3589,7 @@
                 </div>
             </div>
         );
-      };
+      };  
         
         
 
