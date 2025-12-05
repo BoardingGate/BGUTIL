@@ -3226,13 +3226,53 @@
       };
 
         
-      
-    // --- DECODIFICADOR VIN (TESLA TECH-TREE) ---
-        const VinDecoder = () => {
+      // --- DECODIFICADOR VIN AVANZADO V2 ---
+      const VinDecoder = () => {
         const [vin, setVin] = usePersistentState('userVin', '');
         const [result, setResult] = useState(null);
 
-        // Lógica de decodificación estática
+        // BASE DE DATOS INTERNA DE ESPECIFICACIONES (Estimaciones por Configuración)
+        const getSpecs = (model, trim, yearCode, fuelType) => {
+            // Valores por defecto
+            let specs = { range: "?", accel: "?", top: "?", drive: "?", power: "?" };
+            const year = yearCode === 'R' || yearCode === 'S' ? '2024+' : 'pre-2024';
+
+            // LÓGICA MODEL 3
+            if (model === '3') {
+                if (trim === 'RWD' || trim === 'SR+') {
+                    specs = { 
+                        range: year === '2024+' ? "513 km (WLTP)" : "491 km (WLTP)", 
+                        accel: "6.1 s", 
+                        top: "201 km/h", 
+                        drive: "Trasera (RWD)", 
+                        power: "~283 CV" 
+                    };
+                } else if (trim === 'LR') {
+                    specs = { 
+                        range: year === '2024+' ? "629 km (WLTP)" : "602 km (WLTP)", 
+                        accel: "4.4 s", 
+                        top: year === '2024+' ? "201 km/h" : "233 km/h", 
+                        drive: "Total (AWD)", 
+                        power: "~498 CV" 
+                    };
+                } else if (trim === 'PERF') {
+                    specs = { range: "547 km (WLTP)", accel: "3.3 s", top: "261 km/h", drive: "Total (AWD)", power: "~534 CV" };
+                }
+            } 
+            // LÓGICA MODEL Y
+            else if (model === 'Y') {
+                if (trim === 'RWD') {
+                    specs = { range: "455 km (WLTP)", accel: "6.9 s", top: "217 km/h", drive: "Trasera (RWD)", power: "~299 CV" };
+                } else if (trim === 'LR') {
+                    specs = { range: "533 km (WLTP)", accel: "5.0 s", top: "217 km/h", drive: "Total (AWD)", power: "~514 CV" };
+                } else if (trim === 'PERF') {
+                    specs = { range: "514 km (WLTP)", accel: "3.7 s", top: "250 km/h", drive: "Total (AWD)", power: "~534 CV" };
+                }
+            }
+
+            return specs;
+        };
+
         const decodeVin = (inputVin) => {
             if (!inputVin || inputVin.length !== 17) {
                 setResult({ error: "El VIN debe tener 17 caracteres." });
@@ -3241,172 +3281,162 @@
             
             const v = inputVin.toUpperCase();
             
-            // 1. FABRICANTE (WMI - Digits 1-3)
-            const wmi = v.substring(0, 3);
-            let factoryInfo = { name: "Desconocida", quality: "Estándar", code: wmi };
-            if (wmi === 'LRW') factoryInfo = { name: "Giga Shanghai (China)", quality: "⭐⭐⭐⭐⭐ Excelente (Ref. Global)", code: wmi };
-            else if (wmi === 'XP7') factoryInfo = { name: "Giga Berlin (Alemania)", quality: "⭐⭐⭐⭐ Muy Buena (Pintura Top)", code: wmi };
-            else if (wmi === '5YJ' || wmi === '7G2') factoryInfo = { name: "Fremont (USA)", quality: "⭐⭐⭐ Variable (Legacy)", code: wmi };
+            // 1. DIGITO 4: MODELO
+            const digit4 = v[3];
+            let modelName = "Desconocido";
+            let modelCode = "";
+            if(digit4 === '3') { modelName = "Model 3"; modelCode = '3'; }
+            else if(digit4 === 'Y') { modelName = "Model Y"; modelCode = 'Y'; }
+            else if(digit4 === 'S') { modelName = "Model S"; modelCode = 'S'; }
+            else if(digit4 === 'X') { modelName = "Model X"; modelCode = 'X'; }
 
-            // 2. AÑO MODELO (Digit 10)
+            // 2. DIGITO 7: TREN MOTRIZ (BATERIA/MOTOR) -> DETERMINE TRIM
+            const digit7 = v[6]; 
+            // E = NMC/NCA (Suele ser LR o Perf)
+            // F = LFP (Suele ser RWD)
+            // A, B = Motores Standard
+            // L = Motor Performance (A veces)
+            
+            let trimName = "Standard / RWD"; 
+            let trimCode = "RWD";
+            let batteryType = "Desconocida";
+
+            // Lógica Simplificada para Europa (Shanghai/Berlin dominantes)
+            if (digit7 === 'F' || digit7 === 'J') {
+                trimName = "RWD (Tracción Trasera)";
+                trimCode = "RWD";
+                batteryType = "LFP (Litio Ferrofosfato) - Carga al 100%";
+            } else if (digit7 === 'E' || digit7 === 'K') {
+                // E suele ser NMC. Difícil distinguir LR de Perf solo con esto, asumimos LR por probabilidad
+                // A veces el dígito 8 ayuda: 'C' Base, 'L' Perf.
+                const digit8 = v[7];
+                if (digit8 === 'L' || digit8 === 'P') {
+                    trimName = "Performance";
+                    trimCode = "PERF";
+                } else {
+                    trimName = "Long Range (Gran Autonomía)";
+                    trimCode = "LR";
+                }
+                batteryType = "NMC/NCA (Níquel) - Carga al 80%";
+            }
+
+            // 3. DIGITO 10: AÑO
             const yearCode = v[9];
             const years = { 'L': 2020, 'M': 2021, 'N': 2022, 'P': 2023, 'R': 2024, 'S': 2025 };
             const modelYear = years[yearCode] || "Anterior a 2020";
 
-            // 3. BATERÍA / MOTOR (Digit 7)
-            const battCode = v[6];
-            let battInfo = { type: "NCA/NMC (Níquel)", charge: "80-90% Diario", note: "Más potencia, menos peso.", icon: "⚡" };
-            if (battCode === 'F') battInfo = { type: "LFP (Hierro)", charge: "100% Diario", note: "Mayor vida útil. Carga al 100% al menos 1 vez/semana.", icon: "🔋" };
-            
-            // 4. ESTIMACIÓN HARDWARE (HEURÍSTICA)
-            let hw = {
-                cpu: "Intel Atom",
-                uss: "Sensores (USS) ✅",
-                heatpump: "Probablemente NO ❌",
-                hwVersion: "HW 2.5/3.0"
-            };
+            // 4. DIGITO 11: FÁBRICA
+            const factoryCode = v[10];
+            let factory = "Desconocida";
+            if(factoryCode === 'C' || v.startsWith('LRW')) factory = "Giga Shanghai (China) ⭐";
+            else if(factoryCode === 'B' || v.startsWith('XP7')) factory = "Giga Berlin (Alemania) 🇪🇺";
+            else if(factoryCode === 'F' || v.startsWith('5YJ')) factory = "Fremont (USA) 🇺🇸";
 
-            if (typeof modelYear === 'number') {
-                if (modelYear >= 2021) hw.heatpump = "Bomba de Calor ✅";
-                
-                if (modelYear === 2022) {
-                    hw.cpu = "⚠️ Transición (Atom o Ryzen)";
-                    hw.uss = "Sensores (USS) ✅"; 
-                } else if (modelYear >= 2023) {
-                    hw.cpu = "AMD Ryzen 🚀";
-                    hw.uss = "Tesla Vision (Solo Cámaras) 📷"; 
-                    hw.hwVersion = modelYear >= 2024 ? "HW 4.0 (Cámaras Rojas)" : "HW 3.0 / 4.0";
-                }
-            }
+            // OBTENER FICHA TÉCNICA ESTIMADA
+            const specs = getSpecs(modelCode, trimCode, yearCode);
 
-            setResult({ factory: factoryInfo, year: modelYear, battery: battInfo, hardware: hw });
+            // HARDWARE ESTIMADO
+            let hw = { cpu: "Intel Atom", uss: "Sensores ✅" };
+            if (modelYear >= 2022) hw.cpu = "AMD Ryzen 🚀";
+            if (modelYear >= 2023) hw.uss = "Tesla Vision (Cámaras) 📷";
+
+            setResult({ model: modelName, trim: trimName, year: modelYear, factory, battery: batteryType, specs, hw });
         };
 
         return (
             <div className="space-y-8 animate-fade-in">
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                     <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
-                        <Icons.Search className="w-6 h-6 text-blue-400" /> Decodificador de VIN
+                        <Icons.Search className="w-6 h-6 text-blue-400" /> Decodificador de VIN Pro
                     </h2>
                     
-                    <div className="flex flex-col lg:flex-row gap-8 items-start mb-8">
-                        <div className="flex-grow w-full">
-                            <label className="text-sm font-bold text-slate-400 block mb-2 uppercase tracking-wider">Número de Bastidor (VIN)</label>
-                            <div className="flex gap-2">
-                                <input 
-                                    type="text" 
-                                    value={vin}
-                                    onChange={(e) => {
-                                        const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 17);
-                                        setVin(val);
-                                    }}
-                                    onFocus={(e) => scrollToSafeZone(e.target)}
-                                    placeholder="Ej: LRW3E7FS9NC..." 
-                                    className="w-full bg-zinc-800 border-2 border-slate-600 rounded-xl px-4 py-4 text-white font-mono font-bold text-xl tracking-widest focus:border-blue-500 focus:outline-none placeholder-slate-600 uppercase transition-all"
-                                />
-                                <button 
-                                    onClick={() => decodeVin(vin)}
-                                    className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 rounded-xl transition-all shadow-lg hover:shadow-blue-500/20 flex items-center justify-center"
-                                >
-                                    <Icons.Settings className="w-6 h-6" />
-                                </button>
-                            </div>
-
-                            {/* CAJA DE AYUDA VISUAL */}
-                            <div className="mt-4 bg-blue-900/10 border border-blue-500/20 rounded-lg p-3 flex items-start gap-3">
-                                <div className="bg-blue-500/20 p-2 rounded-full text-blue-400">
-                                    <Icons.Smartphone className="w-5 h-5" />
-                                </div>
-                                <div>
-                                    <div className="text-xs text-blue-300 font-bold uppercase mb-1">¿Dónde encontrar este dato?</div>
-                                    <div className="text-sm text-slate-400 font-bold leading-relaxed">
-                                        Abre tu App de Tesla, quédate en la pantalla principal y haz scroll <span className="text-white underline decoration-blue-500">hasta el final del todo</span>. Verás el código de 17 dígitos escrito en gris junto a la versión de la App.
-                                    </div>
-                                </div>
-                            </div>
+                    {/* INPUT SECTION */}
+                    <div className="flex flex-col gap-4 mb-8">
+                        <div className="flex gap-2">
+                            <input 
+                                type="text" 
+                                value={vin}
+                                onChange={(e) => setVin(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 17))}
+                                onFocus={(e) => scrollToSafeZone(e.target)}
+                                placeholder="Ej: LRW3E7FS9NC..." 
+                                className="flex-grow bg-zinc-800 border-2 border-slate-600 rounded-xl px-4 py-4 text-white font-mono font-bold text-xl tracking-widest focus:border-blue-500 outline-none uppercase"
+                            />
+                            <button onClick={() => decodeVin(vin)} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 rounded-xl shadow-lg transition-all"><Icons.Settings className="w-6 h-6" /></button>
+                        </div>
+                        <div className="bg-blue-900/10 border border-blue-500/20 rounded-lg p-3 flex items-start gap-3">
+                            <div className="bg-blue-500/20 p-2 rounded-full text-blue-400"><Icons.Smartphone className="w-5 h-5" /></div>
+                            <div className="text-sm text-slate-400 font-bold leading-relaxed">Encuéntralo en la App de Tesla haciendo scroll hasta el final de la pantalla principal.</div>
                         </div>
                     </div>
 
                     {result && result.error && (
-                        <div className="p-4 bg-red-900/20 border border-red-500/50 rounded-xl text-red-200 font-bold flex items-center gap-2 mb-6">
-                            <Icons.AlertTriangle className="w-5 h-5" /> {result.error}
-                        </div>
+                        <div className="p-4 bg-red-900/20 border border-red-500/50 rounded-xl text-red-200 font-bold flex items-center gap-2 mb-6"><Icons.AlertTriangle className="w-5 h-5" /> {result.error}</div>
                     )}
 
                     {result && !result.error && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-in">
-                            {/* TARJETA 1: ORIGEN Y AÑO */}
-                            <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 relative overflow-hidden group hover:border-blue-500/30 transition-colors">
-                                <div className="absolute top-0 right-0 p-4 opacity-10"><Icons.Home className="w-24 h-24" /></div>
-                                <h3 className="text-sm font-bold text-blue-400 uppercase tracking-widest mb-4 border-b border-slate-700 pb-2">Origen y Fabricación</h3>
-                                <div className="space-y-4 relative z-10">
-                                    <div>
-                                        <div className="text-xs text-slate-500 uppercase font-bold">Fábrica</div>
-                                        <div className="text-xl font-bold text-white flex items-center gap-2">
-                                            {result.factory.name} 
-                                            <span className="text-xs bg-slate-700 px-2 py-1 rounded text-slate-300 font-mono">{result.factory.code}</span>
-                                        </div>
-                                        <div className="text-xs text-yellow-500/80 font-bold mt-1">{result.factory.quality}</div>
+                        <div className="animate-fade-in space-y-6">
+                            
+                            {/* CABECERA MODELO */}
+                            <div className="bg-gradient-to-r from-slate-800 to-slate-900 border border-slate-700 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center text-center md:text-left gap-4">
+                                <div>
+                                    <div className="text-sm text-blue-400 font-bold uppercase tracking-widest mb-1">{result.year} | {result.factory}</div>
+                                    <h3 className="text-4xl font-display font-bold text-white">{result.model} <span className="text-slate-400">{result.trim}</span></h3>
+                                    <div className="text-sm text-slate-400 font-bold mt-2 flex items-center gap-2 justify-center md:justify-start">
+                                        <span className="bg-slate-700 px-2 py-1 rounded text-white">{result.hw.cpu}</span>
+                                        <span className="bg-slate-700 px-2 py-1 rounded text-white">{result.hw.uss}</span>
                                     </div>
-                                    <div>
-                                        <div className="text-xs text-slate-500 uppercase font-bold">Año Modelo (VIN)</div>
-                                        <div className="text-3xl font-display font-bold text-white">{result.year}</div>
-                                    </div>
+                                </div>
+                                <div className="text-5xl opacity-80">🚗</div>
+                            </div>
+
+                            {/* GRID DE PRESTACIONES (NUEVO) */}
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
+                                    <div className="text-xs text-slate-500 font-bold uppercase mb-2">0-100 km/h</div>
+                                    <div className="text-2xl font-bold text-white font-display">{result.specs.accel}</div>
+                                </div>
+                                <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
+                                    <div className="text-xs text-slate-500 font-bold uppercase mb-2">Autonomía (Est)</div>
+                                    <div className="text-2xl font-bold text-green-400 font-display">{result.specs.range}</div>
+                                </div>
+                                <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
+                                    <div className="text-xs text-slate-500 font-bold uppercase mb-2">Velocidad Máx</div>
+                                    <div className="text-2xl font-bold text-white font-display">{result.specs.top}</div>
+                                </div>
+                                <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
+                                    <div className="text-xs text-slate-500 font-bold uppercase mb-2">Tracción</div>
+                                    <div className="text-xl font-bold text-blue-300 font-display">{result.specs.drive}</div>
                                 </div>
                             </div>
 
-                            {/* TARJETA 2: CORAZÓN (BATERÍA) */}
-                            <div className={`border rounded-xl p-6 relative overflow-hidden transition-colors ${result.battery.type.includes('LFP') ? 'bg-green-900/10 border-green-500/30' : 'bg-purple-900/10 border-purple-500/30'}`}>
-                                <div className="absolute top-0 right-0 p-4 opacity-10 text-white text-6xl">{result.battery.icon}</div>
-                                <h3 className={`text-sm font-bold uppercase tracking-widest mb-4 border-b pb-2 ${result.battery.type.includes('LFP') ? 'text-green-400 border-green-500/30' : 'text-purple-400 border-purple-500/30'}`}>Batería y Carga</h3>
-                                <div className="space-y-4 relative z-10">
-                                    <div>
-                                        <div className="text-xs text-slate-500 uppercase font-bold">Química Detectada (Dígito 7)</div>
-                                        <div className="text-xl font-bold text-white">{result.battery.type}</div>
-                                    </div>
-                                    <div className="bg-black/20 p-3 rounded-lg">
-                                        <div className="text-xs text-slate-400 uppercase font-bold mb-1">Recomendación de Carga</div>
-                                        <div className="text-lg font-bold text-white">{result.battery.charge}</div>
-                                        <div className="text-xs text-slate-400 mt-1 italic leading-tight">{result.battery.note}</div>
-                                    </div>
+                            {/* FICHA TÉCNICA DETALLADA */}
+                            <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-6">
+                                <h4 className="text-sm font-bold text-slate-300 uppercase mb-4 border-b border-slate-700 pb-2">Detalles Técnicos</h4>
+                                <ul className="space-y-3 text-sm">
+                                    <li className="flex justify-between">
+                                        <span className="text-slate-400 font-bold">Tipo de Batería:</span>
+                                        <span className={result.battery.includes('LFP') ? "text-green-400 font-bold" : "text-purple-400 font-bold"}>{result.battery}</span>
+                                    </li>
+                                    <li className="flex justify-between">
+                                        <span className="text-slate-400 font-bold">Potencia Estimada:</span>
+                                        <span className="text-white font-bold">{result.specs.power}</span>
+                                    </li>
+                                    <li className="flex justify-between">
+                                        <span className="text-slate-400 font-bold">Fábrica de Origen:</span>
+                                        <span className="text-white font-bold">{result.factory}</span>
+                                    </li>
+                                </ul>
+                                <div className="mt-4 pt-4 border-t border-slate-700 text-[10px] text-slate-500 text-center leading-tight">
+                                    * Datos estimados según la lógica de producción de Tesla. Las especificaciones (autonomía/potencia) pueden variar según la versión de software, tamaño de llantas y estado de degradación.
                                 </div>
                             </div>
 
-                            {/* TARJETA 3: HARDWARE ESTIMADO */}
-                            <div className="md:col-span-2 bg-slate-800/30 border border-slate-700 rounded-xl p-6 relative overflow-hidden">
-                                <h3 className="text-sm font-bold text-slate-300 uppercase tracking-widest mb-4 border-b border-slate-700 pb-2 flex items-center gap-2">
-                                    <Icons.Cpu className="w-4 h-4"/> Hardware Estimado
-                                </h3>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 relative z-10">
-                                    <div className="bg-slate-900/50 p-4 rounded-lg text-center">
-                                        <div className="text-xs text-slate-500 uppercase font-bold mb-1">Procesador (MCU)</div>
-                                        <div className={`text-lg font-bold ${result.hardware.cpu.includes('Ryzen') ? 'text-green-400' : result.hardware.cpu.includes('Transición') ? 'text-yellow-400' : 'text-slate-300'}`}>
-                                            {result.hardware.cpu}
-                                        </div>
-                                    </div>
-                                    <div className="bg-slate-900/50 p-4 rounded-lg text-center">
-                                        <div className="text-xs text-slate-500 uppercase font-bold mb-1">Aparcamiento</div>
-                                        <div className={`text-lg font-bold ${result.hardware.uss.includes('USS') ? 'text-green-400' : 'text-blue-300'}`}>
-                                            {result.hardware.uss}
-                                        </div>
-                                    </div>
-                                    <div className="bg-slate-900/50 p-4 rounded-lg text-center">
-                                        <div className="text-xs text-slate-500 uppercase font-bold mb-1">Climatización</div>
-                                        <div className={`text-lg font-bold ${result.hardware.heatpump.includes('Bomba') ? 'text-green-400' : 'text-slate-400'}`}>
-                                            {result.hardware.heatpump}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="mt-4 text-[10px] text-slate-500 text-center font-bold">
-                                    * La configuración de hardware es una estimación basada en la fecha de fabricación (Año Modelo) y la fábrica de origen. Tesla realiza cambios sin previo aviso.
-                                </div>
-                            </div>
                         </div>
                     )}
                 </div>
             </div>
         );
-      };
+      };      
 
         
 
