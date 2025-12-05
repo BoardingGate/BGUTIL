@@ -3425,99 +3425,125 @@
 
 
 
-        // --- TRACKER DE ACTUALIZACIONES (BOTONES + GOOGLE NEWS FETCH) ---
+      // --- TRACKER DE ACTUALIZACIONES (ESTRATEGIA CASCADA DE PROXIES) ---
       const UpdateTracker = () => {
         const [updates, setUpdates] = useState([]);
         const [loading, setLoading] = useState(true);
         const [error, setError] = useState(false);
+        const [debugInfo, setDebugInfo] = useState('');
 
         useEffect(() => {
             const fetchUpdates = async () => {
-                try {
-                    // ESTRATEGIA GOOGLE NEWS (El "Backdoor")
-                    // Google genera un RSS de las noticias de NotATeslaApp. 
-                    // Google NO bloquea el acceso a su RSS, por lo que podemos leerlo vía Proxy.
-                    const GOOGLE_RSS = 'https://news.google.com/rss/search?q=site:notateslaapp.com+intitle:"Software+Update"&hl=en-US&gl=US&ceid=US:en';
-                    
-                    // Usamos AllOrigins como proxy (fiable para texto plano/XML)
-                    const PROXY_URL = `https://api.allorigins.win/get?url=${encodeURIComponent(GOOGLE_RSS)}`;
-                    
-                    const response = await fetch(PROXY_URL);
-                    const data = await response.json();
-                    
-                    if (!data.contents) throw new Error("Google no devolvió datos.");
+                // ESTRATEGIA: Intentar múltiples combinaciones de Proxy + Fuente hasta que una funcione.
+                
+                const TARGET_URL_GOOGLE = 'https://news.google.com/rss/search?q=site:notateslaapp.com+"Software+Update"&hl=en-US&gl=US&ceid=US:en';
+                const TARGET_URL_DIRECT = 'https://www.notateslaapp.com/feed/';
 
-                    // Parseamos el XML
-                    const parser = new DOMParser();
-                    const xmlDoc = parser.parseFromString(data.contents, "text/xml");
-                    const items = Array.from(xmlDoc.querySelectorAll("item"));
+                // Lista de intentos ordenados por probabilidad de éxito
+                const attempts = [
+                    { name: 'CorsProxy + Google', url: `https://corsproxy.io/?${encodeURIComponent(TARGET_URL_GOOGLE)}` },
+                    { name: 'CodeTabs + Direct', url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(TARGET_URL_DIRECT)}` },
+                    { name: 'AllOrigins + Google', url: `https://api.allorigins.win/get?url=${encodeURIComponent(TARGET_URL_GOOGLE)}` },
+                    { name: 'CorsProxy + Direct', url: `https://corsproxy.io/?${encodeURIComponent(TARGET_URL_DIRECT)}` }
+                ];
 
-                    // Regex para versiones (2024, 2025... hasta 2029)
-                    const versionRegex = /\b202[4-9]\.\d+(\.\d+)?\b/;
+                let success = false;
 
-                    const parsedItems = items.map(item => {
-                        const title = item.querySelector("title")?.textContent || "";
-                        const link = item.querySelector("link")?.textContent || "";
-                        const pubDateRaw = item.querySelector("pubDate")?.textContent || "";
+                for (const attempt of attempts) {
+                    try {
+                        // console.log(`Intentando: ${attempt.name}...`); // Descomentar para depurar
+                        const response = await fetch(attempt.url);
                         
-                        // Buscamos el patrón "2024.x.x" en el título
-                        const match = title.match(versionRegex);
-                        if (!match) return null;
-
-                        const version = match[0];
-                        const dateObj = new Date(pubDateRaw);
-                        const dateStr = !isNaN(dateObj) ? dateObj.toISOString().split('T')[0] : "Reciente";
-
-                        // Limpiamos la descripción HTML que devuelve Google
-                        const descHTML = item.querySelector("description")?.textContent || "";
-                        const tempDiv = document.createElement("div");
-                        tempDiv.innerHTML = descHTML;
-                        const cleanDesc = tempDiv.textContent || "";
-
-                        return {
-                            version: version,
-                            title: "Notas de Lanzamiento", // Título genérico limpio
-                            link: link,
-                            date: dateStr,
-                            dateObj: dateObj,
-                            description: cleanDesc // Snippet de Google
-                        };
-                    }).filter(Boolean);
-
-                    // Eliminamos duplicados
-                    const uniqueVersions = [];
-                    const seen = new Set();
-                    parsedItems.forEach(item => {
-                        if (!seen.has(item.version) && item.version.length > 5) { // Filtrar versiones cortas o repetidas
-                            seen.add(item.version);
-                            uniqueVersions.push(item);
+                        let xmlText = '';
+                        // AllOrigins devuelve JSON con el contenido dentro, los otros devuelven texto raw
+                        if (attempt.name.includes('AllOrigins')) {
+                            const json = await response.json();
+                            xmlText = json.contents;
+                        } else {
+                            xmlText = await response.text();
                         }
-                    });
 
-                    // Ordenar por fecha
-                    uniqueVersions.sort((a, b) => b.dateObj - a.dateObj);
-
-                    if (uniqueVersions.length === 0) throw new Error("Sin versiones encontradas");
-
-                    // Calcular días entre versiones
-                    const finalData = uniqueVersions.map((item, index) => {
-                        let days = null;
-                        if (index < uniqueVersions.length - 1) {
-                            const diff = Math.abs(item.dateObj - uniqueVersions[index + 1].dateObj);
-                            days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                        if (!xmlText || (!xmlText.includes('<rss') && !xmlText.includes('<feed'))) {
+                            throw new Error("Respuesta no es XML válido");
                         }
-                        return { ...item, daysSincePrev: days };
-                    });
 
-                    setUpdates(finalData);
-                    setError(false);
+                        // Parseamos el XML
+                        const parser = new DOMParser();
+                        const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+                        const items = Array.from(xmlDoc.querySelectorAll("item, entry"));
 
-                } catch (err) {
-                    console.warn("Fallo Google News:", err);
-                    setError(true);
-                } finally {
-                    setLoading(false);
+                        // Regex para versiones (2024.x, 2025.x...)
+                        const versionRegex = /\b202[4-9]\.\d+(\.\d+)?\b/;
+
+                        const parsedItems = items.map(item => {
+                            const title = item.querySelector("title")?.textContent || "";
+                            const link = item.querySelector("link")?.textContent || item.querySelector("link")?.getAttribute("href") || "";
+                            const pubDateRaw = item.querySelector("pubDate")?.textContent || item.querySelector("updated")?.textContent || "";
+                            const descRaw = item.querySelector("description")?.textContent || item.querySelector("content")?.textContent || "";
+
+                            const match = title.match(versionRegex);
+                            if (!match) return null;
+
+                            const version = match[0];
+                            const dateObj = new Date(pubDateRaw);
+                            const dateStr = !isNaN(dateObj) ? dateObj.toISOString().split('T')[0] : "Reciente";
+
+                            // Limpieza de descripción
+                            const tempDiv = document.createElement("div");
+                            tempDiv.innerHTML = descRaw;
+                            let cleanDesc = tempDiv.textContent || "";
+                            // Limpiar basura común de los feeds
+                            cleanDesc = cleanDesc.replace(/View the release notes.*/g, '').substring(0, 160) + "...";
+
+                            return {
+                                version: version,
+                                date: dateStr,
+                                dateObj: dateObj,
+                                description: cleanDesc,
+                                link: link
+                            };
+                        }).filter(Boolean);
+
+                        // Eliminamos duplicados
+                        const uniqueVersions = [];
+                        const seen = new Set();
+                        parsedItems.forEach(item => {
+                            if (!seen.has(item.version) && item.version.length > 5) {
+                                seen.add(item.version);
+                                uniqueVersions.push(item);
+                            }
+                        });
+
+                        // Ordenar por fecha
+                        uniqueVersions.sort((a, b) => b.dateObj - a.dateObj);
+
+                        if (uniqueVersions.length > 0) {
+                            // Calcular días
+                            const finalData = uniqueVersions.map((item, index) => {
+                                let days = null;
+                                if (index < uniqueVersions.length - 1) {
+                                    const diff = Math.abs(item.dateObj - uniqueVersions[index + 1].dateObj);
+                                    days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                                }
+                                return { ...item, daysSincePrev: days };
+                            });
+
+                            setUpdates(finalData);
+                            setDebugInfo(`Conectado vía: ${attempt.name}`);
+                            success = true;
+                            break; // ¡EXITO! Salimos del bucle
+                        }
+
+                    } catch (err) {
+                        // console.warn(`Fallo ${attempt.name}`, err);
+                        // Continuamos al siguiente intento
+                    }
                 }
+
+                if (!success) {
+                    setError(true);
+                }
+                setLoading(false);
             };
 
             fetchUpdates();
@@ -3570,26 +3596,26 @@
                         </div>
                     </div>
 
-                    {/* --- ZONA 2: LISTADO AUTOMÁTICO (GOOGLE NEWS) --- */}
+                    {/* --- ZONA 2: LISTADO AUTOMÁTICO --- */}
                     <div className="border-t border-slate-800 pt-6">
                         <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 flex items-center gap-2">
                             {loading ? <span className="animate-spin">⏳</span> : <Icons.Activity className="w-4 h-4"/>}
-                            Vista Rápida Automática
+                            Vista Rápida Automática {debugInfo && <span className="text-[10px] text-slate-600 font-normal ml-2">({debugInfo})</span>}
                         </h3>
 
                         {/* ESTADO: CARGANDO */}
                         {loading && (
                             <div className="text-center py-10 bg-slate-800/30 rounded-xl border border-slate-800 border-dashed animate-pulse">
-                                <div className="text-blue-400 font-bold text-sm">Consultando índice de Google News...</div>
+                                <div className="text-blue-400 font-bold text-sm">Escaneando múltiples fuentes de datos...</div>
                             </div>
                         )}
 
-                        {/* ESTADO: ERROR (FALLO GOOGLE) */}
+                        {/* ESTADO: ERROR (FALLO TOTAL) */}
                         {error && !loading && (
                             <div className="text-center py-8 bg-red-900/10 rounded-xl border border-red-900/30 border-dashed">
                                 <p className="text-red-400 font-bold text-sm">No se pudo cargar la vista previa automática.</p>
                                 <p className="text-red-300/50 text-xs mt-1 max-w-md mx-auto">
-                                    Es posible que tu red esté bloqueando el acceso al proxy de noticias. Por favor, usa los botones de arriba.
+                                    Tu red está bloqueando el acceso a todos los servidores de noticias externos. Por favor, usa los botones de arriba.
                                 </p>
                             </div>
                         )}
@@ -3622,10 +3648,12 @@
                                                 </div>
                                             )}
 
-                                            <div className="text-sm text-slate-400 leading-relaxed italic mb-4" dangerouslySetInnerHTML={{ __html: update.description }}></div>
+                                            <div className="text-sm text-slate-400 leading-relaxed italic mb-4">
+                                                {update.description}
+                                            </div>
                                             
                                             <a href={update.link} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-white hover:text-green-400 flex items-center gap-1 transition-colors">
-                                                Leer noticia completa en Google <Icons.Link className="w-3 h-3"/>
+                                                Leer noticia completa <Icons.Link className="w-3 h-3"/>
                                             </a>
                                         </div>
                                     </div>
