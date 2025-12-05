@@ -3424,58 +3424,49 @@
       };  
 
 
-
-
-            // --- TRACKER DE ACTUALIZACIONES (CORREGIDO: TRADUCCIÓN REAL + BOTONES + ESTADÍSTICAS) ---
+      // --- TRACKER DE ACTUALIZACIONES (VERSIÓN ROBUSTA + TRADUCCIÓN) ---
       const UpdateTracker = () => {
         const [updates, setUpdates] = useState([]);
         const [stats, setStats] = useState({ count: 0, avgDays: 0, range: '' });
         const [loading, setLoading] = useState(true);
         const [translating, setTranslating] = useState(false);
         const [error, setError] = useState(false);
-        const [sourceUsed, setSourceUsed] = useState('');
+        const [debugInfo, setDebugInfo] = useState('');
 
-        // 1. SERVICIO DE TRADUCCIÓN (Google Translate 'gtx' via Proxy)
+        // 1. FUNCIÓN DE TRADUCCIÓN (Google Translate 'gtx')
+        // Intenta traducir, si falla, devuelve el inglés original sin romper nada.
         const fetchTranslation = async (text) => {
             if (!text) return "";
             try {
-                // Endpoint 'gtx' utilizado históricamente por extensiones gratuitas
                 const targetUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=es&dt=t&q=${encodeURIComponent(text)}`;
-                // Usamos AllOrigins para saltar la restricción CORS del navegador
                 const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
                 
                 const response = await fetch(proxyUrl);
                 const data = await response.json();
-                
-                // AllOrigins devuelve el contenido en .contents. Google devuelve un array de arrays.
                 const googleData = JSON.parse(data.contents);
                 
-                // Reconstruimos las frases traducidas
                 if (googleData && googleData[0]) {
                     return googleData[0].map(item => item[0]).join('');
                 }
-                return text; // Fallback: si la estructura no coincide, devuelve inglés
+                return text; 
             } catch (e) {
-                console.warn("Fallo traducción:", e);
-                return text; // Fallback en caso de error de red
+                return text; // Fallback silencioso
             }
         };
 
         useEffect(() => {
             const fetchUpdates = async () => {
-                const cb = () => `&_cb=${Date.now()}`; 
+                const cb = () => `&_cb=${Date.now()}`;
 
-                // Intentamos primero el FEED DIRECTO (mejor calidad) y luego Google News (backup)
-                const URL_DIRECT = 'https://www.notateslaapp.com/feed/';
-                const URL_GOOGLE = 'https://news.google.com/rss/search?q=site:notateslaapp.com+"software+update"+release+notes+when:90d&hl=en-US&gl=US&ceid=US:en';
+                // VOLVEMOS A LA URL QUE SÍ FUNCIONABA (Búsqueda amplia en Google News)
+                // Quitamos filtros de fecha estrictos en la URL para asegurar que devuelva ALGO.
+                const URL_BROAD = 'https://news.google.com/rss/search?q=site:notateslaapp.com+"Software+Update"&hl=en-US&gl=US&ceid=US:en';
 
                 const attempts = [
-                    // 1. AllOrigins -> Feed Directo (Suele ser el más rápido y limpio)
-                    { name: 'Direct Feed (AO)', url: `https://api.allorigins.win/get?url=${encodeURIComponent(URL_DIRECT)}` + cb() },
-                    // 2. CodeTabs -> Feed Directo (Backup sólido)
-                    { name: 'Direct Feed (CT)', url: `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(URL_DIRECT)}` + cb() },
-                    // 3. AllOrigins -> Google News (Último recurso, descripciones más sucias)
-                    { name: 'Google News (AO)', url: `https://api.allorigins.win/get?url=${encodeURIComponent(URL_GOOGLE)}` + cb() }
+                    // AllOrigins suele ser el más permisivo para Google RSS
+                    { name: 'Google Broad (AO)', url: `https://api.allorigins.win/get?url=${encodeURIComponent(URL_BROAD)}` + cb() },
+                    // Backup con CorsProxy
+                    { name: 'Google Broad (CP)', url: `https://corsproxy.io/?${encodeURIComponent(URL_BROAD)}` + cb() }
                 ];
 
                 let rawItems = [];
@@ -3485,13 +3476,12 @@
                 for (const attempt of attempts) {
                     try {
                         const controller = new AbortController();
-                        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout
+                        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
                         
                         const response = await fetch(attempt.url, { signal: controller.signal });
                         clearTimeout(timeoutId);
 
                         let xmlText = '';
-                        // Manejo específico según el proxy
                         if (attempt.name.includes('(AO)')) {
                             const json = await response.json();
                             xmlText = json.contents;
@@ -3499,47 +3489,39 @@
                             xmlText = await response.text();
                         }
 
-                        if (!xmlText || (!xmlText.includes('<rss') && !xmlText.includes('<feed'))) throw new Error("XML Inválido");
+                        if (!xmlText || !xmlText.includes('<rss')) throw new Error("XML Inválido");
 
                         const parser = new DOMParser();
                         const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-                        const items = Array.from(xmlDoc.querySelectorAll("item, entry"));
+                        const items = Array.from(xmlDoc.querySelectorAll("item"));
                         const versionRegex = /\b202[4-9]\.\d+(\.\d+)?\b/;
 
                         rawItems = items.map(item => {
                             const title = item.querySelector("title")?.textContent || "";
-                            const link = item.querySelector("link")?.textContent || item.querySelector("link")?.getAttribute("href") || "";
-                            const pubDateRaw = item.querySelector("pubDate")?.textContent || item.querySelector("updated")?.textContent || "";
-                            let descRaw = item.querySelector("description")?.textContent || item.querySelector("content")?.textContent || "";
+                            const link = item.querySelector("link")?.textContent || "";
+                            const pubDateRaw = item.querySelector("pubDate")?.textContent || "";
+                            let descRaw = item.querySelector("description")?.textContent || "";
 
                             const match = title.match(versionRegex);
                             if (!match) return null;
 
                             const version = match[0];
                             const dateObj = new Date(pubDateRaw);
-                            
-                            // Filtro de seguridad: Últimos 90 días
-                            const now = new Date();
-                            const limit = new Date();
-                            limit.setDate(now.getDate() - 90);
-                            
-                            if (isNaN(dateObj) || dateObj < limit) return null; // Ignorar muy antiguas
+                            const dateStr = !isNaN(dateObj) ? dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : "Reciente";
 
-                            const dateStr = dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
-                            // Limpieza HTML básica antes de traducir
+                            // Limpieza básica HTML
                             const tempDiv = document.createElement("div");
                             tempDiv.innerHTML = descRaw;
                             let cleanText = tempDiv.textContent || "";
-                            cleanText = cleanText.split("Read more")[0].trim(); // Limpieza específica de Google
-                            cleanText = cleanText.substring(0, 350); // Limitamos longitud para la API de traducción
+                            cleanText = cleanText.split("Read more")[0].trim();
+                            cleanText = cleanText.substring(0, 300); // Limitar caracteres
 
                             return { version, date: dateStr, dateObj, description: cleanText, link };
                         }).filter(Boolean);
 
                         if (rawItems.length > 0) {
                             successSource = attempt.name;
-                            break; // Éxito, salimos del bucle
+                            break; 
                         }
                     } catch (err) {
                         console.log(`Intento fallido: ${attempt.name}`);
@@ -3552,11 +3534,13 @@
                     return;
                 }
 
-                // --- FASE 2: PROCESADO Y UNICIDAD ---
+                // --- FASE 2: PROCESADO ---
+                // Ordenar por fecha (Más reciente primero)
                 rawItems.sort((a, b) => b.dateObj - a.dateObj);
+                
+                // Unicidad (evitar duplicados)
                 const uniqueVersions = [];
                 const seen = new Set();
-                
                 rawItems.forEach(item => {
                     if (!seen.has(item.version) && item.version.length > 5) {
                         seen.add(item.version);
@@ -3565,15 +3549,15 @@
                 });
 
                 setLoading(false);
-                setSourceUsed(successSource);
+                setDebugInfo(successSource);
 
-                // --- FASE 3: TRADUCCIÓN ASÍNCRONA ---
+                // --- FASE 3: TRADUCCIÓN ---
                 setTranslating(true);
                 
-                // Traducimos en paralelo
+                // Traducimos
                 const translatedUpdates = await Promise.all(uniqueVersions.map(async (item) => {
-                    // Pequeño retardo aleatorio para no saturar la API si son muchas
-                    await new Promise(r => setTimeout(r, Math.random() * 500));
+                    // Pequeño retardo aleatorio
+                    await new Promise(r => setTimeout(r, Math.random() * 300));
                     const translatedDesc = await fetchTranslation(item.description);
                     return { ...item, description: translatedDesc };
                 }));
@@ -3616,10 +3600,10 @@
                             </h2>
                             <p className="text-sm text-slate-400 mt-1 font-bold">Monitor de versiones en tiempo real</p>
                         </div>
-                        {sourceUsed && <div className="text-[10px] text-slate-600 font-mono border border-slate-800 px-2 py-1 rounded">Fuente: {sourceUsed}</div>}
+                        {debugInfo && <div className="text-[10px] text-slate-600 font-mono border border-slate-800 px-2 py-1 rounded">Fuente: {debugInfo}</div>}
                     </div>
 
-                    {/* BOTONES FUENTES OFICIALES (RESTAURADOS) */}
+                    {/* BOTONES FUENTES OFICIALES */}
                     <div className="bg-blue-900/10 border border-blue-500/30 p-6 rounded-xl text-center mb-8">
                         <p className="text-xs text-blue-300 font-bold mb-4 uppercase tracking-wider flex items-center justify-center gap-2">
                             <Icons.Link className="w-4 h-4"/> Fuentes Oficiales de Referencia
@@ -3639,7 +3623,7 @@
                     <div className="border-t border-slate-800 pt-6">
                         {loading && (
                             <div className="text-center py-10 bg-slate-800/30 rounded-xl border border-slate-800 border-dashed animate-pulse">
-                                <div className="text-blue-400 font-bold text-sm">Buscando actualizaciones recientes...</div>
+                                <div className="text-blue-400 font-bold text-sm">Consultando índice de Google...</div>
                             </div>
                         )}
 
@@ -3661,7 +3645,7 @@
 
                         {!loading && !error && updates.length > 0 && (
                             <>
-                                {/* ESTADÍSTICAS (RESTAURADAS) */}
+                                {/* ESTADÍSTICAS */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                                     <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
                                         <div className="text-xs text-slate-400 font-bold uppercase mb-1">Ritmo de Actualización</div>
@@ -3669,18 +3653,18 @@
                                         <div className="text-[10px] text-slate-500">Media entre versiones</div>
                                     </div>
                                     <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-                                        <div className="text-xs text-slate-400 font-bold uppercase mb-1">Nuevas Versiones</div>
+                                        <div className="text-xs text-slate-400 font-bold uppercase mb-1">Versiones Detectadas</div>
                                         <div className="text-3xl font-bold text-white font-display">{stats.count}</div>
-                                        <div className="text-[10px] text-slate-500">En los últimos 90 días</div>
+                                        <div className="text-[10px] text-slate-500">En el feed actual</div>
                                     </div>
                                     <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-                                        <div className="text-xs text-slate-400 font-bold uppercase mb-1">Periodo</div>
+                                        <div className="text-xs text-slate-400 font-bold uppercase mb-1">Rango de Fechas</div>
                                         <div className="text-sm font-bold text-blue-300 font-mono mt-2">{stats.range}</div>
                                     </div>
                                 </div>
 
                                 <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 flex items-center gap-2">
-                                    <Icons.Activity className="w-4 h-4"/> Historial de Versiones
+                                    <Icons.Activity className="w-4 h-4"/> Historial de Versiones (Traducido)
                                 </h3>
 
                                 <div className="relative border-l-2 border-slate-800 ml-3 md:ml-6 space-y-8 pb-4">
@@ -3710,7 +3694,7 @@
                                                 </div>
                                                 
                                                 <a href={update.link} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
-                                                    Ver fuente original (Inglés) <Icons.Link className="w-3 h-3"/>
+                                                    Ver fuente original <Icons.Link className="w-3 h-3"/>
                                                 </a>
                                             </div>
                                         </div>
@@ -3722,8 +3706,9 @@
                 </div>
             </div>
         );
-      };  
+      };
 
+        
       // --- APP PRINCIPAL ---
 
       const App = () => {
