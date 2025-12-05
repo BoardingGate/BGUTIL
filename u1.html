@@ -3222,10 +3222,11 @@
             </div>
         );
       };
-      
 
+        
+      
     // --- DECODIFICADOR VIN (TESLA TECH-TREE) ---
-      const VinDecoder = () => {
+        const VinDecoder = () => {
         const [vin, setVin] = usePersistentState('userVin', '');
         const [result, setResult] = useState(null);
 
@@ -3309,7 +3310,7 @@
                                 </button>
                             </div>
 
-                            {/* CAJA DE AYUDA VISUAL AÑADIDA */}
+                            {/* CAJA DE AYUDA VISUAL */}
                             <div className="mt-4 bg-blue-900/10 border border-blue-500/20 rounded-lg p-3 flex items-start gap-3">
                                 <div className="bg-blue-500/20 p-2 rounded-full text-blue-400">
                                     <Icons.Smartphone className="w-5 h-5" />
@@ -3403,8 +3404,9 @@
                 </div>
             </div>
         );
-      };    
+      };
 
+        
 
       // --- APP PRINCIPAL ---
 
