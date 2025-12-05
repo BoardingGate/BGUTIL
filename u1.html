@@ -3431,6 +3431,35 @@
                                 </div>
                             </div>
 
+                            
+                            {/* --- NUEVO BLOQUE: ENLACES EXTERNOS PARA DATOS FALTANTES --- */}
+                            <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 mt-4">
+                                <h4 className="text-sm font-bold text-blue-300 uppercase mb-2 flex items-center gap-2">
+                                    <Icons.Link className="w-4 h-4" /> ¿Buscas Color, Ruedas o Extras?
+                                </h4>
+                                <p className="text-xs text-slate-400 mb-4 leading-relaxed">
+                                    El código VIN <strong>no contiene información sobre el color, interior o llantas</strong> (esos datos no se codifican en el bastidor). Para averiguarlo, puedes buscar si este coche aparece en bases de datos externas:
+                                </p>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <a 
+                                        href={`https://www.google.com/search?q=${vin}+tesla`} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 border border-slate-700"
+                                    >
+                                        <Icons.Search className="w-4 h-4 text-blue-400" /> Googlear este VIN
+                                    </a>
+                                    <a 
+                                        href={`https://vincheck.info/check/vin-check.php?vin=${vin}`} 
+                                        target="_blank" 
+                                        rel="noopener noreferrer"
+                                        className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 border border-slate-700"
+                                    >
+                                        <Icons.Link className="w-4 h-4 text-green-400" /> Consultar en VinCheck (Fotos)
+                                    </a>
+                                </div>
+                            </div>
+
                         </div>
                     )}
                 </div>
