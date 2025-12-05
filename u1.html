@@ -3424,17 +3424,15 @@
       };  
 
 
-      // --- TRACKER DE ACTUALIZACIONES (VERSIÓN ROBUSTA + TRADUCCIÓN) ---
+      // --- TRACKER DE ACTUALIZACIONES (FINAL: ROBUSTO + TRADUCIDO + LIMPIO) ---
       const UpdateTracker = () => {
         const [updates, setUpdates] = useState([]);
         const [stats, setStats] = useState({ count: 0, avgDays: 0, range: '' });
         const [loading, setLoading] = useState(true);
         const [translating, setTranslating] = useState(false);
         const [error, setError] = useState(false);
-        const [debugInfo, setDebugInfo] = useState('');
 
         // 1. FUNCIÓN DE TRADUCCIÓN (Google Translate 'gtx')
-        // Intenta traducir, si falla, devuelve el inglés original sin romper nada.
         const fetchTranslation = async (text) => {
             if (!text) return "";
             try {
@@ -3458,19 +3456,15 @@
             const fetchUpdates = async () => {
                 const cb = () => `&_cb=${Date.now()}`;
 
-                // VOLVEMOS A LA URL QUE SÍ FUNCIONABA (Búsqueda amplia en Google News)
-                // Quitamos filtros de fecha estrictos en la URL para asegurar que devuelva ALGO.
+                // URL: Búsqueda amplia en Google News (sin filtro de fecha estricto para asegurar resultados)
                 const URL_BROAD = 'https://news.google.com/rss/search?q=site:notateslaapp.com+"Software+Update"&hl=en-US&gl=US&ceid=US:en';
 
                 const attempts = [
-                    // AllOrigins suele ser el más permisivo para Google RSS
                     { name: 'Google Broad (AO)', url: `https://api.allorigins.win/get?url=${encodeURIComponent(URL_BROAD)}` + cb() },
-                    // Backup con CorsProxy
                     { name: 'Google Broad (CP)', url: `https://corsproxy.io/?${encodeURIComponent(URL_BROAD)}` + cb() }
                 ];
 
                 let rawItems = [];
-                let successSource = '';
 
                 // --- FASE 1: OBTENCIÓN (FETCH) ---
                 for (const attempt of attempts) {
@@ -3520,8 +3514,7 @@
                         }).filter(Boolean);
 
                         if (rawItems.length > 0) {
-                            successSource = attempt.name;
-                            break; 
+                            break; // Éxito
                         }
                     } catch (err) {
                         console.log(`Intento fallido: ${attempt.name}`);
@@ -3535,10 +3528,8 @@
                 }
 
                 // --- FASE 2: PROCESADO ---
-                // Ordenar por fecha (Más reciente primero)
                 rawItems.sort((a, b) => b.dateObj - a.dateObj);
                 
-                // Unicidad (evitar duplicados)
                 const uniqueVersions = [];
                 const seen = new Set();
                 rawItems.forEach(item => {
@@ -3549,12 +3540,10 @@
                 });
 
                 setLoading(false);
-                setDebugInfo(successSource);
 
                 // --- FASE 3: TRADUCCIÓN ---
                 setTranslating(true);
                 
-                // Traducimos
                 const translatedUpdates = await Promise.all(uniqueVersions.map(async (item) => {
                     // Pequeño retardo aleatorio
                     await new Promise(r => setTimeout(r, Math.random() * 300));
@@ -3592,7 +3581,7 @@
             <div className="space-y-6 animate-fade-in">
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                     
-                    {/* CABECERA */}
+                    {/* CABECERA (LIMPIA) */}
                     <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                         <div>
                             <h2 className="text-xl font-display font-bold text-white flex items-center gap-2">
@@ -3600,7 +3589,6 @@
                             </h2>
                             <p className="text-sm text-slate-400 mt-1 font-bold">Monitor de versiones en tiempo real</p>
                         </div>
-                        {debugInfo && <div className="text-[10px] text-slate-600 font-mono border border-slate-800 px-2 py-1 rounded">Fuente: {debugInfo}</div>}
                     </div>
 
                     {/* BOTONES FUENTES OFICIALES */}
@@ -3623,7 +3611,7 @@
                     <div className="border-t border-slate-800 pt-6">
                         {loading && (
                             <div className="text-center py-10 bg-slate-800/30 rounded-xl border border-slate-800 border-dashed animate-pulse">
-                                <div className="text-blue-400 font-bold text-sm">Consultando índice de Google...</div>
+                                <div className="text-blue-400 font-bold text-sm">Consultando actualizaciones...</div>
                             </div>
                         )}
 
@@ -3708,6 +3696,7 @@
         );
       };
 
+        
         
       // --- APP PRINCIPAL ---
 
