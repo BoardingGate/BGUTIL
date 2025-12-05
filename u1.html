@@ -3226,50 +3226,36 @@
       };
 
         
-      // --- DECODIFICADOR VIN AVANZADO V2 ---
+      // --- DECODIFICADOR VIN AVANZADO V2 (CORREGIDO) ---
       const VinDecoder = () => {
-        const [vin, setVin] = usePersistentState('userVin', '');
+        // CORRECCIÓN: Usamos un objeto { code: '' } en lugar de un string suelto para que el guardado funcione bien
+        const [vinState, setVinState] = usePersistentState('userVin', { code: '' });
+        const vin = vinState.code || ''; // Extraemos el valor limpio para usarlo
+        
         const [result, setResult] = useState(null);
 
-        // BASE DE DATOS INTERNA DE ESPECIFICACIONES (Estimaciones por Configuración)
-        const getSpecs = (model, trim, yearCode, fuelType) => {
-            // Valores por defecto
+        // BASE DE DATOS INTERNA DE ESPECIFICACIONES
+        const getSpecs = (model, trim, yearCode) => {
             let specs = { range: "?", accel: "?", top: "?", drive: "?", power: "?" };
             const year = yearCode === 'R' || yearCode === 'S' ? '2024+' : 'pre-2024';
 
-            // LÓGICA MODEL 3
             if (model === '3') {
-                if (trim === 'RWD' || trim === 'SR+') {
-                    specs = { 
-                        range: year === '2024+' ? "513 km (WLTP)" : "491 km (WLTP)", 
-                        accel: "6.1 s", 
-                        top: "201 km/h", 
-                        drive: "Trasera (RWD)", 
-                        power: "~283 CV" 
-                    };
-                } else if (trim === 'LR') {
-                    specs = { 
-                        range: year === '2024+' ? "629 km (WLTP)" : "602 km (WLTP)", 
-                        accel: "4.4 s", 
-                        top: year === '2024+' ? "201 km/h" : "233 km/h", 
-                        drive: "Total (AWD)", 
-                        power: "~498 CV" 
-                    };
-                } else if (trim === 'PERF') {
-                    specs = { range: "547 km (WLTP)", accel: "3.3 s", top: "261 km/h", drive: "Total (AWD)", power: "~534 CV" };
-                }
-            } 
-            // LÓGICA MODEL Y
-            else if (model === 'Y') {
                 if (trim === 'RWD') {
-                    specs = { range: "455 km (WLTP)", accel: "6.9 s", top: "217 km/h", drive: "Trasera (RWD)", power: "~299 CV" };
+                    specs = { range: year === '2024+' ? "513 km" : "491 km", accel: "6.1 s", top: "201 km/h", drive: "Trasera (RWD)", power: "~283 CV" };
                 } else if (trim === 'LR') {
-                    specs = { range: "533 km (WLTP)", accel: "5.0 s", top: "217 km/h", drive: "Total (AWD)", power: "~514 CV" };
+                    specs = { range: year === '2024+' ? "629 km" : "602 km", accel: "4.4 s", top: year === '2024+' ? "201 km/h" : "233 km/h", drive: "Total (AWD)", power: "~498 CV" };
                 } else if (trim === 'PERF') {
-                    specs = { range: "514 km (WLTP)", accel: "3.7 s", top: "250 km/h", drive: "Total (AWD)", power: "~534 CV" };
+                    specs = { range: "547 km", accel: "3.3 s", top: "261 km/h", drive: "Total (AWD)", power: "~534 CV" };
+                }
+            } else if (model === 'Y') {
+                if (trim === 'RWD') {
+                    specs = { range: "455 km", accel: "6.9 s", top: "217 km/h", drive: "Trasera (RWD)", power: "~299 CV" };
+                } else if (trim === 'LR') {
+                    specs = { range: "533 km", accel: "5.0 s", top: "217 km/h", drive: "Total (AWD)", power: "~514 CV" };
+                } else if (trim === 'PERF') {
+                    specs = { range: "514 km", accel: "3.7 s", top: "250 km/h", drive: "Total (AWD)", power: "~534 CV" };
                 }
             }
-
             return specs;
         };
 
@@ -3278,69 +3264,51 @@
                 setResult({ error: "El VIN debe tener 17 caracteres." });
                 return;
             }
-            
             const v = inputVin.toUpperCase();
             
-            // 1. DIGITO 4: MODELO
+            // LÓGICA DE DECODIFICACIÓN
             const digit4 = v[3];
-            let modelName = "Desconocido";
-            let modelCode = "";
+            let modelName = "Desconocido", modelCode = "";
             if(digit4 === '3') { modelName = "Model 3"; modelCode = '3'; }
             else if(digit4 === 'Y') { modelName = "Model Y"; modelCode = 'Y'; }
             else if(digit4 === 'S') { modelName = "Model S"; modelCode = 'S'; }
             else if(digit4 === 'X') { modelName = "Model X"; modelCode = 'X'; }
 
-            // 2. DIGITO 7: TREN MOTRIZ (BATERIA/MOTOR) -> DETERMINE TRIM
             const digit7 = v[6]; 
-            // E = NMC/NCA (Suele ser LR o Perf)
-            // F = LFP (Suele ser RWD)
-            // A, B = Motores Standard
-            // L = Motor Performance (A veces)
-            
-            let trimName = "Standard / RWD"; 
-            let trimCode = "RWD";
-            let batteryType = "Desconocida";
+            let trimName = "Standard / RWD", trimCode = "RWD", batteryType = "Desconocida";
 
-            // Lógica Simplificada para Europa (Shanghai/Berlin dominantes)
-            if (digit7 === 'F' || digit7 === 'J') {
-                trimName = "RWD (Tracción Trasera)";
-                trimCode = "RWD";
+            if (digit7 === 'F' || digit7 === 'J' || digit7 === 'R') { // R añadido para Berlin BYD
+                trimName = "RWD (Tracción Trasera)"; trimCode = "RWD";
                 batteryType = "LFP (Litio Ferrofosfato) - Carga al 100%";
             } else if (digit7 === 'E' || digit7 === 'K') {
-                // E suele ser NMC. Difícil distinguir LR de Perf solo con esto, asumimos LR por probabilidad
-                // A veces el dígito 8 ayuda: 'C' Base, 'L' Perf.
                 const digit8 = v[7];
-                if (digit8 === 'L' || digit8 === 'P') {
-                    trimName = "Performance";
-                    trimCode = "PERF";
-                } else {
-                    trimName = "Long Range (Gran Autonomía)";
-                    trimCode = "LR";
-                }
+                if (digit8 === 'L' || digit8 === 'P') { trimName = "Performance"; trimCode = "PERF"; } 
+                else { trimName = "Long Range"; trimCode = "LR"; }
                 batteryType = "NMC/NCA (Níquel) - Carga al 80%";
             }
 
-            // 3. DIGITO 10: AÑO
             const yearCode = v[9];
             const years = { 'L': 2020, 'M': 2021, 'N': 2022, 'P': 2023, 'R': 2024, 'S': 2025 };
             const modelYear = years[yearCode] || "Anterior a 2020";
 
-            // 4. DIGITO 11: FÁBRICA
             const factoryCode = v[10];
             let factory = "Desconocida";
             if(factoryCode === 'C' || v.startsWith('LRW')) factory = "Giga Shanghai (China) ⭐";
             else if(factoryCode === 'B' || v.startsWith('XP7')) factory = "Giga Berlin (Alemania) 🇪🇺";
             else if(factoryCode === 'F' || v.startsWith('5YJ')) factory = "Fremont (USA) 🇺🇸";
 
-            // OBTENER FICHA TÉCNICA ESTIMADA
             const specs = getSpecs(modelCode, trimCode, yearCode);
-
-            // HARDWARE ESTIMADO
             let hw = { cpu: "Intel Atom", uss: "Sensores ✅" };
             if (modelYear >= 2022) hw.cpu = "AMD Ryzen 🚀";
             if (modelYear >= 2023) hw.uss = "Tesla Vision (Cámaras) 📷";
 
             setResult({ model: modelName, trim: trimName, year: modelYear, factory, battery: batteryType, specs, hw });
+        };
+
+        const handleInput = (e) => {
+            const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 17);
+            // CORRECCIÓN: Guardamos como objeto
+            setVinState({ code: val });
         };
 
         return (
@@ -3356,7 +3324,7 @@
                             <input 
                                 type="text" 
                                 value={vin}
-                                onChange={(e) => setVin(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 17))}
+                                onChange={handleInput}
                                 onFocus={(e) => scrollToSafeZone(e.target)}
                                 placeholder="Ej: LRW3E7FS9NC..." 
                                 className="flex-grow bg-zinc-800 border-2 border-slate-600 rounded-xl px-4 py-4 text-white font-mono font-bold text-xl tracking-widest focus:border-blue-500 outline-none uppercase"
@@ -3375,7 +3343,6 @@
 
                     {result && !result.error && (
                         <div className="animate-fade-in space-y-6">
-                            
                             {/* CABECERA MODELO */}
                             <div className="bg-gradient-to-r from-slate-800 to-slate-900 border border-slate-700 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center text-center md:text-left gap-4">
                                 <div>
@@ -3389,7 +3356,7 @@
                                 <div className="text-5xl opacity-80">🚗</div>
                             </div>
 
-                            {/* GRID DE PRESTACIONES (NUEVO) */}
+                            {/* GRID DE PRESTACIONES */}
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
                                     <div className="text-xs text-slate-500 font-bold uppercase mb-2">0-100 km/h</div>
@@ -3427,12 +3394,11 @@
                                     </li>
                                 </ul>
                                 <div className="mt-4 pt-4 border-t border-slate-700 text-[10px] text-slate-500 text-center leading-tight">
-                                    * Datos estimados según la lógica de producción de Tesla. Las especificaciones (autonomía/potencia) pueden variar según la versión de software, tamaño de llantas y estado de degradación.
+                                    * Datos estimados según la lógica de producción de Tesla. Las especificaciones pueden variar según la versión de software y tamaño de llantas.
                                 </div>
                             </div>
 
-                            
-                            {/* --- NUEVO BLOQUE: ENLACES EXTERNOS PARA DATOS FALTANTES --- */}
+                            {/* ENLACES EXTERNOS */}
                             <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 mt-4">
                                 <h4 className="text-sm font-bold text-blue-300 uppercase mb-2 flex items-center gap-2">
                                     <Icons.Link className="w-4 h-4" /> ¿Buscas Color, Ruedas o Extras?
@@ -3441,31 +3407,20 @@
                                     El código VIN <strong>no contiene información sobre el color, interior o llantas</strong> (esos datos no se codifican en el bastidor). Para averiguarlo, puedes buscar si este coche aparece en bases de datos externas:
                                 </p>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <a 
-                                        href={`https://www.google.com/search?q=${vin}+tesla`} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 border border-slate-700"
-                                    >
+                                    <a href={`https://www.google.com/search?q=${vin}+tesla`} target="_blank" className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 border border-slate-700">
                                         <Icons.Search className="w-4 h-4 text-blue-400" /> Googlear este VIN
                                     </a>
-                                    <a 
-                                        href={`https://vincheck.info/check/vin-check.php?vin=${vin}`} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 border border-slate-700"
-                                    >
+                                    <a href={`https://vincheck.info/check/vin-check.php?vin=${vin}`} target="_blank" className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 border border-slate-700">
                                         <Icons.Link className="w-4 h-4 text-green-400" /> Consultar en VinCheck (Fotos)
                                     </a>
                                 </div>
                             </div>
-
                         </div>
                     )}
                 </div>
             </div>
         );
-      };      
+      };  
 
         
 
