@@ -3424,7 +3424,8 @@
       };  
 
 
-      // --- TRACKER DE ACTUALIZACIONES (LIVE RSS) ---
+
+      // --- TRACKER DE ACTUALIZACIONES (XML PARSER NATIVO) ---
       const UpdateTracker = () => {
         const [updates, setUpdates] = useState([]);
         const [loading, setLoading] = useState(true);
@@ -3433,61 +3434,92 @@
         useEffect(() => {
             const fetchUpdates = async () => {
                 try {
-                    // Usamos rss2json para saltar el bloqueo CORS y leer el feed de NotATeslaApp
+                    // Usamos 'allorigins' para obtener el contenido crudo del RSS saltando CORS
+                    // Esto devuelve el XML tal cual lo publica la web
                     const FEED_URL = 'https://www.notateslaapp.com/feed/';
-                    const API_URL = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(FEED_URL)}`;
+                    const PROXY_URL = `https://api.allorigins.win/get?url=${encodeURIComponent(FEED_URL)}`;
                     
-                    const response = await fetch(API_URL);
-                    const data = await response.json();
+                    const response = await fetch(PROXY_URL);
+                    const wrapper = await response.json();
+                    
+                    if (!wrapper.contents) throw new Error("Respuesta vacía del proxy");
 
-                    if (data.status === 'ok') {
-                        // Filtramos para quedarnos solo con lo que parecen actualizaciones de software
-                        // Buscamos patrones como "2024.2", "2023.44", etc. en el título
-                        const versionRegex = /\b202[3-5]\.\d+(\.\d+)?\b/;
-                        
-                        const filtered = data.items
-                            .filter(item => versionRegex.test(item.title) || item.title.includes("Software Update"))
-                            .map(item => {
-                                // Intentamos extraer el número de versión limpio
-                                const match = item.title.match(versionRegex);
-                                const version = match ? match[0] : "Update";
-                                const cleanTitle = item.title.replace(version, '').replace('Tesla Software Update', '').replace('Release Notes', '').trim();
-                                
-                                // Limpiamos la descripción (viene con HTML)
-                                const div = document.createElement("div");
-                                div.innerHTML = item.description;
-                                const text = div.textContent || div.innerText || "";
-                                const shortDesc = text.substring(0, 150) + "...";
+                    // PARSEO MANUAL DEL XML (Más robusto que APIs de terceros)
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(wrapper.contents, "text/xml");
+                    const items = Array.from(xmlDoc.querySelectorAll("item"));
 
-                                return {
-                                    version: version,
-                                    title: cleanTitle || "Mejoras varias",
-                                    date: item.pubDate.split(' ')[0], // YYYY-MM-DD
-                                    link: item.link,
-                                    description: shortDesc
-                                };
-                            });
+                    // Regex actualizada para capturar versiones 2024, 2025, 2026...
+                    const versionRegex = /\b202[4-9]\.\d+(\.\d+)?\b/;
 
-                        // Calcular días entre updates (del filtrado actual)
-                        const processed = filtered.map((upd, index) => {
-                            let daysSincePrev = null;
-                            if (index < filtered.length - 1) {
-                                const current = new Date(upd.date);
-                                const prev = new Date(filtered[index + 1].date);
+                    const parsedItems = items.map(item => {
+                        const title = item.querySelector("title")?.textContent || "";
+                        const link = item.querySelector("link")?.textContent || "";
+                        const pubDateRaw = item.querySelector("pubDate")?.textContent || "";
+                        const descriptionRaw = item.querySelector("description")?.textContent || "";
+
+                        // Conversión de fecha
+                        const dateObj = new Date(pubDateRaw);
+                        const dateStr = !isNaN(dateObj) ? dateObj.toISOString().split('T')[0] : "Fecha desc.";
+
+                        // Limpieza de HTML en la descripción
+                        const tempDiv = document.createElement("div");
+                        tempDiv.innerHTML = descriptionRaw;
+                        const cleanDesc = tempDiv.textContent || tempDiv.innerText || "";
+
+                        return {
+                            fullTitle: title,
+                            link: link,
+                            date: dateStr,
+                            dateObj: dateObj,
+                            description: cleanDesc.substring(0, 160) + "..." // Extracto
+                        };
+                    });
+
+                    // FILTRADO: Solo versiones de software reales
+                    const filtered = parsedItems.filter(i => 
+                        versionRegex.test(i.fullTitle) || i.fullTitle.toLowerCase().includes("software update")
+                    );
+
+                    // PROCESADO FINAL: Extraer número versión y calcular días
+                    const finalData = filtered.map((item, index) => {
+                        const match = item.fullTitle.match(versionRegex);
+                        const version = match ? match[0] : "Update";
+                        // Limpiamos el título de "Tesla Software Update..."
+                        const cleanTitle = item.fullTitle
+                            .replace(version, '')
+                            .replace(/Tesla Software Update/gi, '')
+                            .replace(/Release Notes/gi, '')
+                            .replace(/[-–]/g, '') // Quitar guiones sueltos
+                            .trim();
+
+                        let daysSincePrev = null;
+                        // Calcular diferencia con la SIGUIENTE en la lista (que es la anterior cronológicamente)
+                        if (index < filtered.length - 1) {
+                            const current = item.dateObj;
+                            const prev = filtered[index + 1].dateObj;
+                            if (!isNaN(current) && !isNaN(prev)) {
                                 const diffTime = Math.abs(current - prev);
-                                daysSincePrev = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+                                daysSincePrev = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                             }
-                            return { ...upd, daysSincePrev };
-                        });
+                        }
 
-                        setUpdates(processed);
-                    } else {
-                        throw new Error("No se pudo cargar el feed.");
-                    }
+                        return {
+                            version: version,
+                            title: cleanTitle || "Mejoras y Correcciones",
+                            date: item.date,
+                            description: item.description,
+                            link: item.link,
+                            daysSincePrev: daysSincePrev
+                        };
+                    });
+
+                    setUpdates(finalData);
+                    setLoading(false);
+
                 } catch (err) {
-                    console.error(err);
-                    setError("No se pudieron obtener las actualizaciones en tiempo real.");
-                } finally {
+                    console.error("Error fetching feed:", err);
+                    setError("Error de conexión con la fuente de noticias.");
                     setLoading(false);
                 }
             };
@@ -3501,24 +3533,28 @@
                     <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
                         <div>
                             <h2 className="text-xl font-display font-bold text-white flex items-center gap-2">
-                                <Icons.List className="w-6 h-6 text-green-400" /> Últimas Actualizaciones (Live)
+                                <Icons.List className="w-6 h-6 text-green-400" /> Timeline de Software
                             </h2>
-                            <p className="text-sm text-slate-400 mt-1 font-bold">Fuente: NotATeslaApp (Tiempo Real)</p>
+                            <p className="text-sm text-slate-400 mt-1 font-bold">Datos en tiempo real (Fuente: NotATeslaApp)</p>
                         </div>
                         <div className="text-right">
-                            {loading && <div className="text-blue-400 font-bold animate-pulse">Buscando nuevas versiones...</div>}
+                            {loading && <div className="text-blue-400 font-bold text-sm animate-pulse">Analizando feed de noticias...</div>}
                         </div>
                     </div>
 
                     {error && (
-                        <div className="bg-red-900/20 border border-red-500/50 p-4 rounded-xl text-red-300 font-bold text-center">
-                            {error} <br/> <span className="text-xs opacity-70">(Puede ser un bloqueo temporal del proveedor de noticias)</span>
+                        <div className="bg-red-900/20 border border-red-500/50 p-6 rounded-xl text-center">
+                            <div className="text-red-300 font-bold text-lg mb-2">{error}</div>
+                            <p className="text-sm text-red-200/70 mb-4">El servidor de noticias no responde o ha bloqueado la petición.</p>
+                            <a href="https://www.notateslaapp.com/software-updates/" target="_blank" className="bg-red-900/50 hover:bg-red-800 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                                Ver Notas Oficiales Directamente
+                            </a>
                         </div>
                     )}
 
-                    {!loading && updates.length === 0 && !error && (
+                    {!loading && !error && updates.length === 0 && (
                         <div className="text-center p-8 text-slate-500 font-bold border border-slate-800 border-dashed rounded-xl">
-                            No se encontraron notas de lanzamiento recientes en el feed de noticias principal.
+                            No se han encontrado versiones recientes en el feed.
                         </div>
                     )}
 
@@ -3543,13 +3579,13 @@
                                             </div>
                                             {update.daysSincePrev > 0 && (
                                                 <div className="text-xs text-slate-500 font-bold mt-1">
-                                                    +{update.daysSincePrev} días desde la anterior detectada
+                                                    +{update.daysSincePrev} días desde la anterior
                                                 </div>
                                             )}
                                         </div>
                                     </div>
 
-                                    <div className="text-sm text-slate-300 leading-relaxed mb-4">
+                                    <div className="text-sm text-slate-300 leading-relaxed mb-4 line-clamp-3">
                                         {update.description}
                                     </div>
 
