@@ -3224,9 +3224,8 @@
       };
       
 
-        
-        // --- DECODIFICADOR VIN (TESLA TECH-TREE) ---
-        const VinDecoder = () => {
+    // --- DECODIFICADOR VIN (TESLA TECH-TREE) ---
+      const VinDecoder = () => {
         const [vin, setVin] = usePersistentState('userVin', '');
         const [result, setResult] = useState(null);
 
@@ -3255,10 +3254,8 @@
             const battCode = v[6];
             let battInfo = { type: "NCA/NMC (Níquel)", charge: "80-90% Diario", note: "Más potencia, menos peso.", icon: "⚡" };
             if (battCode === 'F') battInfo = { type: "LFP (Hierro)", charge: "100% Diario", note: "Mayor vida útil. Carga al 100% al menos 1 vez/semana.", icon: "🔋" };
-            // Model Y RWD BYD Blade (Berlin) a veces usa '7' o varía, pero 'F' es el estándar LFP Shanghai.
-
+            
             // 4. ESTIMACIÓN HARDWARE (HEURÍSTICA)
-            // Lógica aproximada basada en hitos históricos
             let hw = {
                 cpu: "Intel Atom",
                 uss: "Sensores (USS) ✅",
@@ -3271,10 +3268,10 @@
                 
                 if (modelYear === 2022) {
                     hw.cpu = "⚠️ Transición (Atom o Ryzen)";
-                    hw.uss = "Sensores (USS) ✅"; // La mayoría de 2022 tienen sensores
+                    hw.uss = "Sensores (USS) ✅"; 
                 } else if (modelYear >= 2023) {
                     hw.cpu = "AMD Ryzen 🚀";
-                    hw.uss = "Tesla Vision (Solo Cámaras) 📷"; // USS eliminados a finales de 2022
+                    hw.uss = "Tesla Vision (Solo Cámaras) 📷"; 
                     hw.hwVersion = modelYear >= 2024 ? "HW 4.0 (Cámaras Rojas)" : "HW 3.0 / 4.0";
                 }
             }
@@ -3289,32 +3286,46 @@
                         <Icons.Search className="w-6 h-6 text-blue-400" /> Decodificador de VIN
                     </h2>
                     
-                    <div className="flex flex-col md:flex-row gap-4 items-end mb-8">
+                    <div className="flex flex-col lg:flex-row gap-8 items-start mb-8">
                         <div className="flex-grow w-full">
                             <label className="text-sm font-bold text-slate-400 block mb-2 uppercase tracking-wider">Número de Bastidor (VIN)</label>
-                            <input 
-                                type="text" 
-                                value={vin}
-                                onChange={(e) => {
-                                    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 17);
-                                    setVin(val);
-                                }}
-                                onFocus={(e) => scrollToSafeZone(e.target)}
-                                placeholder="Ej: LRW3E7FS9NC..." 
-                                className="w-full bg-zinc-800 border-2 border-slate-600 rounded-xl px-4 py-4 text-white font-mono font-bold text-xl tracking-widest focus:border-blue-500 focus:outline-none placeholder-slate-600 uppercase transition-all"
-                            />
-                            <p className="text-xs text-slate-500 mt-2 font-bold ml-1">El código de 17 caracteres que encuentras en la app de Tesla (abajo del todo) o en el parabrisas.</p>
+                            <div className="flex gap-2">
+                                <input 
+                                    type="text" 
+                                    value={vin}
+                                    onChange={(e) => {
+                                        const val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 17);
+                                        setVin(val);
+                                    }}
+                                    onFocus={(e) => scrollToSafeZone(e.target)}
+                                    placeholder="Ej: LRW3E7FS9NC..." 
+                                    className="w-full bg-zinc-800 border-2 border-slate-600 rounded-xl px-4 py-4 text-white font-mono font-bold text-xl tracking-widest focus:border-blue-500 focus:outline-none placeholder-slate-600 uppercase transition-all"
+                                />
+                                <button 
+                                    onClick={() => decodeVin(vin)}
+                                    className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 rounded-xl transition-all shadow-lg hover:shadow-blue-500/20 flex items-center justify-center"
+                                >
+                                    <Icons.Settings className="w-6 h-6" />
+                                </button>
+                            </div>
+
+                            {/* CAJA DE AYUDA VISUAL AÑADIDA */}
+                            <div className="mt-4 bg-blue-900/10 border border-blue-500/20 rounded-lg p-3 flex items-start gap-3">
+                                <div className="bg-blue-500/20 p-2 rounded-full text-blue-400">
+                                    <Icons.Smartphone className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-blue-300 font-bold uppercase mb-1">¿Dónde encontrar este dato?</div>
+                                    <div className="text-sm text-slate-400 font-bold leading-relaxed">
+                                        Abre tu App de Tesla, quédate en la pantalla principal y haz scroll <span className="text-white underline decoration-blue-500">hasta el final del todo</span>. Verás el código de 17 dígitos escrito en gris junto a la versión de la App.
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <button 
-                            onClick={() => decodeVin(vin)}
-                            className="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-xl transition-all shadow-lg hover:shadow-blue-500/20 flex items-center justify-center gap-2"
-                        >
-                            <Icons.Settings className="w-5 h-5 animate-spin-fast" style={{animationDuration: '3s'}} /> ANALIZAR
-                        </button>
                     </div>
 
                     {result && result.error && (
-                        <div className="p-4 bg-red-900/20 border border-red-500/50 rounded-xl text-red-200 font-bold flex items-center gap-2">
+                        <div className="p-4 bg-red-900/20 border border-red-500/50 rounded-xl text-red-200 font-bold flex items-center gap-2 mb-6">
                             <Icons.AlertTriangle className="w-5 h-5" /> {result.error}
                         </div>
                     )}
@@ -3392,8 +3403,7 @@
                 </div>
             </div>
         );
-      };
-        
+      };    
 
 
       // --- APP PRINCIPAL ---
