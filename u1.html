@@ -3424,66 +3424,15 @@
         );
       };  
 
-
-      // --- TRACKER DE ACTUALIZACIONES V7 (FUSIÓN HISTÓRICA + 3 BOTONES) ---
+      // --- TRACKER DE ACTUALIZACIONES V8 (SCRAPING HTML EN VIVO + TRADUCCIÓN) ---
       const UpdateTracker = () => {
-        // 1. BASE DE DATOS HISTÓRICA (Respaldo 2023-2024 para completar la lista)
-        // Se usa para rellenar lo que el RSS de noticias no alcanza (Google suele limitar a 90 días).
-        const HISTORICAL_DB = [
-            {
-                version: "2024.44.25", date: "23/12/2024", dateObj: new Date("2024-12-23"),
-                description: "Actualización de Navidad 2024.\n• Nuevo asistente de aparcamiento de alta fidelidad.\n• Sonido de cierre personalizado.\n• Mejoras en luces adaptativas.",
-                link: "https://www.notateslaapp.com/software-updates/version/2024.44.25/release-notes"
-            },
-            {
-                version: "2024.38.6", date: "04/12/2024", dateObj: new Date("2024-12-04"),
-                description: "Mejoras de invierno y rendimiento.\n• Preacondicionamiento de batería mejorado.\n• Corrección de errores en Spotify.",
-                link: "https://www.notateslaapp.com/software-updates/"
-            },
-            {
-                version: "2024.32.3", date: "08/10/2024", dateObj: new Date("2024-10-08"),
-                description: "Mejoras en Sentry Mode y Seguridad.\n• Grabación mejorada en modo centinela.\n• Ajustes en la suspensión neumática.",
-                link: "https://www.notateslaapp.com/software-updates/"
-            },
-            {
-                version: "2024.26.1", date: "15/07/2024", dateObj: new Date("2024-07-15"),
-                description: "Actualización de Verano.\n• YouTube Music y Amazon Music nativos.\n• Control parental de velocidad.\n• Mejoras en la predicción del tiempo y navegación.",
-                link: "https://www.notateslaapp.com/software-updates/"
-            },
-            {
-                version: "2024.20.1", date: "04/06/2024", dateObj: new Date("2024-06-04"),
-                description: "Mejoras en Faros Adaptativos (Matrix).\n• Mejoras en curvas para faros adaptativos.\n• Juegos: Mejoras de rendimiento en Beach Buggy Racing.",
-                link: "https://www.notateslaapp.com/software-updates/"
-            },
-            {
-                version: "2024.14.3", date: "02/05/2024", dateObj: new Date("2024-05-02"),
-                description: "Interfaz V12 (Visuales).\n• Nueva interfaz de usuario con vehículo a pantalla completa.\n• Apertura de maletero manos libres (UWB).\n• Visualización de viaje mejorada.",
-                link: "https://www.notateslaapp.com/software-updates/"
-            },
-            {
-                version: "2024.8.4", date: "15/03/2024", dateObj: new Date("2024-03-15"),
-                description: "Mejoras en Conectividad.\n• Zonas de peligro en mapas.\n• Conexión WiFi más estable.",
-                link: "https://www.notateslaapp.com/software-updates/"
-            },
-            {
-                version: "2024.2.3", date: "05/02/2024", dateObj: new Date("2024-02-05"),
-                description: "Recordatorio de carga y Ultrawide Band.\n• Soporte para Phone Key mejorado.\n• Recordatorio para enchufar en casa.",
-                link: "https://www.notateslaapp.com/software-updates/"
-            },
-            {
-                version: "2023.44.30", date: "19/12/2023", dateObj: new Date("2023-12-19"),
-                description: "Holiday Update 2023.\n• High Fidelity Park Assist (3D).\n• Sonidos de claxon personalizados.\n• Apple Podcasts.",
-                link: "https://www.notateslaapp.com/software-updates/"
-            }
-        ];
-
         const [updates, setUpdates] = useState([]);
         const [stats, setStats] = useState({ count: 0, avgDays: 0, range: '' });
         const [loading, setLoading] = useState(true);
         const [translating, setTranslating] = useState(false);
-        const [sourceStatus, setSourceStatus] = useState('Iniciando...');
+        const [error, setError] = useState(false);
 
-        // 2. FUNCIÓN DE TRADUCCIÓN REAL
+        // 1. TRADUCTOR (Google Translate GTX)
         const fetchTranslation = async (text) => {
             if (!text) return "";
             try {
@@ -3498,119 +3447,142 @@
         };
 
         useEffect(() => {
-            const fetchAndMergeUpdates = async () => {
+            const scrapeLiveWeb = async () => {
                 const cb = () => `&_cb=${Date.now()}`;
                 
-                // Búsqueda amplia en Google News para captar lo NUEVO
-                const URL_LIVE = 'https://news.google.com/rss/search?q="Tesla+Software+Update"+release+notes&hl=en-US&gl=US&ceid=US:en';
-                const attemptUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(URL_LIVE)}` + cb();
-
-                let liveItems = [];
+                // ATACAMOS DIRECTAMENTE A LA PÁGINA WEB, NO AL RSS
+                // Esto nos permite coger la lista paginada que es mucho más larga que el feed.
+                const TARGET_URL = 'https://www.notateslaapp.com/software-updates/';
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(TARGET_URL)}` + cb();
 
                 try {
-                    setSourceStatus('Buscando nuevas versiones...');
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout para internet
+                    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout (la web pesa más que el RSS)
                     
-                    const response = await fetch(attemptUrl, { signal: controller.signal });
+                    const response = await fetch(proxyUrl, { signal: controller.signal });
                     clearTimeout(timeoutId);
                     
                     const data = await response.json();
-                    const xmlText = data.contents;
+                    const htmlText = data.contents;
 
-                    if (xmlText && xmlText.includes('<rss')) {
-                        const parser = new DOMParser();
-                        const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-                        const items = Array.from(xmlDoc.querySelectorAll("item"));
-                        const versionRegex = /\b202[4-9]\.\d+(\.\d+)?\b/;
+                    if (!htmlText || htmlText.length < 500) throw new Error("Contenido web vacío o bloqueado");
 
-                        liveItems = items.map(item => {
-                            const title = item.querySelector("title")?.textContent || "";
-                            const link = item.querySelector("link")?.textContent || "";
-                            const pubDateRaw = item.querySelector("pubDate")?.textContent || "";
-                            let descRaw = item.querySelector("description")?.textContent || "";
+                    // PARSEO DEL HTML (Scraping manual del DOM)
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(htmlText, "text/html");
+                    
+                    // Buscamos los contenedores de artículos. En NotATeslaApp suelen ser <article> o divs con clase específica
+                    // Buscamos elementos que contengan enlaces a "/software-updates/version/"
+                    const links = Array.from(doc.querySelectorAll('a[href*="/software-updates/version/"]'));
+                    
+                    const extractedItems = [];
+                    const seenVersions = new Set();
+                    const versionRegex = /\b202[3-9]\.\d+(\.\d+)?\b/; // Filtro versiones 2023+
 
-                            const match = title.match(versionRegex);
-                            if (!match) return null;
+                    links.forEach(link => {
+                        // Navegamos hacia arriba para encontrar el contenedor del artículo
+                        const container = link.closest('article') || link.closest('.container') || link.parentElement;
+                        if (!container) return;
 
-                            const version = match[0];
-                            const dateObj = new Date(pubDateRaw);
-                            const dateStr = !isNaN(dateObj) ? dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : "Reciente";
+                        const titleText = container.querySelector('h1, h2, h3, .title')?.textContent.trim() || link.textContent.trim();
+                        
+                        const match = titleText.match(versionRegex);
+                        if (!match) return;
 
-                            const tempDiv = document.createElement("div");
-                            tempDiv.innerHTML = descRaw;
-                            let cleanText = tempDiv.textContent || "";
-                            cleanText = cleanText.split("Read more")[0].trim().substring(0, 300);
+                        const version = match[0];
+                        if (seenVersions.has(version)) return; // Evitar duplicados en la misma página
 
-                            return { version, date: dateStr, dateObj, description: cleanText, link, isLive: true };
-                        }).filter(Boolean);
-                    }
-                } catch (err) {
-                    console.log("No se pudo conectar al feed en vivo, usando histórico.");
-                }
-
-                // --- FUSIÓN DE DATOS (LIVE + HISTÓRICO) ---
-                // 1. Combinamos
-                const allRaw = [...liveItems, ...HISTORICAL_DB];
-                
-                // 2. Ordenamos por fecha
-                allRaw.sort((a, b) => b.dateObj - a.dateObj);
-
-                // 3. Eliminamos duplicados (Prioridad: Live > Histórico)
-                const uniqueMap = new Map();
-                allRaw.forEach(item => {
-                    // Solo guardamos la primera vez que aparece una versión (la más reciente/mejor data)
-                    // Como ya están ordenados por fecha, si hay conflicto, se queda el primero que entra.
-                    if (!uniqueMap.has(item.version)) {
-                        uniqueMap.set(item.version, item);
-                    }
-                });
-
-                const mergedUpdates = Array.from(uniqueMap.values());
-                
-                setLoading(false);
-                setSourceStatus('Procesando datos...');
-
-                // 4. TRADUCCIÓN SOLO DE LOS LIVE (Los históricos ya están en español)
-                if (liveItems.length > 0) {
-                    setTranslating(true);
-                    const finalUpdates = await Promise.all(mergedUpdates.map(async (item) => {
-                        if (item.isLive) {
-                            // Pequeño retardo para no saturar
-                            await new Promise(r => setTimeout(r, Math.random() * 100));
-                            const translated = await fetchTranslation(item.description);
-                            return { ...item, description: translated };
+                        // Intentar encontrar la fecha
+                        // Buscamos elementos tipo <time> o textos que parezcan fechas
+                        let dateStr = "Reciente";
+                        let dateObj = new Date();
+                        
+                        const timeTag = container.querySelector('time');
+                        const dateText = timeTag ? timeTag.textContent : container.textContent.match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}/i)?.[0];
+                        
+                        if (dateText) {
+                            // Añadimos el año actual si falta para poder parsear
+                            const currentYear = new Date().getFullYear();
+                            const parsedDate = new Date(`${dateText}, ${currentYear}`);
+                            // Si la fecha es futura (ej: detecta Dec 23 y estamos en Ene), restamos un año
+                            if (parsedDate > new Date()) parsedDate.setFullYear(currentYear - 1);
+                            
+                            if (!isNaN(parsedDate)) {
+                                dateObj = parsedDate;
+                                dateStr = parsedDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                            }
                         }
-                        return item;
+
+                        // Intentar encontrar descripción
+                        // Buscamos párrafos o listas dentro del contenedor
+                        let desc = "";
+                        const lists = container.querySelectorAll('ul li');
+                        if (lists.length > 0) {
+                            Array.from(lists).slice(0, 3).forEach(li => desc += "• " + li.textContent.trim() + "\n");
+                        } else {
+                            const pTags = container.querySelectorAll('p');
+                            Array.from(pTags).forEach(p => {
+                                const t = p.textContent.trim();
+                                if (t.length > 20 && t.length < 300 && !t.includes("Release Notes") && !t.includes("Read more")) {
+                                    desc += t + "\n";
+                                }
+                            });
+                        }
+                        
+                        if (!desc) desc = "Mejoras generales de rendimiento y corrección de errores.";
+
+                        seenVersions.add(version);
+                        extractedItems.push({
+                            version,
+                            date: dateStr,
+                            dateObj,
+                            description: desc.substring(0, 400).trim(), // Limitar largo
+                            link: link.href.replace('about:blank', 'https://www.notateslaapp.com') // Corregir enlace relativo proxy
+                        });
+                    });
+
+                    if (extractedItems.length === 0) throw new Error("No se pudieron parsear versiones del HTML");
+
+                    // Ordenar
+                    extractedItems.sort((a, b) => b.dateObj - a.dateObj);
+
+                    setLoading(false);
+                    setTranslating(true);
+
+                    // TRADUCIR
+                    const finalUpdates = await Promise.all(extractedItems.map(async (item) => {
+                        await new Promise(r => setTimeout(r, Math.random() * 150));
+                        const translatedDesc = await fetchTranslation(item.description);
+                        return { ...item, description: translatedDesc };
                     }));
-                    processStats(finalUpdates);
-                } else {
-                    processStats(mergedUpdates);
+
+                    // ESTADÍSTICAS
+                    let totalDaysDiff = 0;
+                    let countDiffs = 0;
+                    finalUpdates.forEach((item, index) => {
+                        if (index < finalUpdates.length - 1) {
+                            const diff = Math.abs(item.dateObj - finalUpdates[index + 1].dateObj);
+                            item.daysSincePrev = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                            totalDaysDiff += item.daysSincePrev;
+                            countDiffs++;
+                        }
+                    });
+                    const avg = countDiffs > 0 ? (totalDaysDiff / countDiffs).toFixed(1) : 0;
+                    const firstDate = finalUpdates.length > 0 ? finalUpdates[finalUpdates.length-1].date : "";
+                    const lastDate = finalUpdates.length > 0 ? finalUpdates[0].date : "";
+
+                    setStats({ count: finalUpdates.length, avgDays: avg, range: `${firstDate} ➔ ${lastDate}` });
+                    setUpdates(finalUpdates);
+                    setTranslating(false);
+
+                } catch (err) {
+                    console.error("Error scraping:", err);
+                    setError(true);
+                    setLoading(false);
                 }
             };
 
-            const processStats = (data) => {
-                let totalDaysDiff = 0;
-                let countDiffs = 0;
-                data.forEach((item, index) => {
-                    if (index < data.length - 1) {
-                        const diff = Math.abs(item.dateObj - data[index + 1].dateObj);
-                        item.daysSincePrev = Math.ceil(diff / (1000 * 60 * 60 * 24));
-                        totalDaysDiff += item.daysSincePrev;
-                        countDiffs++;
-                    }
-                });
-                const avg = countDiffs > 0 ? (totalDaysDiff / countDiffs).toFixed(1) : 0;
-                const firstDate = data.length > 0 ? data[data.length-1].date : "";
-                const lastDate = data.length > 0 ? data[0].date : "";
-                
-                setStats({ count: data.length, avgDays: avg, range: `${firstDate} ➔ ${lastDate}` });
-                setUpdates(data);
-                setTranslating(false);
-                setSourceStatus('Actualizado');
-            };
-
-            fetchAndMergeUpdates();
+            scrapeLiveWeb();
         }, []);
 
         return (
@@ -3623,21 +3595,18 @@
                             <h2 className="text-xl font-display font-bold text-white flex items-center gap-2">
                                 <Icons.List className="w-6 h-6 text-blue-400" /> Centro de Actualizaciones
                             </h2>
-                            <p className="text-sm text-slate-400 mt-1 font-bold">Línea de tiempo completa (2 Años)</p>
-                        </div>
-                        <div className="text-[10px] text-slate-500 font-mono border border-slate-800 px-2 py-1 rounded">
-                            Estado: {sourceStatus}
+                            <p className="text-sm text-slate-400 mt-1 font-bold">Datos extraídos en vivo (Web Scraping)</p>
                         </div>
                     </div>
 
-                    {/* --- BOTONES DE FUENTES (RESTITUIDOS) --- */}
+                    {/* BOTONES FUENTES (LOS 3 SOLICITADOS) */}
                     <div className="bg-blue-900/10 border border-blue-500/30 p-6 rounded-xl text-center mb-8">
                         <p className="text-xs text-blue-300 font-bold mb-4 uppercase tracking-wider flex items-center justify-center gap-2">
                             <Icons.Link className="w-4 h-4"/> Fuentes Oficiales de Referencia
                         </p>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            {/* BOTÓN 1: NOTATESLAAPP */}
+                            {/* 1. NOTATESLAAPP */}
                             <a href="https://www.notateslaapp.com/software-updates/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-green-500 text-white font-bold p-4 rounded-xl transition-all group shadow-lg">
                                 <span className="text-2xl group-hover:scale-110 transition-transform">📝</span> 
                                 <div className="text-left leading-tight">
@@ -3646,7 +3615,7 @@
                                 </div>
                             </a>
 
-                            {/* BOTÓN 2: TESLAFI (RECUPERADO) */}
+                            {/* 2. TESLAFI */}
                             <a href="https://www.teslafi.com/firmware.php" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-blue-500 text-white font-bold p-4 rounded-xl transition-all group shadow-lg">
                                 <span className="text-2xl group-hover:scale-110 transition-transform">📊</span> 
                                 <div className="text-left leading-tight">
@@ -3655,7 +3624,7 @@
                                 </div>
                             </a>
 
-                            {/* BOTÓN 3: TESSIE STATS (SOLICITADO) */}
+                            {/* 3. TESSIE STATS */}
                             <a href="https://es.stats.tessie.com/versions" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-cyan-500 text-white font-bold p-4 rounded-xl transition-all group shadow-lg">
                                 <span className="text-2xl group-hover:scale-110 transition-transform">📈</span> 
                                 <div className="text-left leading-tight">
@@ -3669,7 +3638,7 @@
                     <div className="border-t border-slate-800 pt-6">
                         {loading && (
                             <div className="text-center py-10 bg-slate-800/30 rounded-xl border border-slate-800 border-dashed animate-pulse">
-                                <div className="text-blue-400 font-bold text-sm">Sincronizando versiones recientes...</div>
+                                <div className="text-blue-400 font-bold text-sm">Escaneando web en busca de versiones...</div>
                             </div>
                         )}
 
@@ -3677,12 +3646,22 @@
                             <div className="text-center py-4 mb-4 bg-blue-900/20 rounded-xl border border-blue-500/30 border-dashed animate-pulse">
                                 <div className="text-blue-300 font-bold text-xs flex items-center justify-center gap-2">
                                     <Icons.Settings className="w-4 h-4 animate-spin" />
-                                    Traduciendo novedades al español...
+                                    Traduciendo contenido extraído...
                                 </div>
                             </div>
                         )}
 
-                        {!loading && updates.length > 0 && (
+                        {error && !loading && !translating && (
+                            <div className="text-center py-8 bg-red-900/10 rounded-xl border border-red-900/30 border-dashed">
+                                <p className="text-red-400 font-bold text-sm">Bloqueo de seguridad en la web fuente.</p>
+                                <p className="text-red-300/50 text-xs mt-1">
+                                    El scraping web ha sido bloqueado por el servidor de origen.<br/>
+                                    Por favor, utiliza los botones superiores para consultar.
+                                </p>
+                            </div>
+                        )}
+
+                        {!loading && !error && updates.length > 0 && (
                             <>
                                 {/* ESTADÍSTICAS */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -3692,27 +3671,25 @@
                                         <div className="text-[10px] text-slate-500">Entre versiones</div>
                                     </div>
                                     <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-                                        <div className="text-xs text-slate-400 font-bold uppercase mb-1">Total Versiones</div>
+                                        <div className="text-xs text-slate-400 font-bold uppercase mb-1">Versiones Extraídas</div>
                                         <div className="text-3xl font-bold text-white font-display">{stats.count}</div>
-                                        <div className="text-[10px] text-slate-500">Registradas en lista</div>
                                     </div>
                                     <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-                                        <div className="text-xs text-slate-400 font-bold uppercase mb-1">Rango Histórico</div>
+                                        <div className="text-xs text-slate-400 font-bold uppercase mb-1">Rango Detectado</div>
                                         <div className="text-sm font-bold text-blue-300 font-mono mt-2">{stats.range}</div>
                                     </div>
                                 </div>
 
                                 <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 flex items-center gap-2">
-                                    <Icons.Activity className="w-4 h-4"/> Línea de Tiempo
+                                    <Icons.Activity className="w-4 h-4"/> Línea de Tiempo Extraída
                                 </h3>
 
                                 <div className="relative border-l-2 border-slate-800 ml-3 md:ml-6 space-y-8 pb-4">
                                     {updates.map((update, idx) => (
                                         <div key={idx} className="relative pl-8 md:pl-12 group animate-fade-in">
-                                            {/* Línea de tiempo con color diferente si es LIVE o HISTÓRICO */}
                                             <div className={`absolute -left-[9px] top-0 w-5 h-5 rounded-full border-4 border-slate-900 ${idx === 0 ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]' : 'bg-slate-600'}`}></div>
                                             
-                                            <div className={`border rounded-xl p-5 transition-colors group-hover:border-slate-500 ${update.isLive ? 'bg-blue-900/10 border-blue-500/20' : 'bg-slate-800/40 border-slate-700/50'}`}>
+                                            <div className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 hover:bg-slate-800/60 transition-colors group-hover:border-slate-600">
                                                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 border-b border-slate-700/50 pb-3">
                                                     <div className="flex items-center gap-3">
                                                         <span className="text-xl font-mono font-bold text-white">{update.version}</span>
@@ -3730,7 +3707,7 @@
                                                 )}
 
                                                 <div className="text-sm text-slate-300 leading-relaxed mb-4 whitespace-pre-line">
-                                                    {update.description || <span className="italic text-slate-500">Detalles no disponibles.</span>}
+                                                    {update.description || <span className="italic text-slate-500">Detalles no disponibles en la vista general.</span>}
                                                 </div>
                                                 
                                                 <a href={update.link} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
@@ -3747,7 +3724,7 @@
             </div>
         );
       };
-  
+
         
         
       // --- APP PRINCIPAL ---
