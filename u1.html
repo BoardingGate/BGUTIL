@@ -3424,8 +3424,8 @@
         );
       };  
 
-        
-      // --- TRACKER DE ACTUALIZACIONES V10 (PURE LIVE SCRAPING + TRADUCCIÓN) ---
+       
+      // --- TRACKER DE ACTUALIZACIONES V11 (GOOGLE RSS PROXY + TRADUCCIÓN) ---
       const UpdateTracker = () => {
         const [updates, setUpdates] = useState([]);
         const [stats, setStats] = useState({ count: 0, avgDays: 0, range: '' });
@@ -3433,7 +3433,7 @@
         const [translating, setTranslating] = useState(false);
         const [error, setError] = useState(false);
 
-        // 1. TRADUCTOR AUTOMÁTICO (Google GTX via Proxy)
+        // 1. TRADUCTOR (Google GTX)
         const fetchTranslation = async (text) => {
             if (!text) return "";
             try {
@@ -3447,149 +3447,121 @@
             } catch (e) { return text; }
         };
 
-        // 2. FUNCIÓN DE SCRAPING EN VIVO
-        const scrapeLiveWeb = async () => {
-            const cb = () => `&_cb=${Date.now()}`; // Cache Buster
-            
-            // ATACAMOS A LA WEB HTML, NO AL RSS (Para tener más histórico y detalle)
-            const TARGET_URL = 'https://www.notateslaapp.com/software-updates/';
-            // Usamos AllOrigins para leer el HTML crudo
-            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(TARGET_URL)}` + cb();
-
-            try {
-                setLoading(true);
-                setError(false);
-
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout (la web pesa)
-                
-                const response = await fetch(proxyUrl, { signal: controller.signal });
-                clearTimeout(timeoutId);
-                
-                const data = await response.json();
-                const htmlText = data.contents;
-
-                if (!htmlText || htmlText.length < 1000) throw new Error("Web vacía o bloqueo de seguridad");
-
-                // PARSEO DEL HTML (Ingeniería inversa de la estructura de NotATeslaApp)
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(htmlText, "text/html");
-                
-                // Buscamos los contenedores de artículos (suelen ser <article> o divs con clase 'container')
-                // Estrategia: Buscar enlaces que apunten a notas de versión y subir al padre
-                const versionLinks = Array.from(doc.querySelectorAll('a[href*="/software-updates/version/"]'));
-                
-                const extractedItems = [];
-                const seenVersions = new Set();
-                const versionRegex = /\b202[4-9]\.\d+(\.\d+)?\b/; // Solo versiones 2024 en adelante
-
-                versionLinks.forEach(link => {
-                    // Navegamos hacia arriba para encontrar el bloque del artículo
-                    // NotATeslaApp estructura: article > h2 > a
-                    const container = link.closest('article') || link.closest('.article') || link.parentElement.parentElement;
-                    if (!container) return;
-
-                    // 1. Extraer Versión
-                    const titleText = link.textContent.trim();
-                    const match = titleText.match(versionRegex);
-                    if (!match) return;
-                    const version = match[0];
-
-                    if (seenVersions.has(version)) return; // Evitar duplicados
-
-                    // 2. Extraer Fecha
-                    // Suele estar en un tag <time> o en un span con clase 'date' o texto libre
-                    let dateStr = "Reciente";
-                    let dateObj = new Date();
-                    
-                    const timeNode = container.querySelector('time') || container.querySelector('.date');
-                    const dateText = timeNode ? timeNode.textContent.trim() : "";
-                    
-                    if (dateText) {
-                        const parsedDate = new Date(dateText);
-                        if (!isNaN(parsedDate)) {
-                            dateObj = parsedDate;
-                            dateStr = parsedDate.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                        }
-                    }
-
-                    // 3. Extraer Descripción / Notas (Lo más importante)
-                    // Buscamos listas <ul> que indican "bullet points" de mejoras
-                    let desc = "";
-                    const listItems = container.querySelectorAll('li');
-                    
-                    if (listItems.length > 0) {
-                        // Si hay lista, es oro puro: son las mejoras puntuales
-                        Array.from(listItems).slice(0, 5).forEach(li => {
-                            const txt = li.textContent.trim();
-                            if(txt.length > 5) desc += "• " + txt + "\n";
-                        });
-                    } else {
-                        // Si no hay lista, buscamos el primer párrafo descriptivo
-                        const pTag = container.querySelector('p.description') || container.querySelector('p');
-                        if (pTag) desc = pTag.textContent.trim();
-                    }
-
-                    // Limpieza
-                    desc = desc.replace("Read more", "").substring(0, 500).trim();
-                    if (desc.length < 5) desc = "Mejoras generales y correcciones de errores.";
-
-                    seenVersions.add(version);
-                    extractedItems.push({
-                        version,
-                        date: dateStr,
-                        dateObj,
-                        description: desc,
-                        link: link.href.replace(window.location.origin, 'https://www.notateslaapp.com') // Arreglar link relativo
-                    });
-                });
-
-                if (extractedItems.length === 0) throw new Error("No se encontraron versiones en el HTML analizado");
-
-                // Ordenar por fecha real
-                extractedItems.sort((a, b) => b.dateObj - a.dateObj);
-
-                setLoading(false);
-                setTranslating(true);
-
-                // TRADUCCIÓN ASÍNCRONA
-                const finalUpdates = await Promise.all(extractedItems.map(async (item) => {
-                    // Retardo aleatorio para parecer humanos
-                    await new Promise(r => setTimeout(r, Math.random() * 100));
-                    const translatedDesc = await fetchTranslation(item.description);
-                    return { ...item, description: translatedDesc };
-                }));
-
-                // ESTADÍSTICAS
-                let totalDaysDiff = 0;
-                let countDiffs = 0;
-                finalUpdates.forEach((item, index) => {
-                    if (index < finalUpdates.length - 1) {
-                        const diff = Math.abs(item.dateObj - finalUpdates[index + 1].dateObj);
-                        const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-                        item.daysSincePrev = days;
-                        totalDaysDiff += days;
-                        countDiffs++;
-                    }
-                });
-                const avg = countDiffs > 0 ? (totalDaysDiff / countDiffs).toFixed(1) : 0;
-                const firstDate = finalUpdates.length > 0 ? finalUpdates[finalUpdates.length-1].date : "";
-                const lastDate = finalUpdates.length > 0 ? finalUpdates[0].date : "";
-
-                setStats({ count: finalUpdates.length, avgDays: avg, range: `${firstDate} ➔ ${lastDate}` });
-                setUpdates(finalUpdates);
-                setTranslating(false);
-
-            } catch (err) {
-                console.error("Error scraping:", err);
-                setError(true);
-                setLoading(false);
-                setTranslating(false);
-            }
-        };
-
         useEffect(() => {
-            scrapeLiveWeb();
+            const fetchFromGoogleRSS = async () => {
+                const cb = () => `&_cb=${Date.now()}`;
+                
+                // ESTRATEGIA: Usar Google News como "Proxy de Contenido".
+                // Google ya ha leído la web. Nosotros leemos a Google.
+                // Buscamos: sitio notateslaapp O tessie, palabras clave "software update"
+                const QUERY = 'site:notateslaapp.com OR site:tessie.com "software update" release notes';
+                const GOOGLE_RSS = `https://news.google.com/rss/search?q=${encodeURIComponent(QUERY)}&hl=en-US&gl=US&ceid=US:en`;
+                
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(GOOGLE_RSS)}` + cb();
+
+                try {
+                    setLoading(true);
+                    setError(false);
+
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+                    
+                    const response = await fetch(proxyUrl, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    
+                    const data = await response.json();
+                    const xmlText = data.contents;
+
+                    if (!xmlText || !xmlText.includes('<rss')) throw new Error("Google RSS no respondió correctamente");
+
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+                    const items = Array.from(xmlDoc.querySelectorAll("item"));
+                    
+                    // Regex para capturar versiones tipo 2024.44.3
+                    const versionRegex = /\b202[4-9]\.\d+(\.\d+)?\b/;
+
+                    const rawItems = items.map(item => {
+                        const title = item.querySelector("title")?.textContent || "";
+                        const link = item.querySelector("link")?.textContent || "";
+                        const pubDateRaw = item.querySelector("pubDate")?.textContent || "";
+                        // Google pone un snippet en description
+                        let descRaw = item.querySelector("description")?.textContent || "";
+
+                        const match = title.match(versionRegex);
+                        if (!match) return null;
+
+                        const version = match[0];
+                        const dateObj = new Date(pubDateRaw);
+                        
+                        // Validar fecha (últimos 6 meses para evitar basura vieja)
+                        const limitDate = new Date();
+                        limitDate.setMonth(limitDate.getMonth() - 6);
+                        if (dateObj < limitDate) return null;
+
+                        const dateStr = !isNaN(dateObj) ? dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : "Reciente";
+
+                        // Limpiar HTML de Google
+                        const tempDiv = document.createElement("div");
+                        tempDiv.innerHTML = descRaw;
+                        let cleanText = tempDiv.textContent || "";
+                        // Quitar enlaces extra
+                        cleanText = cleanText.replace(/Read more.*/g, "").trim();
+
+                        return { version, date: dateStr, dateObj, description: cleanText, link };
+                    }).filter(Boolean);
+
+                    if (rawItems.length === 0) throw new Error("No se encontraron versiones recientes en Google News");
+
+                    // Unificar versiones (Google puede dar varios resultados para la misma)
+                    rawItems.sort((a, b) => b.dateObj - a.dateObj);
+                    const uniqueMap = new Map();
+                    rawItems.forEach(item => {
+                        if (!uniqueMap.has(item.version)) {
+                            uniqueMap.set(item.version, item);
+                        }
+                    });
+                    const uniqueUpdates = Array.from(uniqueMap.values());
+
+                    setLoading(false);
+                    setTranslating(true);
+
+                    // Traducir
+                    const finalUpdates = await Promise.all(uniqueUpdates.map(async (item) => {
+                        // Pequeño delay aleatorio
+                        await new Promise(r => setTimeout(r, Math.random() * 100));
+                        const translatedDesc = await fetchTranslation(item.description);
+                        return { ...item, description: translatedDesc };
+                    }));
+
+                    // Estadísticas
+                    let totalDaysDiff = 0;
+                    let countDiffs = 0;
+                    finalUpdates.forEach((item, index) => {
+                        if (index < finalUpdates.length - 1) {
+                            const diff = Math.abs(item.dateObj - finalUpdates[index + 1].dateObj);
+                            item.daysSincePrev = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                            totalDaysDiff += item.daysSincePrev;
+                            countDiffs++;
+                        }
+                    });
+                    const avg = countDiffs > 0 ? (totalDaysDiff / countDiffs).toFixed(1) : 0;
+                    const firstDate = finalUpdates.length > 0 ? finalUpdates[finalUpdates.length-1].date : "";
+                    const lastDate = finalUpdates.length > 0 ? finalUpdates[0].date : "";
+
+                    setStats({ count: finalUpdates.length, avgDays: avg, range: `${firstDate} ➔ ${lastDate}` });
+                    setUpdates(finalUpdates);
+                    setTranslating(false);
+
+                } catch (err) {
+                    console.error(err);
+                    setError(true);
+                    setLoading(false);
+                    setTranslating(false);
+                }
+            };
+
+            fetchFromGoogleRSS();
         }, []);
 
         return (
@@ -3602,19 +3574,14 @@
                             <h2 className="text-xl font-display font-bold text-white flex items-center gap-2">
                                 <Icons.List className="w-6 h-6 text-blue-400" /> Centro de Actualizaciones
                             </h2>
-                            <p className="text-sm text-slate-400 mt-1 font-bold">Datos en vivo extraídos de la web</p>
+                            <p className="text-sm text-slate-400 mt-1 font-bold">Datos en vivo (Fuente: Google News Index)</p>
                         </div>
-                        
-                        {/* BOTÓN RECARGAR */}
-                        <button onClick={scrapeLiveWeb} className="flex items-center gap-2 px-3 py-2 bg-slate-800 hover:bg-slate-700 rounded border border-slate-600 text-xs font-bold text-white transition-colors">
-                            <Icons.Activity className="w-4 h-4" /> Forzar Recarga
-                        </button>
                     </div>
 
                     {/* BOTONES DE FUENTES (3 PROVEEDORES) */}
                     <div className="bg-blue-900/10 border border-blue-500/30 p-6 rounded-xl text-center mb-8">
                         <p className="text-xs text-blue-300 font-bold mb-4 uppercase tracking-wider flex items-center justify-center gap-2">
-                            <Icons.Link className="w-4 h-4"/> Verificación en Fuentes Oficiales
+                            <Icons.Link className="w-4 h-4"/> Fuentes Oficiales de Referencia
                         </p>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -3622,7 +3589,7 @@
                             <a href="https://www.notateslaapp.com/software-updates/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-green-500 text-white font-bold p-4 rounded-xl transition-all group shadow-lg">
                                 <span className="text-2xl group-hover:scale-110 transition-transform">📝</span> 
                                 <div className="text-left leading-tight">
-                                    <div className="text-[10px] text-slate-400 uppercase font-bold">Fuente Original</div>
+                                    <div className="text-[10px] text-slate-400 uppercase font-bold">Notas Completas</div>
                                     <div className="text-sm text-green-400">NotATeslaApp</div>
                                 </div>
                             </a>
@@ -3650,7 +3617,7 @@
                     <div className="border-t border-slate-800 pt-6">
                         {loading && (
                             <div className="text-center py-10 bg-slate-800/30 rounded-xl border border-slate-800 border-dashed animate-pulse">
-                                <div className="text-blue-400 font-bold text-sm">Escaneando sitio web oficial...</div>
+                                <div className="text-blue-400 font-bold text-sm">Consultando índice de actualizaciones...</div>
                             </div>
                         )}
 
@@ -3658,16 +3625,16 @@
                             <div className="text-center py-4 mb-4 bg-blue-900/20 rounded-xl border border-blue-500/30 border-dashed animate-pulse">
                                 <div className="text-blue-300 font-bold text-xs flex items-center justify-center gap-2">
                                     <Icons.Settings className="w-4 h-4 animate-spin" />
-                                    Traduciendo contenido extraído...
+                                    Traduciendo notas...
                                 </div>
                             </div>
                         )}
 
                         {error && !loading && !translating && (
                             <div className="text-center py-8 bg-red-900/10 rounded-xl border border-red-900/30 border-dashed">
-                                <p className="text-red-400 font-bold text-sm">No se pudieron extraer datos de la web.</p>
-                                <p className="text-red-300/50 text-xs mt-1">El servidor origen ha bloqueado la lectura automática.</p>
-                                <button onClick={scrapeLiveWeb} className="mt-4 px-4 py-2 bg-red-800 hover:bg-red-700 text-white rounded text-xs font-bold">Reintentar</button>
+                                <p className="text-red-400 font-bold text-sm">No se encontraron noticias recientes accesibles.</p>
+                                <p className="text-red-300/50 text-xs mt-1">Los proveedores están bloqueando el acceso externo temporalmente.</p>
+                                <p className="text-slate-400 text-xs mt-4">Por favor, usa los botones azules de arriba para ver las listas oficiales.</p>
                             </div>
                         )}
 
@@ -3681,17 +3648,17 @@
                                         <div className="text-[10px] text-slate-500">Entre versiones</div>
                                     </div>
                                     <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-                                        <div className="text-xs text-slate-400 font-bold uppercase mb-1">Versiones Extraídas</div>
+                                        <div className="text-xs text-slate-400 font-bold uppercase mb-1">Versiones Recientes</div>
                                         <div className="text-3xl font-bold text-white font-display">{stats.count}</div>
                                     </div>
                                     <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
-                                        <div className="text-xs text-slate-400 font-bold uppercase mb-1">Rango Detectado</div>
+                                        <div className="text-xs text-slate-400 font-bold uppercase mb-1">Periodo</div>
                                         <div className="text-sm font-bold text-blue-300 font-mono mt-2">{stats.range}</div>
                                     </div>
                                 </div>
 
                                 <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 flex items-center gap-2">
-                                    <Icons.Activity className="w-4 h-4"/> Línea de Tiempo Extraída
+                                    <Icons.Activity className="w-4 h-4"/> Historial de Versiones (Internet)
                                 </h3>
 
                                 <div className="relative border-l-2 border-slate-800 ml-3 md:ml-6 space-y-8 pb-4">
@@ -3717,11 +3684,11 @@
                                                 )}
 
                                                 <div className="text-sm text-slate-300 leading-relaxed mb-4 whitespace-pre-line">
-                                                    {update.description || <span className="italic text-slate-500">Detalles no disponibles en la vista general.</span>}
+                                                    {update.description || <span className="italic text-slate-500">Ver enlace para más detalles.</span>}
                                                 </div>
                                                 
                                                 <a href={update.link} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
-                                                    Ver detalles completos <Icons.Link className="w-3 h-3"/>
+                                                    Ver fuente original <Icons.Link className="w-3 h-3"/>
                                                 </a>
                                             </div>
                                         </div>
@@ -3734,8 +3701,7 @@
             </div>
         );
       };
-
-        
+      
         
       // --- APP PRINCIPAL ---
 
