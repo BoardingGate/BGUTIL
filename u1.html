@@ -3424,8 +3424,8 @@
         );
       };  
 
-      
-      // --- TRACKER DE ACTUALIZACIONES V13 (FUSIÓN DOBLE VÍA + TRADUCCIÓN LIMPIA) ---
+
+      // --- TRACKER DE ACTUALIZACIONES V14 (RETORNO A LA ESTABILIDAD - GOOGLE RSS) ---
       const UpdateTracker = () => {
         const [updates, setUpdates] = useState([]);
         const [stats, setStats] = useState({ count: 0, avgDays: 0, range: '' });
@@ -3433,169 +3433,145 @@
         const [translating, setTranslating] = useState(false);
         const [error, setError] = useState(false);
 
-        // 1. LIMPIEZA DE TEXTO (Vital para que la traducción no falle)
-        const cleanForTranslation = (html) => {
-            const temp = document.createElement('div');
-            temp.innerHTML = html;
-            let text = temp.textContent || "";
-            // Eliminar URLs, Read more y caracteres que rompen el JSON
-            text = text.replace(/Read more.*/gi, "")
-                       .replace(/Subscribe.*/gi, "")
-                       .replace(/https?:\/\/[^\s]+/g, "")
-                       .replace(/[""]/g, "'") // Quitar comillas dobles
-                       .replace(/\n+/g, " || "); // Marcar saltos de línea para reconstruirlos luego
-            return text.substring(0, 1000); // Límite seguro para Google Translate
-        };
-
-        // 2. TRADUCTOR ROBUSTO (Google GTX)
-        const fetchTranslation = async (textRaw) => {
-            if (!textRaw) return "";
-            const textToTranslate = cleanForTranslation(textRaw);
-            
+        // 1. TRADUCTOR (Google GTX)
+        const fetchTranslation = async (text) => {
+            if (!text) return "";
             try {
-                const targetUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=es&dt=t&q=${encodeURIComponent(textToTranslate)}`;
+                const targetUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=es&dt=t&q=${encodeURIComponent(text)}`;
                 const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-                
                 const response = await fetch(proxyUrl);
                 const data = await response.json();
                 const googleData = JSON.parse(data.contents);
-                
-                if (googleData && googleData[0]) {
-                    // Reconstruir texto traducido
-                    let translated = googleData[0].map(item => item[0]).join('');
-                    // Restaurar formato de lista
-                    return translated.replace(/ \|\| /g, "\n• ").replace(/\.\s/g, ".\n");
-                }
-                return textRaw; 
-            } catch (e) { return textRaw; }
+                if (googleData && googleData[0]) return googleData[0].map(item => item[0]).join('');
+                return text; 
+            } catch (e) { return text; }
         };
 
         useEffect(() => {
-            const fetchFusionData = async () => {
+            const fetchFromGoogleBroad = async () => {
                 const cb = () => `&_cb=${Date.now()}`;
                 
-                // VÍA 1: GOOGLE RSS (Para la estructura y fechas fiables)
-                const URL_GOOGLE = 'https://news.google.com/rss/search?q="Tesla+Software+Update"+release+notes&hl=en-US&gl=US&ceid=US:en';
-                // VÍA 2: NOTATESLAAPP RSS (Para el contenido rico, intentamos acceder)
-                const URL_NATA = 'https://www.notateslaapp.com/feed/';
+                // BÚSQUEDA AMPLIA EN GOOGLE (La que funcionaba)
+                // Buscamos literalmente "Tesla Software Update" y "Release Notes"
+                const QUERY = '"Tesla Software Update" release notes'; 
+                const GOOGLE_RSS = `https://news.google.com/rss/search?q=${encodeURIComponent(QUERY)}&hl=en-US&gl=US&ceid=US:en`;
+                
+                // Proxy fiable
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(GOOGLE_RSS)}` + cb();
 
                 try {
                     setLoading(true);
+                    setError(false);
+
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000);
                     
-                    // Lanzamos las dos peticiones a la vez (Promise.allSettled para que si falla una no pare todo)
-                    const [googleRes, nataRes] = await Promise.allSettled([
-                        fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(URL_GOOGLE)}` + cb()),
-                        fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(URL_NATA)}` + cb()) // Usamos CodeTabs para NATA, suele ir mejor
-                    ]);
+                    const response = await fetch(proxyUrl, { signal: controller.signal });
+                    clearTimeout(timeoutId);
+                    
+                    const data = await response.json();
+                    const xmlText = data.contents;
 
-                    let googleXml = "", nataXml = "";
+                    if (!xmlText || !xmlText.includes('<rss')) throw new Error("Google RSS no respondió");
 
-                    // Procesar Vía 1 (Google)
-                    if (googleRes.status === 'fulfilled') {
-                        const j = await googleRes.value.json();
-                        googleXml = j.contents;
-                    }
-
-                    // Procesar Vía 2 (NATA - Contenido Rico)
-                    if (nataRes.status === 'fulfilled') {
-                        nataXml = await nataRes.value.text(); // CodeTabs devuelve texto directo
-                    }
-
-                    if (!googleXml || !googleXml.includes('<rss')) throw new Error("Google Falló");
-
-                    // PARSEO
                     const parser = new DOMParser();
-                    const googleDoc = parser.parseFromString(googleXml, "text/xml");
-                    const nataDoc = nataXml.includes('<rss') ? parser.parseFromString(nataXml, "text/xml") : null;
+                    const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+                    const items = Array.from(xmlDoc.querySelectorAll("item"));
+                    
+                    // Regex para validar versiones (2023, 2024, 2025...)
+                    const versionRegex = /\b202[3-9]\.\d+(\.\d+)?\b/;
 
-                    const gItems = Array.from(googleDoc.querySelectorAll("item"));
-                    const nItems = nataDoc ? Array.from(nataDoc.querySelectorAll("item")) : [];
-
-                    const versionRegex = /\b202[4-9]\.\d+(\.\d+)?\b/;
-
-                    // MAPEO PRINCIPAL (Basado en Google que es el fiable)
-                    const rawItems = gItems.map(item => {
+                    const rawItems = items.map(item => {
                         const title = item.querySelector("title")?.textContent || "";
                         const pubDateRaw = item.querySelector("pubDate")?.textContent || "";
+                        let descRaw = item.querySelector("description")?.textContent || "";
                         const link = item.querySelector("link")?.textContent || "";
-                        let description = item.querySelector("description")?.textContent || "";
 
+                        // FILTRO 1: Debe tener número de versión en el título
                         const match = title.match(versionRegex);
                         if (!match) return null;
+
                         const version = match[0];
-
-                        // INTENTO DE ENRIQUECIMIENTO: Buscar esta versión en el feed de NATA
-                        if (nItems.length > 0) {
-                            const richItem = nItems.find(ni => ni.querySelector("title")?.textContent.includes(version));
-                            if (richItem) {
-                                // Priorizamos content:encoded si existe, sino description
-                                const encoded = richItem.getElementsByTagName("content:encoded")[0]?.textContent;
-                                const desc = richItem.querySelector("description")?.textContent;
-                                if (encoded && encoded.length > description.length) description = encoded;
-                                else if (desc && desc.length > description.length) description = desc;
-                            }
-                        }
-
                         const dateObj = new Date(pubDateRaw);
-                        // Filtro 6 meses
-                        const limit = new Date(); limit.setMonth(limit.getMonth() - 6);
-                        if (isNaN(dateObj) || dateObj < limit) return null;
+                        
+                        // FILTRO 2: Fecha válida (últimos 9 meses para asegurar historial)
+                        const limitDate = new Date();
+                        limitDate.setMonth(limitDate.getMonth() - 9);
+                        if (isNaN(dateObj) || dateObj < limitDate) return null;
 
                         const dateStr = dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-                        return { version, date: dateStr, dateObj, description, link };
+                        // Limpieza del HTML de Google
+                        const tempDiv = document.createElement("div");
+                        tempDiv.innerHTML = descRaw;
+                        let cleanText = tempDiv.textContent || "";
+                        cleanText = cleanText.replace(/Read more.*/g, "").trim();
+                        
+                        // Si la descripción está vacía, usamos el título
+                        if (cleanText.length < 5) cleanText = title.replace(version, "").trim();
+
+                        return { version, date: dateStr, dateObj, description: cleanText, link };
                     }).filter(Boolean);
 
-                    if (rawItems.length === 0) throw new Error("Sin versiones");
+                    if (rawItems.length === 0) throw new Error("No se encontraron versiones recientes");
 
-                    // UNIFICAR
+                    // UNIFICAR DUPLICADOS (Google da varias noticias para la misma versión)
+                    // Nos quedamos con la que tenga la descripción más larga (más información)
                     rawItems.sort((a, b) => b.dateObj - a.dateObj);
                     const uniqueMap = new Map();
-                    rawItems.forEach(i => {
-                        if (!uniqueMap.has(i.version)) uniqueMap.set(i.version, i);
-                        else if (i.description.length > uniqueMap.get(i.version).description.length) uniqueMap.set(i.version, i);
+                    
+                    rawItems.forEach(item => {
+                        if (!uniqueMap.has(item.version)) {
+                            uniqueMap.set(item.version, item);
+                        } else {
+                            const existing = uniqueMap.get(item.version);
+                            if (item.description.length > existing.description.length) {
+                                uniqueMap.set(item.version, item);
+                            }
+                        }
                     });
-                    const finalRaw = Array.from(uniqueMap.values());
+                    
+                    const uniqueUpdates = Array.from(uniqueMap.values());
 
                     setLoading(false);
                     setTranslating(true);
 
-                    // TRADUCIR
-                    const translatedUpdates = await Promise.all(finalRaw.map(async (item) => {
-                        await new Promise(r => setTimeout(r, Math.random() * 200));
-                        const trans = await fetchTranslation(item.description);
-                        return { ...item, description: trans };
+                    // TRADUCCIÓN
+                    const finalUpdates = await Promise.all(uniqueUpdates.map(async (item) => {
+                        // Pequeño delay para no saturar
+                        await new Promise(r => setTimeout(r, Math.random() * 100));
+                        const translatedDesc = await fetchTranslation(item.description);
+                        return { ...item, description: translatedDesc };
                     }));
 
-                    // STATS
-                    let diffs = 0;
-                    translatedUpdates.forEach((item, i) => {
-                        if (i < translatedUpdates.length - 1) {
-                            const d = Math.abs(item.dateObj - translatedUpdates[i+1].dateObj);
-                            item.daysSincePrev = Math.ceil(d / (86400000));
-                            diffs += item.daysSincePrev;
+                    // ESTADÍSTICAS
+                    let totalDaysDiff = 0;
+                    let countDiffs = 0;
+                    finalUpdates.forEach((item, index) => {
+                        if (index < finalUpdates.length - 1) {
+                            const diff = Math.abs(item.dateObj - finalUpdates[index + 1].dateObj);
+                            item.daysSincePrev = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                            totalDaysDiff += item.daysSincePrev;
+                            countDiffs++;
                         }
                     });
-                    const avg = diffs > 0 ? (diffs / (translatedUpdates.length-1)).toFixed(1) : 0;
-                    
-                    setStats({ 
-                        count: translatedUpdates.length, 
-                        avgDays: avg, 
-                        range: `${translatedUpdates[translatedUpdates.length-1].date} ➔ ${translatedUpdates[0].date}` 
-                    });
-                    
-                    setUpdates(translatedUpdates);
+                    const avg = countDiffs > 0 ? (totalDaysDiff / countDiffs).toFixed(1) : 0;
+                    const firstDate = finalUpdates.length > 0 ? finalUpdates[finalUpdates.length-1].date : "";
+                    const lastDate = finalUpdates.length > 0 ? finalUpdates[0].date : "";
+
+                    setStats({ count: finalUpdates.length, avgDays: avg, range: `${firstDate} ➔ ${lastDate}` });
+                    setUpdates(finalUpdates);
                     setTranslating(false);
 
-                } catch (e) {
-                    console.error(e);
+                } catch (err) {
+                    console.error(err);
                     setError(true);
                     setLoading(false);
                     setTranslating(false);
                 }
             };
 
-            fetchFusionData();
+            fetchFromGoogleBroad();
         }, []);
 
         return (
@@ -3612,24 +3588,38 @@
                         </div>
                     </div>
 
-                    {/* BOTONES (LOS 3 SOLICITADOS) */}
+                    {/* BOTONES DE FUENTES (LOS 3 SOLICITADOS) */}
                     <div className="bg-blue-900/10 border border-blue-500/30 p-6 rounded-xl text-center mb-8">
                         <p className="text-xs text-blue-300 font-bold mb-4 uppercase tracking-wider flex items-center justify-center gap-2">
                             <Icons.Link className="w-4 h-4"/> Fuentes Oficiales de Referencia
                         </p>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {/* 1. NOTATESLAAPP */}
                             <a href="https://www.notateslaapp.com/software-updates/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-green-500 text-white font-bold p-4 rounded-xl transition-all group shadow-lg">
                                 <span className="text-2xl group-hover:scale-110 transition-transform">📝</span> 
-                                <div className="text-left leading-tight"><div className="text-[10px] text-slate-400 uppercase font-bold">Notas Completas</div><div className="text-sm text-green-400">NotATeslaApp</div></div>
+                                <div className="text-left leading-tight">
+                                    <div className="text-[10px] text-slate-400 uppercase font-bold">Notas Completas</div>
+                                    <div className="text-sm text-green-400">NotATeslaApp</div>
+                                </div>
                             </a>
+
+                            {/* 2. TESLAFI */}
                             <a href="https://www.teslafi.com/firmware.php" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-blue-500 text-white font-bold p-4 rounded-xl transition-all group shadow-lg">
                                 <span className="text-2xl group-hover:scale-110 transition-transform">📊</span> 
-                                <div className="text-left leading-tight"><div className="text-[10px] text-slate-400 uppercase font-bold">Rastreador Flota</div><div className="text-sm text-blue-400">TeslaFi</div></div>
+                                <div className="text-left leading-tight">
+                                    <div className="text-[10px] text-slate-400 uppercase font-bold">Rastreador Flota</div>
+                                    <div className="text-sm text-blue-400">TeslaFi</div>
+                                </div>
                             </a>
+
+                            {/* 3. TESSIE STATS */}
                             <a href="https://es.stats.tessie.com/versions" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 bg-slate-800 hover:bg-slate-700 border border-slate-600 hover:border-cyan-500 text-white font-bold p-4 rounded-xl transition-all group shadow-lg">
                                 <span className="text-2xl group-hover:scale-110 transition-transform">📈</span> 
-                                <div className="text-left leading-tight"><div className="text-[10px] text-slate-400 uppercase font-bold">Estadísticas</div><div className="text-sm text-cyan-400">Tessie Stats</div></div>
+                                <div className="text-left leading-tight">
+                                    <div className="text-[10px] text-slate-400 uppercase font-bold">Estadísticas</div>
+                                    <div className="text-sm text-cyan-400">Tessie Stats</div>
+                                </div>
                             </a>
                         </div>
                     </div>
@@ -3637,7 +3627,7 @@
                     <div className="border-t border-slate-800 pt-6">
                         {loading && (
                             <div className="text-center py-10 bg-slate-800/30 rounded-xl border border-slate-800 border-dashed animate-pulse">
-                                <div className="text-blue-400 font-bold text-sm">Consultando y fusionando fuentes...</div>
+                                <div className="text-blue-400 font-bold text-sm">Consultando índice de actualizaciones...</div>
                             </div>
                         )}
 
@@ -3645,7 +3635,7 @@
                             <div className="text-center py-4 mb-4 bg-blue-900/20 rounded-xl border border-blue-500/30 border-dashed animate-pulse">
                                 <div className="text-blue-300 font-bold text-xs flex items-center justify-center gap-2">
                                     <Icons.Settings className="w-4 h-4 animate-spin" />
-                                    Traduciendo notas detalladas...
+                                    Traduciendo notas...
                                 </div>
                             </div>
                         )}
@@ -3653,12 +3643,13 @@
                         {error && !loading && !translating && (
                             <div className="text-center py-8 bg-red-900/10 rounded-xl border border-red-900/30 border-dashed">
                                 <p className="text-red-400 font-bold text-sm">No se encontraron noticias recientes.</p>
-                                <p className="text-red-300/50 text-xs mt-1">Inténtalo de nuevo más tarde o usa los enlaces directos.</p>
+                                <p className="text-red-300/50 text-xs mt-1">Google News no ha devuelto resultados válidos en este momento.</p>
                             </div>
                         )}
 
                         {!loading && !error && updates.length > 0 && (
                             <>
+                                {/* ESTADÍSTICAS */}
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                                     <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center">
                                         <div className="text-xs text-slate-400 font-bold uppercase mb-1">Ritmo Promedio</div>
@@ -3676,7 +3667,7 @@
                                 </div>
 
                                 <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 flex items-center gap-2">
-                                    <Icons.Activity className="w-4 h-4"/> Historial de Versiones
+                                    <Icons.Activity className="w-4 h-4"/> Historial de Versiones (Google Index)
                                 </h3>
 
                                 <div className="relative border-l-2 border-slate-800 ml-3 md:ml-6 space-y-8 pb-4">
@@ -3702,7 +3693,7 @@
                                                 )}
 
                                                 <div className="text-sm text-slate-300 leading-relaxed mb-4 whitespace-pre-line">
-                                                    {update.description}
+                                                    {update.description || <span className="italic text-slate-500">Sin descripción. Ver fuente original.</span>}
                                                 </div>
                                                 
                                                 <a href={update.link} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
@@ -3719,8 +3710,8 @@
             </div>
         );
       };
-
-
+       
+        
         
       // --- APP PRINCIPAL ---
 
