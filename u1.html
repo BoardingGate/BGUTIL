@@ -3424,8 +3424,7 @@
         );
       };  
 
-       
-      // --- TRACKER DE ACTUALIZACIONES V11 (GOOGLE RSS PROXY + TRADUCCIÓN) ---
+      // --- TRACKER DE ACTUALIZACIONES V12 (BÚSQUEDA AMPLIA + FILTRADO INTELIGENTE) ---
       const UpdateTracker = () => {
         const [updates, setUpdates] = useState([]);
         const [stats, setStats] = useState({ count: 0, avgDays: 0, range: '' });
@@ -3448,79 +3447,109 @@
         };
 
         useEffect(() => {
-            const fetchFromGoogleRSS = async () => {
+            const fetchFromGoogleBroad = async () => {
                 const cb = () => `&_cb=${Date.now()}`;
                 
-                // ESTRATEGIA: Usar Google News como "Proxy de Contenido".
-                // Google ya ha leído la web. Nosotros leemos a Google.
-                // Buscamos: sitio notateslaapp O tessie, palabras clave "software update"
-                const QUERY = 'site:notateslaapp.com OR site:tessie.com "software update" release notes';
+                // CAMBIO CLAVE: Búsqueda genérica para asegurar resultados.
+                // Luego filtraremos nosotros lo que sea "basura".
+                // Buscamos "Tesla Software Update" en inglés para tener más fuentes.
+                const QUERY = '"Tesla Software Update" release notes'; 
                 const GOOGLE_RSS = `https://news.google.com/rss/search?q=${encodeURIComponent(QUERY)}&hl=en-US&gl=US&ceid=US:en`;
                 
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(GOOGLE_RSS)}` + cb();
+                // Usamos dos proxies por si uno falla
+                const attempts = [
+                    `https://api.allorigins.win/get?url=${encodeURIComponent(GOOGLE_RSS)}` + cb(),
+                    `https://corsproxy.io/?${encodeURIComponent(GOOGLE_RSS)}` + cb()
+                ];
+
+                let rawItems = [];
+                let success = false;
 
                 try {
-                    setLoading(true);
-                    setError(false);
+                    for (const url of attempts) {
+                        try {
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 8000);
+                            
+                            const response = await fetch(url, { signal: controller.signal });
+                            clearTimeout(timeoutId);
+                            
+                            let xmlText = "";
+                            if (url.includes('allorigins')) {
+                                const data = await response.json();
+                                xmlText = data.contents;
+                            } else {
+                                xmlText = await response.text();
+                            }
 
-                    const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 10000);
-                    
-                    const response = await fetch(proxyUrl, { signal: controller.signal });
-                    clearTimeout(timeoutId);
-                    
-                    const data = await response.json();
-                    const xmlText = data.contents;
+                            if (xmlText && xmlText.includes('<rss')) {
+                                const parser = new DOMParser();
+                                const xmlDoc = parser.parseFromString(xmlText, "text/xml");
+                                const items = Array.from(xmlDoc.querySelectorAll("item"));
+                                
+                                // Regex para detectar versiones válidas (2023, 2024, 2025...)
+                                const versionRegex = /\b202[3-9]\.\d+(\.\d+)?\b/;
 
-                    if (!xmlText || !xmlText.includes('<rss')) throw new Error("Google RSS no respondió correctamente");
+                                const parsed = items.map(item => {
+                                    const title = item.querySelector("title")?.textContent || "";
+                                    const pubDateRaw = item.querySelector("pubDate")?.textContent || "";
+                                    let descRaw = item.querySelector("description")?.textContent || "";
+                                    const link = item.querySelector("link")?.textContent || "";
 
-                    const parser = new DOMParser();
-                    const xmlDoc = parser.parseFromString(xmlText, "text/xml");
-                    const items = Array.from(xmlDoc.querySelectorAll("item"));
-                    
-                    // Regex para capturar versiones tipo 2024.44.3
-                    const versionRegex = /\b202[4-9]\.\d+(\.\d+)?\b/;
+                                    // FILTRO 1: ¿Tiene número de versión?
+                                    const match = title.match(versionRegex);
+                                    if (!match) return null;
 
-                    const rawItems = items.map(item => {
-                        const title = item.querySelector("title")?.textContent || "";
-                        const link = item.querySelector("link")?.textContent || "";
-                        const pubDateRaw = item.querySelector("pubDate")?.textContent || "";
-                        // Google pone un snippet en description
-                        let descRaw = item.querySelector("description")?.textContent || "";
+                                    const version = match[0];
+                                    const dateObj = new Date(pubDateRaw);
+                                    
+                                    // FILTRO 2: Fecha válida (últimos 6 meses)
+                                    const limitDate = new Date();
+                                    limitDate.setMonth(limitDate.getMonth() - 6);
+                                    if (isNaN(dateObj) || dateObj < limitDate) return null;
 
-                        const match = title.match(versionRegex);
-                        if (!match) return null;
+                                    const dateStr = dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-                        const version = match[0];
-                        const dateObj = new Date(pubDateRaw);
-                        
-                        // Validar fecha (últimos 6 meses para evitar basura vieja)
-                        const limitDate = new Date();
-                        limitDate.setMonth(limitDate.getMonth() - 6);
-                        if (dateObj < limitDate) return null;
+                                    // Limpieza de HTML de Google
+                                    const tempDiv = document.createElement("div");
+                                    tempDiv.innerHTML = descRaw;
+                                    let cleanText = tempDiv.textContent || "";
+                                    cleanText = cleanText.replace(/Read more.*/g, "").trim();
+                                    
+                                    // Si la descripción es muy corta, usamos el título
+                                    if (cleanText.length < 10) cleanText = title;
 
-                        const dateStr = !isNaN(dateObj) ? dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' }) : "Reciente";
+                                    return { version, date: dateStr, dateObj, description: cleanText, link };
+                                }).filter(Boolean);
 
-                        // Limpiar HTML de Google
-                        const tempDiv = document.createElement("div");
-                        tempDiv.innerHTML = descRaw;
-                        let cleanText = tempDiv.textContent || "";
-                        // Quitar enlaces extra
-                        cleanText = cleanText.replace(/Read more.*/g, "").trim();
+                                if (parsed.length > 0) {
+                                    rawItems = parsed;
+                                    success = true;
+                                    break; // Salimos del bucle de intentos
+                                }
+                            }
+                        } catch (e) { console.log("Fallo intento proxy", e); }
+                    }
 
-                        return { version, date: dateStr, dateObj, description: cleanText, link };
-                    }).filter(Boolean);
+                    if (!success || rawItems.length === 0) throw new Error("Google no devolvió versiones válidas");
 
-                    if (rawItems.length === 0) throw new Error("No se encontraron versiones recientes en Google News");
-
-                    // Unificar versiones (Google puede dar varios resultados para la misma)
+                    // Unificar versiones (Google puede dar varios resultados de distintas webs para la misma versión)
+                    // Nos quedamos con la más reciente o la que tenga descripción más larga
                     rawItems.sort((a, b) => b.dateObj - a.dateObj);
                     const uniqueMap = new Map();
+                    
                     rawItems.forEach(item => {
                         if (!uniqueMap.has(item.version)) {
                             uniqueMap.set(item.version, item);
+                        } else {
+                            // Si ya existe, miramos si la nueva descripción es mejor (más larga)
+                            const existing = uniqueMap.get(item.version);
+                            if (item.description.length > existing.description.length) {
+                                uniqueMap.set(item.version, item);
+                            }
                         }
                     });
+                    
                     const uniqueUpdates = Array.from(uniqueMap.values());
 
                     setLoading(false);
@@ -3528,7 +3557,6 @@
 
                     // Traducir
                     const finalUpdates = await Promise.all(uniqueUpdates.map(async (item) => {
-                        // Pequeño delay aleatorio
                         await new Promise(r => setTimeout(r, Math.random() * 100));
                         const translatedDesc = await fetchTranslation(item.description);
                         return { ...item, description: translatedDesc };
@@ -3561,7 +3589,7 @@
                 }
             };
 
-            fetchFromGoogleRSS();
+            fetchFromGoogleBroad();
         }, []);
 
         return (
@@ -3574,11 +3602,11 @@
                             <h2 className="text-xl font-display font-bold text-white flex items-center gap-2">
                                 <Icons.List className="w-6 h-6 text-blue-400" /> Centro de Actualizaciones
                             </h2>
-                            <p className="text-sm text-slate-400 mt-1 font-bold">Datos en vivo (Fuente: Google News Index)</p>
+                            <p className="text-sm text-slate-400 mt-1 font-bold">Datos en vivo (Índice Global de Noticias)</p>
                         </div>
                     </div>
 
-                    {/* BOTONES DE FUENTES (3 PROVEEDORES) */}
+                    {/* BOTONES DE FUENTES (LOS 3 SOLICITADOS) */}
                     <div className="bg-blue-900/10 border border-blue-500/30 p-6 rounded-xl text-center mb-8">
                         <p className="text-xs text-blue-300 font-bold mb-4 uppercase tracking-wider flex items-center justify-center gap-2">
                             <Icons.Link className="w-4 h-4"/> Fuentes Oficiales de Referencia
@@ -3617,7 +3645,7 @@
                     <div className="border-t border-slate-800 pt-6">
                         {loading && (
                             <div className="text-center py-10 bg-slate-800/30 rounded-xl border border-slate-800 border-dashed animate-pulse">
-                                <div className="text-blue-400 font-bold text-sm">Consultando índice de actualizaciones...</div>
+                                <div className="text-blue-400 font-bold text-sm">Consultando índice de Google News...</div>
                             </div>
                         )}
 
@@ -3632,9 +3660,8 @@
 
                         {error && !loading && !translating && (
                             <div className="text-center py-8 bg-red-900/10 rounded-xl border border-red-900/30 border-dashed">
-                                <p className="text-red-400 font-bold text-sm">No se encontraron noticias recientes accesibles.</p>
-                                <p className="text-red-300/50 text-xs mt-1">Los proveedores están bloqueando el acceso externo temporalmente.</p>
-                                <p className="text-slate-400 text-xs mt-4">Por favor, usa los botones azules de arriba para ver las listas oficiales.</p>
+                                <p className="text-red-400 font-bold text-sm">No se encontraron noticias recientes.</p>
+                                <p className="text-red-300/50 text-xs mt-1">Google News no ha devuelto resultados con formato de versión válido.</p>
                             </div>
                         )}
 
@@ -3658,7 +3685,7 @@
                                 </div>
 
                                 <h3 className="text-sm font-bold text-slate-500 uppercase mb-4 flex items-center gap-2">
-                                    <Icons.Activity className="w-4 h-4"/> Historial de Versiones (Internet)
+                                    <Icons.Activity className="w-4 h-4"/> Historial de Versiones
                                 </h3>
 
                                 <div className="relative border-l-2 border-slate-800 ml-3 md:ml-6 space-y-8 pb-4">
@@ -3684,7 +3711,7 @@
                                                 )}
 
                                                 <div className="text-sm text-slate-300 leading-relaxed mb-4 whitespace-pre-line">
-                                                    {update.description || <span className="italic text-slate-500">Ver enlace para más detalles.</span>}
+                                                    {update.description || <span className="italic text-slate-500">Sin descripción disponible.</span>}
                                                 </div>
                                                 
                                                 <a href={update.link} target="_blank" rel="noopener noreferrer" className="text-xs font-bold text-slate-400 hover:text-white flex items-center gap-1 transition-colors">
@@ -3700,7 +3727,7 @@
                 </div>
             </div>
         );
-      };
+      };     
       
         
       // --- APP PRINCIPAL ---
