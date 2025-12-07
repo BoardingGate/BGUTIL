@@ -3863,6 +3863,309 @@
             </div>
         );
       };
+
+
+      // --- GUÍA DE ROTACIÓN DE NEUMÁTICOS ---
+      const TireRotationGuide = () => {
+        const [state, setState] = usePersistentState('tireRotState', {
+            currentKm: 0,
+            lastRotKm: 0,
+            isStaggered: false, // Doble medida (ej: Model Y Perf)
+            isDirectional: false, // Neumáticos con sentido de giro
+            treadFront: 6.5,
+            treadRear: 5.5,
+            model: 'Y'
+        });
+
+        // Constantes Tesla
+        const ROTATION_INTERVAL = 10000; // 10k km o 6250 millas
+        const MAX_DIFF_MM = 1.5; // Diferencia máxima entre ejes antes de rotar
+        const MIN_LEGAL = 1.6;
+        const MIN_SAFE = 3.0;
+        const TORQUE_NM = 175; // 129 lb-ft
+
+        const kmSinceLast = state.currentKm - state.lastRotKm;
+        const wearDiff = Math.abs(state.treadFront - state.treadRear);
+        const needsRotationByKm = kmSinceLast >= ROTATION_INTERVAL;
+        const needsRotationByWear = wearDiff >= MAX_DIFF_MM;
+        
+        // Determinar patrón visual
+        let patternName = "Cruzado Trasero (Rearward Cross)";
+        let patternDesc = "El patrón estándar para AWD/RWD con medidas iguales.";
+        // Lógica de flechas para el SVG
+        // 0: FL, 1: FR, 2: RL, 3: RR
+        let arrows = []; 
+
+        if (state.isStaggered) {
+            if (state.isDirectional) {
+                patternName = "Imposible Rotar";
+                patternDesc = "Doble medida + Direccionales: No se pueden cambiar de posición sin desmontar la goma de la llanta.";
+                arrows = []; // Sin movimiento
+            } else {
+                patternName = "Lado a Lado (Side-to-Side)";
+                patternDesc = "Solo se pueden intercambiar izquierda con derecha en el mismo eje.";
+                arrows = [
+                    { start: 0, end: 1 }, { start: 1, end: 0 }, // Delanteros
+                    { start: 2, end: 3 }, { start: 3, end: 2 }  // Traseros
+                ];
+            }
+        } else {
+            if (state.isDirectional) {
+                patternName = "De Frente a Atrás (Front-to-Back)";
+                patternDesc = "Los neumáticos direccionales deben mantenerse en el mismo lado del coche.";
+                arrows = [
+                    { start: 0, end: 2 }, { start: 2, end: 0 }, // Izquierda
+                    { start: 1, end: 3 }, { start: 3, end: 1 }  // Derecha
+                ];
+            } else {
+                // Estándar Tesla (y mayoría AWD/RWD)
+                patternName = "Cruzado Modificado";
+                patternDesc = "Los traseros pasan delante cruzados. Los delanteros pasan atrás en el mismo lado.";
+                arrows = [
+                    { start: 0, end: 2 }, // FL -> RL
+                    { start: 1, end: 3 }, // FR -> RR
+                    { start: 2, end: 1 }, // RL -> FR
+                    { start: 3, end: 0 }  // RR -> FL
+                ];
+            }
+        }
+
+        const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
+        const handleNum = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v) || 0}));
+
+        // Coordenadas visuales neumáticos (Top-Left 0,0 relativo al container coche)
+        // Coche aprox 200px ancho x 300px alto
+        const tirePos = [
+            { x: 30, y: 40, label: "DEL. IZQ" },  // 0
+            { x: 130, y: 40, label: "DEL. DER" }, // 1
+            { x: 30, y: 200, label: "TRAS. IZQ" },// 2
+            { x: 130, y: 200, label: "TRAS. DER" }// 3
+        ];
+
+        // Helper SVG path
+        const getArrowPath = (startIdx, endIdx) => {
+            const s = tirePos[startIdx];
+            const e = tirePos[endIdx];
+            // Ajuste centro neumático (40px ancho, 60px alto) -> centro +20, +30
+            const sx = s.x + 20; const sy = s.y + 30;
+            const ex = e.x + 20; const ey = e.y + 30;
+            
+            // Curvas simples
+            if (Math.abs(sx - ex) < 10) return `M ${sx} ${sy} L ${ex} ${ey}`; // Vertical recta
+            if (Math.abs(sy - ey) < 10) return `M ${sx} ${sy} L ${ex} ${ey}`; // Horizontal recta
+            return `M ${sx} ${sy} Q 100 120 ${ex} ${ey}`; // Curva al centro
+        };
+
+        return (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in">
+                {/* CONFIGURACIÓN Y ESTADO */}
+                <div className="lg:col-span-5 space-y-6">
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
+                        <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
+                            <Icons.Settings /> Configuración Vehículo
+                        </h2>
+                        
+                        <div className="space-y-6">
+                            {/* Toggles */}
+                            <div className="grid grid-cols-1 gap-4">
+                                <div className={`p-4 rounded-xl border cursor-pointer transition-all ${state.isStaggered ? 'bg-purple-900/30 border-purple-500' : 'bg-slate-800 border-slate-700'}`}
+                                     onClick={() => handleChange('isStaggered', !state.isStaggered)}>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="font-bold text-white">¿Doble Medida (Staggered)?</span>
+                                        <div className={`w-10 h-6 rounded-full p-1 transition-colors ${state.isStaggered ? 'bg-purple-500' : 'bg-slate-600'}`}>
+                                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${state.isStaggered ? 'translate-x-4' : ''}`}></div>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-slate-400">Activa si las llantas traseras son más anchas que las delanteras (Ej: Model Y Performance, Model X).</p>
+                                </div>
+
+                                <div className={`p-4 rounded-xl border cursor-pointer transition-all ${state.isDirectional ? 'bg-blue-900/30 border-blue-500' : 'bg-slate-800 border-slate-700'}`}
+                                     onClick={() => handleChange('isDirectional', !state.isDirectional)}>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="font-bold text-white">¿Neumáticos Direccionales?</span>
+                                        <div className={`w-10 h-6 rounded-full p-1 transition-colors ${state.isDirectional ? 'bg-blue-500' : 'bg-slate-600'}`}>
+                                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${state.isDirectional ? 'translate-x-4' : ''}`}></div>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-slate-400">Busca una flecha en el flanco que diga "ROTATION". Si la tiene, solo pueden girar en un sentido.</p>
+                                </div>
+                            </div>
+
+                            {/* Kilometraje */}
+                            <div className="pt-4 border-t border-slate-800">
+                                <h3 className="text-sm font-bold text-slate-300 uppercase mb-3">Control de Kilómetros</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 block mb-1">Km Actuales</label>
+                                        <FormattedInput value={state.currentKm} onChange={v => handleNum('currentKm', v)} grouped={true} />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 block mb-1">Km Última Rotación</label>
+                                        <FormattedInput value={state.lastRotKm} onChange={v => handleNum('lastRotKm', v)} grouped={true} />
+                                    </div>
+                                </div>
+                                <div className={`mt-4 p-3 rounded-lg border text-center font-bold ${needsRotationByKm ? 'bg-red-900/30 border-red-500 text-red-200' : 'bg-green-900/20 border-green-500/30 text-green-200'}`}>
+                                    {needsRotationByKm 
+                                        ? `⚠️ ¡ROTA YA! Hace ${formatMoney(kmSinceLast)} km que no rotas (Límite 10.000).` 
+                                        : `✅ Todo bien. Faltan ${formatMoney(ROTATION_INTERVAL - kmSinceLast)} km.`
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* TIPS RÁPIDOS */}
+                    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+                        <h3 className="text-sm font-bold text-slate-300 uppercase mb-3 flex items-center gap-2">
+                             <Icons.Wrench className="w-4 h-4"/> Datos Técnicos
+                        </h3>
+                        <ul className="space-y-3 text-sm text-slate-400 font-medium">
+                            <li className="flex justify-between border-b border-slate-800 pb-2">
+                                <span>Par de apriete (Torque):</span>
+                                <span className="text-white font-bold">{TORQUE_NM} Nm <span className="text-slate-500 font-normal">(129 lb-ft)</span></span>
+                            </li>
+                            <li className="flex justify-between border-b border-slate-800 pb-2">
+                                <span>Llave de vaso:</span>
+                                <span className="text-white font-bold">21 mm</span>
+                            </li>
+                            <li className="flex justify-between">
+                                <span>Límite Legal Profundidad:</span>
+                                <span className="text-red-400 font-bold">{MIN_LEGAL} mm</span>
+                            </li>
+                        </ul>
+                        <div className="mt-4 text-xs bg-blue-900/20 p-3 rounded text-blue-200 border border-blue-500/20">
+                            <strong>Nota:</strong> Si tienes suspensión neumática (Model S/X), activa el "Modo Gato" (Jack Mode) antes de levantar el coche. Usa siempre los "Pucks" (tacos de goma) para no dañar la batería.
+                        </div>
+                    </div>
+                </div>
+
+                {/* VISUALIZADOR Y DESGASTE */}
+                <div className="lg:col-span-7 space-y-6">
+                    
+                    {/* VISUALIZADOR ESQUEMA */}
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 flex flex-col items-center relative overflow-hidden min-h-[400px]">
+                        <div className="absolute top-4 left-6 z-10">
+                            <h3 className="text-lg font-display font-bold text-white mb-1">Esquema de Rotación</h3>
+                            <div className="text-blue-400 font-bold text-sm uppercase tracking-wider">{patternName}</div>
+                            <div className="text-slate-400 text-xs mt-1 max-w-xs leading-relaxed">{patternDesc}</div>
+                        </div>
+
+                        {/* COCHE Y NEUMÁTICOS */}
+                        <div className="relative w-[200px] h-[300px] mt-16 select-none">
+                            {/* Chasis esquemático */}
+                            <div className="absolute inset-x-4 top-0 bottom-0 bg-slate-800 rounded-3xl border border-slate-700 opacity-50"></div>
+                            <div className="absolute top-4 inset-x-8 h-16 bg-slate-700/50 rounded-lg"></div> {/* Parabrisas */}
+                            
+                            {/* Neumáticos */}
+                            {tirePos.map((pos, idx) => (
+                                <div key={idx} className="absolute w-10 h-16 bg-zinc-800 rounded border-2 border-zinc-600 flex items-center justify-center shadow-lg z-20"
+                                     style={{ left: pos.x, top: pos.y }}>
+                                    <div className="w-0.5 h-12 bg-zinc-700/50"></div>
+                                    <div className="absolute -bottom-6 text-[9px] font-bold text-slate-500 whitespace-nowrap w-20 text-center">{pos.label}</div>
+                                </div>
+                            ))}
+
+                            {/* Flechas SVG */}
+                            <svg className="absolute inset-0 w-full h-full z-30 pointer-events-none overflow-visible">
+                                <defs>
+                                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                        <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+                                    </marker>
+                                </defs>
+                                {arrows.map((arr, i) => (
+                                    <path 
+                                        key={i} 
+                                        d={getArrowPath(arr.start, arr.end)} 
+                                        stroke="#3b82f6" 
+                                        strokeWidth="3" 
+                                        fill="none" 
+                                        markerEnd="url(#arrowhead)"
+                                        strokeDasharray="5,5"
+                                        className="animate-pulse"
+                                    />
+                                ))}
+                            </svg>
+                        </div>
+                    </div>
+
+                    {/* ANALIZADOR DE DESGASTE */}
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-display font-bold text-white flex items-center gap-2">
+                                <Icons.Activity /> Análisis de Profundidad
+                            </h3>
+                            <span className="text-xs text-slate-500 font-bold uppercase">Medir surco central</span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-6 mb-4">
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 block mb-1 text-center">Eje Delantero (mm)</label>
+                                <div className="relative">
+                                    <input 
+                                        type="number" step="0.1" 
+                                        value={state.treadFront} onChange={e => handleNum('treadFront', e.target.value)}
+                                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-center font-bold text-xl text-white focus:border-blue-500 outline-none"
+                                    />
+                                    <div className={`absolute bottom-0 left-0 h-1 transition-all duration-500 ${state.treadFront < MIN_SAFE ? 'bg-red-500' : 'bg-green-500'}`} style={{width: `${(state.treadFront/8)*100}%`}}></div>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 block mb-1 text-center">Eje Trasero (mm)</label>
+                                <div className="relative">
+                                    <input 
+                                        type="number" step="0.1" 
+                                        value={state.treadRear} onChange={e => handleNum('treadRear', e.target.value)}
+                                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-center font-bold text-xl text-white focus:border-blue-500 outline-none"
+                                    />
+                                    <div className={`absolute bottom-0 left-0 h-1 transition-all duration-500 ${state.treadRear < MIN_SAFE ? 'bg-red-500' : 'bg-green-500'}`} style={{width: `${(state.treadRear/8)*100}%`}}></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* RESULTADO ANÁLISIS */}
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center text-sm border-b border-slate-800 pb-2">
+                                <span className="text-slate-400">Diferencia entre ejes:</span>
+                                <span className={`font-bold ${wearDiff >= MAX_DIFF_MM ? 'text-red-400' : 'text-green-400'}`}>{wearDiff.toFixed(1)} mm</span>
+                            </div>
+                            
+                            {wearDiff >= MAX_DIFF_MM ? (
+                                <div className="p-3 bg-red-900/20 border border-red-500/50 rounded-lg flex gap-3 items-start">
+                                    <Icons.AlertTriangle className="w-6 h-6 text-red-500 shrink-0"/>
+                                    <div>
+                                        <div className="text-red-400 font-bold text-sm uppercase">Rotación Necesaria</div>
+                                        <div className="text-red-200 text-xs mt-1">
+                                            La diferencia supera los {MAX_DIFF_MM}mm. Tesla recomienda rotar para igualar el desgaste y mantener la tracción óptima.
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="p-3 bg-green-900/20 border border-green-500/30 rounded-lg flex gap-3 items-start">
+                                    <Icons.CheckCircle className="w-6 h-6 text-green-500 shrink-0"/>
+                                    <div>
+                                        <div className="text-green-400 font-bold text-sm uppercase">Desgaste Equilibrado</div>
+                                        <div className="text-green-200 text-xs mt-1">
+                                            La diferencia es aceptable ({wearDiff.toFixed(1)}mm). Rota solo si has superado los 10.000 km.
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {(state.treadFront < MIN_SAFE || state.treadRear < MIN_SAFE) && (
+                                <div className="p-3 bg-orange-900/20 border border-orange-500/50 rounded-lg text-center mt-2">
+                                    <div className="text-orange-400 font-bold text-xs uppercase mb-1">¡Advertencia de Seguridad!</div>
+                                    <div className="text-orange-200 text-xs">
+                                        Uno o más neumáticos están por debajo de {MIN_SAFE}mm. Considera cambiarlos pronto (Límite legal {MIN_LEGAL}mm). El agarre en lluvia se reduce drásticamente.
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        );
+      };  
   
         
         
@@ -3895,7 +4198,8 @@
                 );
                 case 'amortization': return <AmortizationCalculator />;
                 case 'calculator': return <ChargingCalculator />;
-                case 'tirelab': return <TirePressureLab />;    
+                case 'tirelab': return <TirePressureLab />;   
+                case 'rotation': return <TireRotationGuide />;    
                 case 'vin': return <VinDecoder />;    
                 case 'updates': return <UpdateTracker />;    
                 case 'nyland': return <NylandCalculator />;
@@ -3929,6 +4233,7 @@
                             <TabButton id="amortization" label="Amortización" />
                             <TabButton id="calculator" label="Calculadora" />
                             <TabButton id="tirelab" label="Psi/Bar Sauras" />
+                            <TabButton id="rotation" label="Rotación" />
                             <TabButton id="vin" label="DECODE VIN" />
                             <TabButton id="updates" label="UPDATES" />
                             <TabButton id="nyland" label="Bjørn Nyland" />
