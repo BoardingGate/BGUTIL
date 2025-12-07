@@ -4220,7 +4220,7 @@
       };
 
 
-      // --- CHECKLIST DE ENTREGA (BOARDING GATE LIST - ACTUALIZADO) ---
+      // --- CHECKLIST DE ENTREGA (ACTUALIZADO: SIN SCROLL, RESET VERDE Y CONSEJOS) ---
       const DeliveryChecklist = () => {
         // Estructura de datos del checklist
         const categories = useMemo(() => [
@@ -4273,7 +4273,7 @@
                 id: 'int', title: 'Interior y Asientos', icon: Icons.Home,
                 items: [
                     'Tapicería asientos (manchas, arrugas, cortes)',
-                    'Pendrive USB (en guantera) para Modo Centinela', // NUEVO
+                    'Pendrive USB (en guantera) para Modo Centinela',
                     'Ajuste eléctrico asientos y lumbares',
                     'Volante (piel sin desperfectos)',
                     'Techo interior (manchas de manos operarios)',
@@ -4283,12 +4283,12 @@
                 ]
             },
             {
-                id: 'elec', title: 'Electrónica, Carga y Software', icon: Icons.Zap, // TÍTULO ACTUALIZADO
+                id: 'elec', title: 'Electrónica, Carga y Software', icon: Icons.Zap,
                 items: [
-                    'Nivel Batería (SoC) aceptable (>30-40%)', // NUEVO
-                    'Puerto Carga: Apertura/Cierre (Pantalla y Manual)', // NUEVO
-                    'Prueba de Carga (Verificar luz verde "T" en puerto)', // NUEVO
-                    'Log de Errores: "Controles > Servicio > Notificaciones"', // NUEVO CON INSTRUCCIÓN
+                    'Nivel Batería (SoC) aceptable (>30-40%)',
+                    'Puerto Carga: Apertura/Cierre (Pantalla y Manual)',
+                    'Prueba de Carga (Verificar luz verde "T" en puerto)',
+                    'Log de Errores: "Controles > Servicio > Notificaciones"',
                     'Pantalla (sin pixeles muertos / manchas)',
                     'Cámaras (visualización nítida en pantalla)',
                     'Puertos USB-C (carga móvil)',
@@ -4302,7 +4302,7 @@
         ], []);
 
         // Estado persistente para guardar el progreso
-        const [checks, setChecks] = usePersistentState('deliveryChecklist_v2', {}); // V2 para limpiar caché antigua si había
+        const [checks, setChecks] = usePersistentState('deliveryChecklist_v2', {});
         const [openSection, setOpenSection] = useState('docs'); 
 
         // Cálculos de progreso
@@ -4338,8 +4338,6 @@
             const key = `${catId}-${index}`;
             const state = checks[key] || {};
             const { status, note } = state;
-
-            // Detectar si es el item de Log de Errores para resaltarlo
             const isErrorLogItem = item.includes('Log de Errores');
 
             return (
@@ -4388,7 +4386,7 @@
                     </div>
                 </div>
 
-                {/* COLUMNA IZQUIERDA: LISTADO */}
+                {/* COLUMNA IZQUIERDA: LISTADO + CONSEJOS */}
                 <div className="lg:col-span-7 space-y-4">
                     {categories.map((cat) => {
                         const isOpen = openSection === cat.id;
@@ -4410,10 +4408,75 @@
                             </div>
                         );
                     })}
-                    <button onClick={resetChecklist} className="w-full py-4 text-xs font-bold text-red-400 hover:text-red-300 hover:bg-red-900/20 rounded-xl transition-colors mt-8 border border-transparent hover:border-red-900/50">BORRAR TODO Y EMPEZAR DE NUEVO</button>
+
+                    {/* NUEVA SECCIÓN DE CONSEJOS E INFORMACIÓN CRÍTICA */}
+                    <div className="bg-slate-900/80 border border-slate-700 rounded-xl p-6 mt-8 shadow-xl">
+                        <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2">
+                            <Icons.Shield className="w-6 h-6 text-blue-400" />
+                            <h3 className="text-lg font-bold text-white uppercase tracking-wider">Preparación y Conocimientos Clave</h3>
+                        </div>
+                        
+                        <div className="space-y-6">
+                            {/* MATERIAL */}
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2"><Icons.Wrench className="w-4 h-4"/> Material a llevar</h4>
+                                <ul className="text-sm text-slate-400 space-y-1 list-disc pl-5">
+                                    <li><strong>Linterna potente:</strong> Para inspeccionar bajos, pasos de rueda y zonas oscuras del interior.</li>
+                                    <li><strong>Guantes de látex:</strong> Para tocar gomas y plásticos sin dejar marcas de grasa.</li>
+                                    <li><strong>Rejilla detección (opcional):</strong> Un patrón impreso ayuda a ver abolladuras en la chapa.</li>
+                                    <li><strong>Documentación:</strong> DNI, Carnet de Conducir y Póliza de Seguro vigente.</li>
+                                </ul>
+                            </div>
+
+                            {/* SOLICITUDES AL ADVISOR */}
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2"><Icons.Settings className="w-4 h-4"/> Pedir al Advisor</h4>
+                                <ul className="text-sm text-slate-400 space-y-1 list-disc pl-5">
+                                    <li><strong>Kit Pinchazos:</strong> Explicación de dónde está y cómo usar el compresor/líquido.</li>
+                                    <li><strong>VIN Troquelado:</strong> Localización física (suele estar bajo la moqueta del asiento acompañante delantero, a veces requiere corte en pre-marca).</li>
+                                    <li><strong>Llaves:</strong> Asegurar entrega de las 2 tarjetas llave.</li>
+                                </ul>
+                            </div>
+
+                            {/* CONOCIMIENTOS DE EMERGENCIA */}
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2"><Icons.AlertTriangle className="w-4 h-4 text-orange-400"/> Emergencias y Operativa</h4>
+                                <ul className="text-sm text-slate-400 space-y-2">
+                                    <li className="bg-slate-800/50 p-2 rounded border border-slate-700">
+                                        <strong className="text-white block mb-0.5">Apertura Manual:</strong>
+                                        Preguntar por los tiradores mecánicos de emergencia en puertas delanteras (y traseras si aplica) para salir sin electricidad.
+                                    </li>
+                                    <li className="bg-slate-800/50 p-2 rounded border border-slate-700">
+                                        <strong className="text-white block mb-0.5">Puerto de Carga Manual:</strong>
+                                        Localizar el tirador de emergencia en el maletero para liberar el cable si se bloquea.
+                                    </li>
+                                    <li className="bg-slate-800/50 p-2 rounded border border-slate-700">
+                                        <strong className="text-white block mb-0.5">Remolque y Arranque:</strong>
+                                        Preguntar cómo activar el "Modo Remolque" y dónde están los bornes para arrancar la batería de baja tensión (12V/16V) si muere.
+                                    </li>
+                                    <li className="bg-slate-800/50 p-2 rounded border border-slate-700">
+                                        <strong className="text-white block mb-0.5">Ayuda en Pantalla:</strong>
+                                        En el menú del coche hay tutoriales interactivos muy útiles para el primer día.
+                                    </li>
+                                </ul>
+                            </div>
+                             
+                            {/* APP */}
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2"><Icons.Smartphone className="w-4 h-4"/> App Tesla</h4>
+                                <p className="text-sm text-slate-400">
+                                    Asegúrate de saber usar la sección <strong>Servicio</strong> para pedir asistencia en carretera o reportar averías (subiendo fotos directamente).
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onClick={resetChecklist} className="w-full py-4 text-sm font-bold bg-green-600 hover:bg-green-500 text-white rounded-xl transition-colors mt-8 shadow-lg shadow-green-900/20 border border-transparent">
+                        BORRAR TODO Y EMPEZAR DE NUEVO
+                    </button>
                 </div>
 
-                {/* COLUMNA DERECHA: RESUMEN / REPORT */}
+                {/* COLUMNA DERECHA: RESUMEN / REPORT (SIN SCROLL) */}
                 <div className="lg:col-span-5 space-y-6">
                     <div className="bg-slate-900/80 border border-slate-700 rounded-xl p-6 sticky top-32 shadow-2xl">
                         <div className="flex items-center gap-2 mb-6 border-b border-slate-700 pb-4">
@@ -4431,16 +4494,32 @@
                             </div>
                         ) : (
                             <div className="space-y-6">
+                                {/* Defectos - SIN SCROLL LIMITADO */}
                                 {defects.length > 0 && (
                                     <div className="bg-red-900/10 border border-red-500/30 rounded-xl overflow-hidden">
                                         <div className="bg-red-900/30 px-4 py-2 border-b border-red-500/30 flex justify-between items-center"><span className="text-red-400 font-bold uppercase text-xs flex items-center gap-2"><Icons.AlertTriangle className="w-4 h-4"/> Defectos a Reportar</span><span className="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{defects.length}</span></div>
-                                        <div className="p-4 space-y-3 max-h-60 overflow-y-auto custom-scrollbar">{defects.map(([key, val]) => { const [catId, itemIdx] = key.split('-'); const cat = categories.find(c => c.id === catId); const itemName = cat.items[parseInt(itemIdx)]; return (<div key={key} className="text-sm"><div className="text-white font-bold mb-0.5">• {itemName}</div>{val.note && <div className="text-red-300 text-xs italic pl-3 border-l-2 border-red-500/50">"{val.note}"</div>}</div>); })}</div>
+                                        <div className="p-4 space-y-3">
+                                            {defects.map(([key, val]) => { 
+                                                const [catId, itemIdx] = key.split('-'); 
+                                                const cat = categories.find(c => c.id === catId); 
+                                                const itemName = cat.items[parseInt(itemIdx)]; 
+                                                return (<div key={key} className="text-sm"><div className="text-white font-bold mb-0.5">• {itemName}</div>{val.note && <div className="text-red-300 text-xs italic pl-3 border-l-2 border-red-500/50">"{val.note}"</div>}</div>); 
+                                            })}
+                                        </div>
                                     </div>
                                 )}
+                                {/* Dudas - SIN SCROLL LIMITADO */}
                                 {doubts.length > 0 && (
                                     <div className="bg-yellow-900/10 border border-yellow-500/30 rounded-xl overflow-hidden">
                                         <div className="bg-yellow-900/30 px-4 py-2 border-b border-yellow-500/30 flex justify-between items-center"><span className="text-yellow-400 font-bold uppercase text-xs flex items-center gap-2"><Icons.Search className="w-4 h-4"/> Dudas a Consultar</span><span className="bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded-full">{doubts.length}</span></div>
-                                        <div className="p-4 space-y-3 max-h-40 overflow-y-auto custom-scrollbar">{doubts.map(([key, val]) => { const [catId, itemIdx] = key.split('-'); const cat = categories.find(c => c.id === catId); const itemName = cat.items[parseInt(itemIdx)]; return (<div key={key} className="text-sm"><div className="text-white font-bold mb-0.5">• {itemName}</div>{val.note && <div className="text-yellow-200 text-xs italic pl-3 border-l-2 border-yellow-500/50">"{val.note}"</div>}</div>); })}</div>
+                                        <div className="p-4 space-y-3">
+                                            {doubts.map(([key, val]) => { 
+                                                const [catId, itemIdx] = key.split('-'); 
+                                                const cat = categories.find(c => c.id === catId); 
+                                                const itemName = cat.items[parseInt(itemIdx)]; 
+                                                return (<div key={key} className="text-sm"><div className="text-white font-bold mb-0.5">• {itemName}</div>{val.note && <div className="text-yellow-200 text-xs italic pl-3 border-l-2 border-yellow-500/50">"{val.note}"</div>}</div>); 
+                                            })}
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -4455,7 +4534,7 @@
             </div>
         );
       };
-
+ 
         
 
         
