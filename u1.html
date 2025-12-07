@@ -3554,184 +3554,198 @@
       };
 
         
-
-      // --- LABORATORIO DE NEUMÁTICOS (LEY DE GASES + EFICIENCIA) ---
+      // --- LABORATORIO DE NEUMÁTICOS V2 (REFERENCIA RELATIVA) ---
       const TirePressureLab = () => {
-        const [state, setState] = usePersistentState('tireLab', {
-            refPressure: 2.9, // Bar
-            refTemp: 20,      // ºC (Garaje)
-            targetTemp: 0,    // ºC (Destino/Invierno)
-            highwayMode: false, // Simular calentamiento por rodaje
-            dailyKm: 100,     // Para calcular pérdida
-            consumption: 15   // kWh/100
+        const [state, setState] = usePersistentState('tireLabV2', {
+            recPressure: 2.9, // La ideal (etiqueta puerta)
+            startPressure: 2.9, // La real que has puesto
+            refTemp: 20,      // ºC al inflar
+            targetTemp: 5,    // ºC destino
+            highwayMode: false,
+            consumption: 15
         });
 
         // Constantes Físicas
         const BAR_TO_PSI = 14.5038;
-        const ROLLING_RESISTANCE_PENALTY = 0.004; // ~0.4% consumo extra por cada 1% bajada presión (aprox)
-        const HIGHWAY_TEMP_ADD = 25; // ºC que ganan las ruedas al rodar en autopista
+        const HIGHWAY_TEMP_ADD = 25; 
 
-        // CÁLCULOS (Ley de Gay-Lussac: P1/T1 = P2/T2 en Kelvin)
+        // 1. FÍSICA DE GASES (Gay-Lussac)
         const t1Kelvin = state.refTemp + 273.15;
-        
-        // Temperatura final del gas (Ambiente destino + Rodaje si aplica)
         const effectiveTargetTemp = state.targetTemp + (state.highwayMode ? HIGHWAY_TEMP_ADD : 0);
         const t2Kelvin = effectiveTargetTemp + 273.15;
 
-        // Presión Resultante
-        const resultPressureBar = state.refPressure * (t2Kelvin / t1Kelvin);
-        const diffBar = resultPressureBar - state.refPressure;
+        // Presión Resultante (Lo que marcará el sensor en destino)
+        const resultPressureBar = state.startPressure * (t2Kelvin / t1Kelvin);
         
-        // Análisis de Seguridad
-        const minSafePressure = 2.7; // Umbral típico Tesla Model 3/Y
-        const maxSafePressure = 3.4; 
-        const isLowPressure = resultPressureBar < minSafePressure;
-        const isHighPressure = resultPressureBar > maxSafePressure;
+        // 2. LÓGICA DE SEGURIDAD (Relativa a la Recomendada)
+        // El TPMS suele saltar si baja un 8-10% de la presión de referencia configurada
+        const minSafeLimit = state.recPressure * 0.90; 
+        const maxSafeLimit = state.recPressure * 1.25; // 25% extra suele ser el límite seguro antes de deformación
+        
+        const isLowPressure = resultPressureBar < minSafeLimit;
+        const isHighPressure = resultPressureBar > maxSafeLimit;
+        const isOptimal = !isLowPressure && !isHighPressure;
 
-        // Análisis de Eficiencia
-        // Asumimos que la refPressure (ej 2.9) es la óptima (100% eficiencia)
-        // Si baja, aumenta consumo. Si sube, baja consumo (pero pierde agarre, eso no lo calculamos aquí)
-        const pressureDropPct = Math.max(0, (state.refPressure - resultPressureBar) / state.refPressure);
-        const efficiencyLossPct = pressureDropPct * 100 * 0.4; // Factor empírico rozamiento
+        // 3. CÁLCULO DE EFICIENCIA (Basado en Rolling Resistance)
+        // Si presión real < recomendada -> Aumenta rozamiento -> Pierdes rango
+        // Si presión real > recomendada -> Disminuye rozamiento (ganas rango, pierdes agarre/confort)
+        const pressureDiffPct = (resultPressureBar - state.recPressure) / state.recPressure;
         
-        const extraConsumption = state.consumption * (efficiencyLossPct / 100);
-        const rangeLossPer100 = efficiencyLossPct; // % directo de autonomía perdida aprox
+        // Factor empírico: ~0.3% de impacto en consumo por cada 1% de cambio en presión
+        let efficiencyImpactPct = pressureDiffPct * 100 * -0.3; 
+        
+        // Si la presión es baja (diff negativo), el impacto es positivo (aumenta consumo)
+        // Si la presión es alta (diff positivo), el impacto es negativo (ahorras consumo)
+        
+        const extraConsumption = state.consumption * (efficiencyImpactPct / 100);
 
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v)}));
 
         return (
             <div className="space-y-8 animate-fade-in">
                 
-                {/* PANEL DE CONFIGURACIÓN */}
+                {/* 1. CONFIGURACIÓN BASE (EL COCHE) */}
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                     <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
-                        <Icons.Construction className="w-6 h-6 text-yellow-500" /> Laboratorio de Presión (Física)
+                        <Icons.Wrench className="w-6 h-6 text-yellow-500" /> Configuración del Vehículo
                     </h2>
+                    
+                    <div className="mb-6 bg-blue-900/10 p-4 rounded-xl border border-blue-500/20">
+                        <div className="flex justify-between mb-2">
+                            <label className="text-sm font-bold text-blue-300 uppercase tracking-wider">Presión Recomendada (Etiqueta Puerta)</label>
+                            <span className="text-white font-mono font-bold text-xl">{state.recPressure} bar</span>
+                        </div>
+                        <input type="range" min="2.0" max="3.5" step="0.1" value={state.recPressure} onChange={e => handleChange('recPressure', e.target.value)} className="w-full h-4 bg-slate-700 rounded-lg accent-blue-500 cursor-pointer"/>
+                        <div className="flex justify-between text-xs font-bold text-slate-500 mt-1">
+                            <span>2.0 bar</span>
+                            <span>Valor de Referencia (100%)</span>
+                            <span>3.5 bar</span>
+                        </div>
+                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* CONDICIONES INICIALES */}
-                        <div className="space-y-6">
-                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest border-b border-slate-700 pb-2">1. Inflado Inicial (Garaje)</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-slate-800">
+                        {/* CONDICIONES DE INFLADO */}
+                        <div className="space-y-4">
+                            <h3 className="text-xs font-bold text-slate-400 uppercase">Situación Inicial (Garaje)</h3>
                             <div>
-                                <div className="flex justify-between mb-2">
-                                    <label className="text-sm font-bold text-slate-300">Presión en Frío</label>
-                                    <span className="text-blue-300 font-mono font-bold text-lg">{state.refPressure} bar <span className="text-sm text-slate-500">({(state.refPressure*BAR_TO_PSI).toFixed(0)} PSI)</span></span>
+                                <div className="flex justify-between mb-1">
+                                    <label className="text-sm font-bold text-slate-300">Presión que has puesto</label>
+                                    <span className="text-white font-bold">{state.startPressure} bar</span>
                                 </div>
-                                <input type="range" min="2.0" max="3.5" step="0.1" value={state.refPressure} onChange={e => handleChange('refPressure', e.target.value)} className="w-full h-4 bg-slate-700 rounded-lg accent-blue-500 cursor-pointer"/>
+                                <input type="range" min="2.0" max="3.5" step="0.1" value={state.startPressure} onChange={e => handleChange('startPressure', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg accent-slate-400 cursor-pointer"/>
                             </div>
                             <div>
-                                <div className="flex justify-between mb-2">
-                                    <label className="text-sm font-bold text-slate-300">Temperatura Ambiente</label>
-                                    <span className="text-orange-300 font-mono font-bold text-lg">{state.refTemp} ºC</span>
+                                <div className="flex justify-between mb-1">
+                                    <label className="text-sm font-bold text-slate-300">Temp. Ambiente</label>
+                                    <span className="text-orange-300 font-bold">{state.refTemp} ºC</span>
                                 </div>
-                                <input type="range" min="-10" max="45" step="1" value={state.refTemp} onChange={e => handleChange('refTemp', e.target.value)} className="w-full h-4 bg-slate-700 rounded-lg accent-orange-500 cursor-pointer"/>
+                                <input type="range" min="-10" max="45" step="1" value={state.refTemp} onChange={e => handleChange('refTemp', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg accent-orange-500 cursor-pointer"/>
                             </div>
                         </div>
 
-                        {/* ESCENARIO DESTINO */}
-                        <div className="space-y-6">
-                            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest border-b border-slate-700 pb-2">2. Escenario de Uso</h3>
+                        {/* CONDICIONES DESTINO */}
+                        <div className="space-y-4">
+                            <h3 className="text-xs font-bold text-slate-400 uppercase">Situación Destino</h3>
                             <div>
-                                <div className="flex justify-between mb-2">
-                                    <label className="text-sm font-bold text-slate-300">Temperatura Exterior Destino</label>
-                                    <span className="text-cyan-300 font-mono font-bold text-lg">{state.targetTemp} ºC</span>
+                                <div className="flex justify-between mb-1">
+                                    <label className="text-sm font-bold text-slate-300">Temp. Exterior</label>
+                                    <span className="text-cyan-300 font-bold">{state.targetTemp} ºC</span>
                                 </div>
-                                <input type="range" min="-20" max="50" step="1" value={state.targetTemp} onChange={e => handleChange('targetTemp', e.target.value)} className="w-full h-4 bg-slate-700 rounded-lg accent-cyan-500 cursor-pointer"/>
+                                <input type="range" min="-20" max="50" step="1" value={state.targetTemp} onChange={e => handleChange('targetTemp', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg accent-cyan-500 cursor-pointer"/>
                             </div>
                             
-                            <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 flex justify-between items-center cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => setState(p => ({...p, highwayMode: !p.highwayMode}))}>
-                                <div>
-                                    <div className="font-bold text-white text-sm">Modo Autopista / Rodaje</div>
-                                    <div className="text-xs text-slate-400 mt-1">Simula el calor generado por la fricción (+{HIGHWAY_TEMP_ADD}ºC internos)</div>
-                                </div>
-                                <div className={`w-12 h-6 rounded-full p-1 transition-colors ${state.highwayMode ? 'bg-green-500' : 'bg-slate-600'}`}>
-                                    <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-transform ${state.highwayMode ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                            <div className="flex items-center justify-between bg-slate-800/50 p-3 rounded-lg border border-slate-700 cursor-pointer" onClick={() => setState(p => ({...p, highwayMode: !p.highwayMode}))}>
+                                <span className="text-sm font-bold text-white">Rodando en Autopista</span>
+                                <div className={`w-10 h-5 rounded-full p-0.5 transition-colors ${state.highwayMode ? 'bg-green-500' : 'bg-slate-600'}`}>
+                                    <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${state.highwayMode ? 'translate-x-5' : 'translate-x-0'}`}></div>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* RESULTADOS VISUALES */}
+                {/* VISUALIZACIÓN Y RESULTADOS */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     
-                    {/* TARJETA DE PRESIÓN RESULTANTE */}
-                    <div className={`rounded-xl p-6 border relative overflow-hidden flex flex-col justify-center items-center text-center transition-colors duration-500 ${isLowPressure ? 'bg-red-900/20 border-red-500/50' : isHighPressure ? 'bg-orange-900/20 border-orange-500/50' : 'bg-green-900/20 border-green-500/50'}`}>
-                        <div className="absolute top-4 left-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Estado Neumático</div>
-                        
-                        {/* Gráfico de Barra Vertical */}
-                        <div className="flex items-end h-32 gap-4 mt-4 mb-4">
-                            <div className="w-4 h-full bg-slate-700 rounded-full relative overflow-hidden">
-                                <div className="absolute w-full border-t border-white/30 top-[20%] text-[8px] text-right pr-1 text-white/50">3.4</div>
-                                <div className="absolute w-full border-t border-white/30 bottom-[20%] text-[8px] text-right pr-1 text-white/50">2.7</div>
+                    {/* MANÓMETRO VISUAL */}
+                    <div className={`rounded-xl p-6 border relative overflow-hidden flex flex-col justify-center items-center text-center transition-colors duration-500 ${isLowPressure ? 'bg-red-900/20 border-red-500/50' : 'bg-slate-900/50 border-slate-700'}`}>
+                        <div className="flex items-end h-40 gap-6 mt-2 mb-4 relative">
+                            {/* Barra Recomendada (Fija) */}
+                            <div className="flex flex-col items-center gap-2 opacity-50">
+                                <div className="w-2 h-full bg-slate-700 rounded-full relative">
+                                    <div className="absolute bottom-0 w-full bg-white h-[60%]"></div> {/* Representa aprox 2.9 en escala */}
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase">Ideal</span>
+                            </div>
+
+                            {/* Barra Resultante (Dinámica) */}
+                            <div className="w-12 h-full bg-slate-800 rounded-t-xl relative overflow-hidden border border-slate-600">
+                                {/* Líneas de seguridad */}
+                                <div className="absolute w-full border-t border-red-500/50 bottom-[50%] z-20"></div> {/* Límite bajo */}
+                                
                                 <div 
                                     className={`absolute bottom-0 w-full transition-all duration-700 ${isLowPressure ? 'bg-red-500' : isHighPressure ? 'bg-orange-500' : 'bg-green-500'}`} 
-                                    style={{height: `${Math.min(100, Math.max(0, ((resultPressureBar - 2.0) / 2.0) * 100))}%`}}
-                                ></div>
+                                    style={{height: `${Math.min(100, Math.max(10, ((resultPressureBar) / 4.0) * 100))}%`}}
+                                >
+                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                                </div>
                             </div>
-                            <div>
-                                <div className={`text-6xl font-display font-bold ${isLowPressure ? 'text-red-400' : isHighPressure ? 'text-orange-400' : 'text-green-400'}`}>
+
+                            <div className="text-left self-center">
+                                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Presión Real</div>
+                                <div className={`text-5xl font-display font-bold ${isLowPressure ? 'text-red-400' : 'text-white'}`}>
                                     {resultPressureBar.toFixed(2)}
                                 </div>
-                                <div className="text-xl font-bold text-slate-400">bar</div>
+                                <div className="text-sm font-bold text-slate-500">bar</div>
                             </div>
                         </div>
 
-                        <div className="text-sm font-bold text-slate-200">
-                            {diffBar > 0 ? '+' : ''}{diffBar.toFixed(2)} bar vs. inicial
-                        </div>
-                        <div className="text-xs font-bold mt-2 px-3 py-1 rounded bg-black/20 text-slate-400">
-                            Temp. Gas Interna: {effectiveTargetTemp} ºC
-                        </div>
-
-                        {/* Mensaje de Alerta */}
-                        {isLowPressure && (
-                            <div className="mt-4 flex items-center gap-2 text-red-400 font-bold bg-red-900/30 px-4 py-2 rounded-lg border border-red-500/30 animate-pulse">
-                                <Icons.AlertTriangle className="w-5 h-5"/> ¡Alerta TPMS Probable! Infla más.
+                        {isLowPressure ? (
+                            <div className="w-full bg-red-500/20 border border-red-500 text-red-200 px-4 py-2 rounded font-bold text-sm animate-pulse">
+                                ⚠️ ALERTA: Presión Crítica (-{(minSafeLimit - resultPressureBar).toFixed(2)} bar)
                             </div>
-                        )}
-                        {!isLowPressure && !isHighPressure && (
-                            <div className="mt-4 flex items-center gap-2 text-green-400 font-bold bg-green-900/30 px-4 py-2 rounded-lg border border-green-500/30">
-                                <Icons.CheckCircle className="w-5 h-5"/> Presión Operativa Correcta
+                        ) : (
+                            <div className="w-full bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-2 rounded font-bold text-sm">
+                                ✅ Presión Operativa Correcta
                             </div>
                         )}
                     </div>
 
-                    {/* TARJETA DE EFICIENCIA / CONSUMO */}
+                    {/* ANÁLISIS DE EFICIENCIA */}
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 flex flex-col justify-center">
                         <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                            <Icons.TrendingUp className="w-4 h-4"/> Impacto en Consumo
+                            <Icons.TrendingUp className="w-4 h-4"/> Análisis de Consumo
                         </h4>
 
-                        <div className="space-y-6">
-                            <div className="flex justify-between items-center border-b border-slate-700/50 pb-4">
-                                <span className="text-slate-300 font-bold">Pérdida Eficiencia</span>
-                                <span className={`text-xl font-mono font-bold ${efficiencyLossPct > 1 ? 'text-red-400' : 'text-green-400'}`}>
-                                    {efficiencyLossPct.toFixed(1)}%
-                                </span>
-                            </div>
-
-                            <div className="flex justify-between items-center border-b border-slate-700/50 pb-4">
-                                <span className="text-slate-300 font-bold">Consumo Extra</span>
-                                <div className="text-right">
-                                    <div className="text-xl font-mono font-bold text-white">+{extraConsumption.toFixed(2)} kWh</div>
-                                    <div className="text-xs text-slate-500">por cada 100km</div>
-                                </div>
-                            </div>
-
-                            <div className="bg-blue-900/20 rounded-lg p-4 border border-blue-500/20">
-                                <p className="text-xs text-blue-200 font-bold leading-relaxed">
-                                    <span className="text-blue-400">💡 La Física:</span> Por cada 10ºC que baja la temperatura, la presión cae aprox. 0.1 bar. 
-                                    {state.highwayMode ? " Al rodar en autopista, el calor recupera parte de esa presión." : " En parado, el frío puede hacer saltar la alerta de presión baja."}
+                        {extraConsumption > 0 ? (
+                            <div className="text-center space-y-4">
+                                <div className="text-red-400 font-bold text-lg">Estás perdiendo eficiencia</div>
+                                <div className="text-4xl font-mono font-bold text-white">+{extraConsumption.toFixed(2)} <span className="text-lg text-slate-500">kWh/100</span></div>
+                                <p className="text-xs text-slate-400 px-4">
+                                    Tus neumáticos están más blandos de lo recomendado ({state.recPressure} bar), lo que aumenta el rozamiento y el consumo.
                                 </p>
                             </div>
+                        ) : (
+                            <div className="text-center space-y-4">
+                                <div className="text-green-400 font-bold text-lg">Eficiencia Optimizada</div>
+                                <div className="text-4xl font-mono font-bold text-white">{extraConsumption.toFixed(2)} <span className="text-lg text-slate-500">kWh/100</span></div>
+                                <p className="text-xs text-slate-400 px-4">
+                                    Al llevar la presión igual o superior a la recomendada, minimizas el rozamiento (aunque puedes notar la suspensión más dura).
+                                </p>
+                            </div>
+                        )}
+                        
+                        <div className="mt-6 border-t border-slate-800 pt-4 flex justify-between text-xs font-bold text-slate-500">
+                            <span>Dif. Presión: {(pressureDiffPct*100).toFixed(1)}%</span>
+                            <span>Temp. Gas: {effectiveTargetTemp} ºC</span>
                         </div>
                     </div>
 
                 </div>
             </div>
         );
-      };  
+      };
+     
         
         
       // --- APP PRINCIPAL ---
