@@ -3553,199 +3553,250 @@
         );
       };
 
-        
-      // --- LABORATORIO DE NEUMÁTICOS V2 (REFERENCIA RELATIVA) ---
+      
+      // --- LABORATORIO DE NEUMÁTICOS V4 (DISEÑO PREMIUM + MANÓMETRO) ---
       const TirePressureLab = () => {
-        const [state, setState] = usePersistentState('tireLabV2', {
+        const [state, setState] = usePersistentState('tireLabV4', {
             recPressure: 2.9, // La ideal (etiqueta puerta)
             startPressure: 2.9, // La real que has puesto
             refTemp: 20,      // ºC al inflar
             targetTemp: 5,    // ºC destino
-            highwayMode: false,
-            consumption: 15
+            highwayMode: false
         });
 
-        // Constantes Físicas
+        // Constantes
         const BAR_TO_PSI = 14.5038;
         const HIGHWAY_TEMP_ADD = 25; 
+        const REF_CONSUMPTION = 14.5; 
 
-        // 1. FÍSICA DE GASES (Gay-Lussac)
+        // 1. CÁLCULOS FÍSICOS
         const t1Kelvin = state.refTemp + 273.15;
         const effectiveTargetTemp = state.targetTemp + (state.highwayMode ? HIGHWAY_TEMP_ADD : 0);
         const t2Kelvin = effectiveTargetTemp + 273.15;
-
-        // Presión Resultante (Lo que marcará el sensor en destino)
         const resultPressureBar = state.startPressure * (t2Kelvin / t1Kelvin);
         
-        // 2. LÓGICA DE SEGURIDAD (Relativa a la Recomendada)
-        // El TPMS suele saltar si baja un 8-10% de la presión de referencia configurada
-        const minSafeLimit = state.recPressure * 0.90; 
-        const maxSafeLimit = state.recPressure * 1.25; // 25% extra suele ser el límite seguro antes de deformación
+        // 2. LÓGICA DE ZONAS (Para colores)
+        // Definimos los umbrales relativos a la recomendada
+        const p = state.recPressure;
+        const val = resultPressureBar;
         
-        const isLowPressure = resultPressureBar < minSafeLimit;
-        const isHighPressure = resultPressureBar > maxSafeLimit;
-        const isOptimal = !isLowPressure && !isHighPressure;
+        let zoneColor = "text-green-400";
+        let barColor = "bg-green-500";
+        let wearText = "DESGASTE UNIFORME (ÓPTIMO)";
+        let wearDesc = "La pisada es perfecta. Máxima vida útil.";
+        let WearIcon = Icons.CheckCircle;
 
-        // 3. CÁLCULO DE EFICIENCIA (Basado en Rolling Resistance)
-        // Si presión real < recomendada -> Aumenta rozamiento -> Pierdes rango
-        // Si presión real > recomendada -> Disminuye rozamiento (ganas rango, pierdes agarre/confort)
+        // Umbrales: <85% Rojo, 85-95% Azul, 95-105% Verde, 105-115% Azul, >115% Rojo
+        if (val < p * 0.85) {
+            zoneColor = "text-red-500"; barColor = "bg-red-600";
+            wearText = "DESGASTE CRÍTICO EN HOMBROS";
+            wearDesc = "Peligro de reventón y desgaste muy acelerado en los bordes.";
+            WearIcon = Icons.AlertTriangle;
+        } else if (val < p * 0.96) {
+            zoneColor = "text-blue-400"; barColor = "bg-blue-500";
+            wearText = "DESGASTE ACELERADO EN BORDES";
+            wearDesc = "Presión insuficiente. Aumenta el consumo y desgasta los laterales.";
+            WearIcon = Icons.TrendingUp;
+        } else if (val > p * 1.05 && val < p * 1.15) {
+            zoneColor = "text-blue-400"; barColor = "bg-blue-500";
+            wearText = "DESGASTE CENTRAL LEVE";
+            wearDesc = "Un poco alta. Menos confort, menos agarre, pero buen consumo.";
+            WearIcon = Icons.Activity;
+        } else if (val >= p * 1.15) {
+            zoneColor = "text-red-500"; barColor = "bg-red-600";
+            wearText = "DESGASTE CRÍTICO CENTRAL";
+            wearDesc = "Exceso de presión. Pérdida grave de adherencia y suspensión rebotona.";
+            WearIcon = Icons.AlertTriangle;
+        }
+
+        // 3. CÁLCULO DE EFICIENCIA
         const pressureDiffPct = (resultPressureBar - state.recPressure) / state.recPressure;
-        
-        // Factor empírico: ~0.3% de impacto en consumo por cada 1% de cambio en presión
         let efficiencyImpactPct = pressureDiffPct * 100 * -0.3; 
-        
-        // Si la presión es baja (diff negativo), el impacto es positivo (aumenta consumo)
-        // Si la presión es alta (diff positivo), el impacto es negativo (ahorras consumo)
-        
-        const extraConsumption = state.consumption * (efficiencyImpactPct / 100);
+        const extraConsumptionKwh = REF_CONSUMPTION * (efficiencyImpactPct / 100);
+        const finalConsumption = REF_CONSUMPTION + extraConsumptionKwh;
+        const realKm = (REF_CONSUMPTION / finalConsumption) * 100;
+        const kmDiff = realKm - 100;
 
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v)}));
 
+        // Generador de Ticks para el Manómetro (Rango 1.8 a 3.6 bar)
+        const minScale = 1.8;
+        const maxScale = 3.6;
+        const ticks = [];
+        for (let i = minScale; i <= maxScale + 0.01; i += 0.1) {
+            ticks.push(i.toFixed(1));
+        }
+
+        // Helpers de posición % para CSS
+        const getPct = (v) => ((v - minScale) / (maxScale - minScale)) * 100;
+
         return (
-            <div className="space-y-8 animate-fade-in">
+            <div className="space-y-6 animate-fade-in">
                 
-                {/* 1. CONFIGURACIÓN BASE (EL COCHE) */}
-                <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
-                    <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
-                        <Icons.Wrench className="w-6 h-6 text-yellow-500" /> Configuración del Vehículo
+                {/* 1. CONFIGURACIÓN COMPACTA */}
+                <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-lg">
+                    <h2 className="text-lg font-display font-bold text-white mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+                        <Icons.Settings className="w-5 h-5 text-slate-400" /> Parámetros de Inflado
                     </h2>
                     
-                    <div className="mb-6 bg-blue-900/10 p-4 rounded-xl border border-blue-500/20">
-                        <div className="flex justify-between mb-2">
-                            <label className="text-sm font-bold text-blue-300 uppercase tracking-wider">Presión Recomendada (Etiqueta Puerta)</label>
-                            <span className="text-white font-mono font-bold text-xl">{state.recPressure} bar</span>
-                        </div>
-                        <input type="range" min="2.0" max="3.5" step="0.1" value={state.recPressure} onChange={e => handleChange('recPressure', e.target.value)} className="w-full h-4 bg-slate-700 rounded-lg accent-blue-500 cursor-pointer"/>
-                        <div className="flex justify-between text-xs font-bold text-slate-500 mt-1">
-                            <span>2.0 bar</span>
-                            <span>Valor de Referencia (100%)</span>
-                            <span>3.5 bar</span>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4 border-t border-slate-800">
-                        {/* CONDICIONES DE INFLADO */}
-                        <div className="space-y-4">
-                            <h3 className="text-xs font-bold text-slate-400 uppercase">Situación Inicial (Garaje)</h3>
-                            <div>
-                                <div className="flex justify-between mb-1">
-                                    <label className="text-sm font-bold text-slate-300">Presión que has puesto</label>
-                                    <span className="text-white font-bold">{state.startPressure} bar</span>
-                                </div>
-                                <input type="range" min="2.0" max="3.5" step="0.1" value={state.startPressure} onChange={e => handleChange('startPressure', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg accent-slate-400 cursor-pointer"/>
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        {/* OBJETO (Recomendada) */}
+                        <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                            <label className="text-xs font-bold text-yellow-500 uppercase block mb-1">Objetivo (Fabricante)</label>
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-2xl font-mono font-bold text-white">{state.recPressure} <span className="text-sm text-slate-500">bar</span></span>
                             </div>
-                            <div>
-                                <div className="flex justify-between mb-1">
-                                    <label className="text-sm font-bold text-slate-300">Temp. Ambiente</label>
-                                    <span className="text-orange-300 font-bold">{state.refTemp} ºC</span>
+                            <input type="range" min="2.2" max="3.4" step="0.1" value={state.recPressure} onChange={e => handleChange('recPressure', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg accent-yellow-500 cursor-pointer"/>
+                        </div>
+
+                        {/* SITUACIÓN ACTUAL */}
+                        <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                            <label className="text-xs font-bold text-blue-400 uppercase block mb-1">Inflado Inicial (Garaje)</label>
+                            <div className="flex gap-4">
+                                <div className="flex-1">
+                                    <span className="text-xs text-slate-400 block">Presión</span>
+                                    <input type="number" step="0.1" value={state.startPressure} onChange={e => handleChange('startPressure', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-white font-bold text-center"/>
                                 </div>
-                                <input type="range" min="-10" max="45" step="1" value={state.refTemp} onChange={e => handleChange('refTemp', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg accent-orange-500 cursor-pointer"/>
+                                <div className="flex-1">
+                                    <span className="text-xs text-slate-400 block">Temp. ºC</span>
+                                    <input type="number" step="1" value={state.refTemp} onChange={e => handleChange('refTemp', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-orange-300 font-bold text-center"/>
+                                </div>
                             </div>
                         </div>
 
-                        {/* CONDICIONES DESTINO */}
-                        <div className="space-y-4">
-                            <h3 className="text-xs font-bold text-slate-400 uppercase">Situación Destino</h3>
-                            <div>
-                                <div className="flex justify-between mb-1">
-                                    <label className="text-sm font-bold text-slate-300">Temp. Exterior</label>
-                                    <span className="text-cyan-300 font-bold">{state.targetTemp} ºC</span>
+                        {/* SITUACIÓN DESTINO */}
+                        <div className="bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
+                            <label className="text-xs font-bold text-cyan-400 uppercase block mb-1">Condiciones Destino</label>
+                            <div className="flex gap-4 items-center h-full">
+                                <div className="flex-1">
+                                    <span className="text-xs text-slate-400 block">Temp. ºC</span>
+                                    <input type="number" step="1" value={state.targetTemp} onChange={e => handleChange('targetTemp', e.target.value)} className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-cyan-300 font-bold text-center"/>
                                 </div>
-                                <input type="range" min="-20" max="50" step="1" value={state.targetTemp} onChange={e => handleChange('targetTemp', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg accent-cyan-500 cursor-pointer"/>
-                            </div>
-                            
-                            <div className="flex items-center justify-between bg-slate-800/50 p-3 rounded-lg border border-slate-700 cursor-pointer" onClick={() => setState(p => ({...p, highwayMode: !p.highwayMode}))}>
-                                <span className="text-sm font-bold text-white">Rodando en Autopista</span>
-                                <div className={`w-10 h-5 rounded-full p-0.5 transition-colors ${state.highwayMode ? 'bg-green-500' : 'bg-slate-600'}`}>
-                                    <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${state.highwayMode ? 'translate-x-5' : 'translate-x-0'}`}></div>
+                                <div className="flex-1">
+                                    <button onClick={() => setState(p => ({...p, highwayMode: !p.highwayMode}))} className={`w-full h-full rounded flex flex-col items-center justify-center border transition-all ${state.highwayMode ? 'bg-green-900/30 border-green-500 text-green-400' : 'bg-slate-900 border-slate-700 text-slate-500'}`}>
+                                        <Icons.TrendingUp className="w-4 h-4 mb-1"/>
+                                        <span className="text-[10px] font-bold uppercase">Autopista</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* VISUALIZACIÓN Y RESULTADOS */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* 2. ZONA VISUAL (RESULTADOS) */}
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                     
-                    {/* MANÓMETRO VISUAL */}
-                    <div className={`rounded-xl p-6 border relative overflow-hidden flex flex-col justify-center items-center text-center transition-colors duration-500 ${isLowPressure ? 'bg-red-900/20 border-red-500/50' : 'bg-slate-900/50 border-slate-700'}`}>
-                        <div className="flex items-end h-40 gap-6 mt-2 mb-4 relative">
-                            {/* Barra Recomendada (Fija) */}
-                            <div className="flex flex-col items-center gap-2 opacity-50">
-                                <div className="w-2 h-full bg-slate-700 rounded-full relative">
-                                    <div className="absolute bottom-0 w-full bg-white h-[60%]"></div> {/* Representa aprox 2.9 en escala */}
-                                </div>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase">Ideal</span>
+                    {/* COLUMNA IZQUIERDA: MANÓMETRO GRÁFICO (MIMO AL DISEÑO) */}
+                    <div className="md:col-span-5 lg:col-span-4 bg-slate-900/80 border border-slate-800 rounded-xl p-6 flex justify-center relative overflow-hidden">
+                        <div className="h-[450px] w-full max-w-[200px] relative flex">
+                            
+                            {/* ESCALA IZQUIERDA (Ticks) */}
+                            <div className="w-12 h-full relative border-r border-slate-700 mr-2">
+                                {ticks.map(tick => (
+                                    <div key={tick} className="absolute right-0 w-full flex items-center justify-end" style={{bottom: `${getPct(tick)}%`}}>
+                                        <span className={`text-[10px] font-mono font-bold mr-1 ${Math.abs(tick - state.recPressure) < 0.05 ? 'text-yellow-500' : 'text-slate-600'}`}>{tick}</span>
+                                        <div className={`h-px ${parseFloat(tick) % 0.5 === 0 ? 'w-3 bg-slate-500' : 'w-1.5 bg-slate-700'}`}></div>
+                                    </div>
+                                ))}
                             </div>
 
-                            {/* Barra Resultante (Dinámica) */}
-                            <div className="w-12 h-full bg-slate-800 rounded-t-xl relative overflow-hidden border border-slate-600">
-                                {/* Líneas de seguridad */}
-                                <div className="absolute w-full border-t border-red-500/50 bottom-[50%] z-20"></div> {/* Límite bajo */}
-                                
+                            {/* BARRA DE FLUIDO */}
+                            <div className="flex-1 h-full bg-slate-800 rounded-t-lg relative overflow-hidden border-x border-t border-slate-700 shadow-inner">
+                                {/* ZONAS DE FONDO (GRADIENTE) */}
+                                {/* Roja Abajo */}
+                                <div className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" 
+                                     style={{
+                                         background: `linear-gradient(to top, 
+                                            #ef4444 0%, 
+                                            #ef4444 ${getPct(state.recPressure * 0.85)}%, 
+                                            #3b82f6 ${getPct(state.recPressure * 0.9)}%, 
+                                            #22c55e ${getPct(state.recPressure)}%,
+                                            #3b82f6 ${getPct(state.recPressure * 1.1)}%,
+                                            #ef4444 ${getPct(state.recPressure * 1.2)}%
+                                         )`
+                                     }}>
+                                </div>
+
+                                {/* LÍNEA OBJETIVO (FABRICANTE) */}
+                                <div className="absolute w-full border-t-2 border-dashed border-yellow-500 z-20" style={{bottom: `${getPct(state.recPressure)}%`}}>
+                                    <div className="absolute right-1 -top-3 text-[9px] font-bold text-yellow-500 bg-black/50 px-1 rounded">REC</div>
+                                </div>
+
+                                {/* FLUIDO REAL */}
                                 <div 
-                                    className={`absolute bottom-0 w-full transition-all duration-700 ${isLowPressure ? 'bg-red-500' : isHighPressure ? 'bg-orange-500' : 'bg-green-500'}`} 
-                                    style={{height: `${Math.min(100, Math.max(10, ((resultPressureBar) / 4.0) * 100))}%`}}
+                                    className={`absolute bottom-0 w-full transition-all duration-1000 ease-out ${barColor} shadow-[0_0_20px_rgba(0,0,0,0.5)]`}
+                                    style={{height: `${Math.min(100, Math.max(0, getPct(resultPressureBar)))}%`}}
                                 >
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                                    <div className="absolute top-0 w-full h-px bg-white/50"></div>
+                                    <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-b from-white/20 to-transparent"></div>
                                 </div>
                             </div>
 
-                            <div className="text-left self-center">
-                                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Presión Real</div>
-                                <div className={`text-5xl font-display font-bold ${isLowPressure ? 'text-red-400' : 'text-white'}`}>
-                                    {resultPressureBar.toFixed(2)}
+                            {/* VALOR NUMÉRICO FLOTANTE */}
+                            <div className="absolute left-16 z-30 transition-all duration-1000" style={{bottom: `${getPct(resultPressureBar)}%`, transform: 'translateY(50%)'}}>
+                                <div className={`bg-slate-900 border ${zoneColor.replace('text', 'border')} px-3 py-1 rounded-lg shadow-xl flex items-center gap-2`}>
+                                    <span className={`text-2xl font-bold font-mono ${zoneColor}`}>{resultPressureBar.toFixed(2)}</span>
+                                    <span className="text-[10px] text-slate-400 uppercase font-bold">bar</span>
                                 </div>
-                                <div className="text-sm font-bold text-slate-500">bar</div>
                             </div>
+
                         </div>
-
-                        {isLowPressure ? (
-                            <div className="w-full bg-red-500/20 border border-red-500 text-red-200 px-4 py-2 rounded font-bold text-sm animate-pulse">
-                                ⚠️ ALERTA: Presión Crítica (-{(minSafeLimit - resultPressureBar).toFixed(2)} bar)
-                            </div>
-                        ) : (
-                            <div className="w-full bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-2 rounded font-bold text-sm">
-                                ✅ Presión Operativa Correcta
-                            </div>
-                        )}
                     </div>
 
-                    {/* ANÁLISIS DE EFICIENCIA */}
-                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 flex flex-col justify-center">
-                        <h4 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                            <Icons.TrendingUp className="w-4 h-4"/> Análisis de Consumo
-                        </h4>
-
-                        {extraConsumption > 0 ? (
-                            <div className="text-center space-y-4">
-                                <div className="text-red-400 font-bold text-lg">Estás perdiendo eficiencia</div>
-                                <div className="text-4xl font-mono font-bold text-white">+{extraConsumption.toFixed(2)} <span className="text-lg text-slate-500">kWh/100</span></div>
-                                <p className="text-xs text-slate-400 px-4">
-                                    Tus neumáticos están más blandos de lo recomendado ({state.recPressure} bar), lo que aumenta el rozamiento y el consumo.
-                                </p>
-                            </div>
-                        ) : (
-                            <div className="text-center space-y-4">
-                                <div className="text-green-400 font-bold text-lg">Eficiencia Optimizada</div>
-                                <div className="text-4xl font-mono font-bold text-white">{extraConsumption.toFixed(2)} <span className="text-lg text-slate-500">kWh/100</span></div>
-                                <p className="text-xs text-slate-400 px-4">
-                                    Al llevar la presión igual o superior a la recomendada, minimizas el rozamiento (aunque puedes notar la suspensión más dura).
-                                </p>
-                            </div>
-                        )}
+                    {/* COLUMNA DERECHA: DATOS E IMPACTO */}
+                    <div className="md:col-span-7 lg:col-span-8 flex flex-col gap-6">
                         
-                        <div className="mt-6 border-t border-slate-800 pt-4 flex justify-between text-xs font-bold text-slate-500">
-                            <span>Dif. Presión: {(pressureDiffPct*100).toFixed(1)}%</span>
-                            <span>Temp. Gas: {effectiveTargetTemp} ºC</span>
+                        {/* 1. TARJETA DE DESGASTE (MÁXIMA VISIBILIDAD) */}
+                        <div className={`p-6 rounded-xl border-2 shadow-lg flex flex-col justify-center items-center text-center h-full transition-colors ${zoneColor.includes('red') ? 'bg-red-900/20 border-red-500/50' : zoneColor.includes('blue') ? 'bg-blue-900/20 border-blue-500/50' : 'bg-green-900/20 border-green-500/50'}`}>
+                            <WearIcon className={`w-16 h-16 mb-4 ${zoneColor} opacity-80`} />
+                            <h3 className={`text-3xl md:text-4xl font-black uppercase leading-tight mb-2 ${zoneColor} drop-shadow-md`}>
+                                {wearText}
+                            </h3>
+                            <p className="text-slate-300 text-lg font-medium max-w-md">
+                                {wearDesc}
+                            </p>
+                            <div className="mt-6 flex gap-4 text-sm font-bold bg-black/20 px-4 py-2 rounded-lg">
+                                <span className="text-slate-400">PSI Real: <span className="text-white">{(resultPressureBar * BAR_TO_PSI).toFixed(0)}</span></span>
+                                <span className="text-slate-500">|</span>
+                                <span className="text-slate-400">Gas Interno: <span className="text-white">{effectiveTargetTemp.toFixed(0)}ºC</span></span>
+                            </div>
                         </div>
-                    </div>
 
+                        {/* 2. TARJETA DE CONSUMO */}
+                        <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-5">
+                            <div className="flex justify-between items-center mb-4">
+                                <h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2">
+                                    <Icons.Zap className="w-4 h-4 text-yellow-400"/> Impacto en Consumo (Ref: {REF_CONSUMPTION} kWh)
+                                </h4>
+                            </div>
+                            
+                            <div className="flex items-center justify-around">
+                                <div className="text-center">
+                                    <div className="text-xs text-slate-500 font-bold uppercase mb-1">Autonomía</div>
+                                    <div className={`text-3xl font-mono font-bold ${kmDiff < 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                        {kmDiff > 0 ? '+' : ''}{kmDiff.toFixed(1)} <span className="text-base text-slate-500">km</span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 mt-1">por cada 100km</div>
+                                </div>
+                                
+                                <div className="w-px h-12 bg-slate-700"></div>
+
+                                <div className="text-center">
+                                    <div className="text-xs text-slate-500 font-bold uppercase mb-1">Energía</div>
+                                    <div className={`text-3xl font-mono font-bold ${extraConsumptionKwh > 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                        {extraConsumptionKwh > 0 ? '+' : ''}{extraConsumptionKwh.toFixed(2)} <span className="text-base text-slate-500">kWh</span>
+                                    </div>
+                                    <div className="text-[10px] text-slate-500 mt-1">diferencial a los 100</div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
                 </div>
             </div>
         );
       };
-     
+
         
         
       // --- APP PRINCIPAL ---
