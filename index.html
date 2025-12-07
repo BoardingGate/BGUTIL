@@ -3555,7 +3555,9 @@
 
 
         
-      // --- LABORATORIO DE NEUMÁTICOS V10 (PRECISIÓN TOTAL: BOTONES +/- Y TEXTOS RECUPERADOS) ---
+
+
+// --- LABORATORIO DE NEUMÁTICOS V10 (CON COMPRESOR XIAOMI) ---
       const TirePressureLab = () => {
         const [state, setState] = usePersistentState('tireLabV10', {
             recPressure: 2.9, // Objetivo (bar)
@@ -3574,7 +3576,7 @@
         // Helper para mostrar PSI
         const toPsi = (bar) => (bar * BAR_TO_PSI).toFixed(0);
 
-        // Helper para botones de ajuste fino (evita errores de coma flotante js)
+        // Helper para botones de ajuste fino
         const adjust = (key, delta, min, max) => {
             setState(prev => {
                 const newVal = parseFloat((prev[key] + delta).toFixed(1));
@@ -3860,12 +3862,31 @@
 
                     </div>
                 </div>
+
+                {/* FOOTER AMAZON - XIAOMI COMPRESSOR */}
+                <div className="mt-2 p-6 bg-slate-800 border border-slate-700 rounded-xl flex flex-col items-center gap-4 text-center">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Icons.Zap className="w-5 h-5 text-orange-500" />
+                        <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Accesorio Recomendado</span>
+                    </div>
+                    <p className="text-xs text-slate-400 max-w-2xl">
+                        Para mantener la presión exacta en cualquier lugar sin depender de gasolineras (y ajustarla en frío), el compresor portátil de Xiaomi es el estándar de oro para propietarios de Tesla.
+                    </p>
+                    <a 
+                        href="https://www.amazon.es/s?k=xiaomi+portable+electric+air+compressor+2" // Poner aquí tu enlace de referido si lo tienes
+                        target="_blank" 
+                        className="bg-orange-600 hover:bg-orange-500 text-white text-lg font-bold px-8 py-3 rounded-xl transition-all shadow-lg hover:shadow-orange-500/20 transform hover:-translate-y-1 flex items-center gap-2"
+                    >
+                        COMPRAR XIAOMI AIR COMPRESSOR 2 PRO
+                    </a>
+                </div>
             </div>
         );
       };
 
+  
 
-      // --- GUÍA DE ROTACIÓN DE NEUMÁTICOS ---
+// --- GUÍA DE ROTACIÓN DE NEUMÁTICOS (MODIFICADO CON BOTONES Y AMAZON) ---
       const TireRotationGuide = () => {
         const [state, setState] = usePersistentState('tireRotState', {
             currentKm: 0,
@@ -3887,7 +3908,6 @@
         const kmSinceLast = state.currentKm - state.lastRotKm;
         const wearDiff = Math.abs(state.treadFront - state.treadRear);
         const needsRotationByKm = kmSinceLast >= ROTATION_INTERVAL;
-        const needsRotationByWear = wearDiff >= MAX_DIFF_MM;
         
         // Determinar patrón visual
         let patternName = "Cruzado Trasero (Rearward Cross)";
@@ -3933,8 +3953,16 @@
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
         const handleNum = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v) || 0}));
 
+        // Helper para botones +/- en profundidad
+        const adjustTread = (key, delta) => {
+            setState(prev => {
+                const current = parseFloat(prev[key]) || 0;
+                const newVal = Math.max(0, Math.min(15, (current + delta).toFixed(1))); // Limite 0-15mm
+                return { ...prev, [key]: parseFloat(newVal) };
+            });
+        };
+
         // Coordenadas visuales neumáticos (Top-Left 0,0 relativo al container coche)
-        // Coche aprox 200px ancho x 300px alto
         const tirePos = [
             { x: 30, y: 40, label: "DEL. IZQ" },  // 0
             { x: 130, y: 40, label: "DEL. DER" }, // 1
@@ -3942,18 +3970,14 @@
             { x: 130, y: 200, label: "TRAS. DER" }// 3
         ];
 
-        // Helper SVG path
         const getArrowPath = (startIdx, endIdx) => {
             const s = tirePos[startIdx];
             const e = tirePos[endIdx];
-            // Ajuste centro neumático (40px ancho, 60px alto) -> centro +20, +30
             const sx = s.x + 20; const sy = s.y + 30;
             const ex = e.x + 20; const ey = e.y + 30;
-            
-            // Curvas simples
-            if (Math.abs(sx - ex) < 10) return `M ${sx} ${sy} L ${ex} ${ey}`; // Vertical recta
-            if (Math.abs(sy - ey) < 10) return `M ${sx} ${sy} L ${ex} ${ey}`; // Horizontal recta
-            return `M ${sx} ${sy} Q 100 120 ${ex} ${ey}`; // Curva al centro
+            if (Math.abs(sx - ex) < 10) return `M ${sx} ${sy} L ${ex} ${ey}`; 
+            if (Math.abs(sy - ey) < 10) return `M ${sx} ${sy} L ${ex} ${ey}`; 
+            return `M ${sx} ${sy} Q 100 120 ${ex} ${ey}`; 
         };
 
         return (
@@ -4088,7 +4112,7 @@
                         </div>
                     </div>
 
-                    {/* ANALIZADOR DE DESGASTE */}
+                    {/* ANALIZADOR DE DESGASTE CON BOTONES */}
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-display font-bold text-white flex items-center gap-2">
@@ -4097,27 +4121,38 @@
                             <span className="text-xs text-slate-500 font-bold uppercase">Medir surco central</span>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-6 mb-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                            {/* DELANTERO */}
                             <div>
-                                <label className="text-xs font-bold text-slate-400 block mb-1 text-center">Eje Delantero (mm)</label>
-                                <div className="relative">
-                                    <input 
-                                        type="number" step="0.1" 
-                                        value={state.treadFront} onChange={e => handleNum('treadFront', e.target.value)}
-                                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-center font-bold text-xl text-white focus:border-blue-500 outline-none"
-                                    />
-                                    <div className={`absolute bottom-0 left-0 h-1 transition-all duration-500 ${state.treadFront < MIN_SAFE ? 'bg-red-500' : 'bg-green-500'}`} style={{width: `${(state.treadFront/8)*100}%`}}></div>
+                                <label className="text-xs font-bold text-slate-400 block mb-2 text-center">Eje Delantero (mm)</label>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => adjustTread('treadFront', -0.1)} className="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-bold text-xl active:scale-95 transition-transform">-</button>
+                                    <div className="relative flex-1">
+                                        <input 
+                                            type="number" step="0.1" 
+                                            value={state.treadFront} onChange={e => handleNum('treadFront', e.target.value)}
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-center font-bold text-xl text-white focus:border-blue-500 outline-none h-10"
+                                        />
+                                        <div className={`absolute bottom-0 left-0 h-1 transition-all duration-500 ${state.treadFront < MIN_SAFE ? 'bg-red-500' : 'bg-green-500'}`} style={{width: `${(state.treadFront/8)*100}%`}}></div>
+                                    </div>
+                                    <button onClick={() => adjustTread('treadFront', 0.1)} className="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-bold text-xl active:scale-95 transition-transform">+</button>
                                 </div>
                             </div>
+                            
+                            {/* TRASERO */}
                             <div>
-                                <label className="text-xs font-bold text-slate-400 block mb-1 text-center">Eje Trasero (mm)</label>
-                                <div className="relative">
-                                    <input 
-                                        type="number" step="0.1" 
-                                        value={state.treadRear} onChange={e => handleNum('treadRear', e.target.value)}
-                                        className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-center font-bold text-xl text-white focus:border-blue-500 outline-none"
-                                    />
-                                    <div className={`absolute bottom-0 left-0 h-1 transition-all duration-500 ${state.treadRear < MIN_SAFE ? 'bg-red-500' : 'bg-green-500'}`} style={{width: `${(state.treadRear/8)*100}%`}}></div>
+                                <label className="text-xs font-bold text-slate-400 block mb-2 text-center">Eje Trasero (mm)</label>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => adjustTread('treadRear', -0.1)} className="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-bold text-xl active:scale-95 transition-transform">-</button>
+                                    <div className="relative flex-1">
+                                        <input 
+                                            type="number" step="0.1" 
+                                            value={state.treadRear} onChange={e => handleNum('treadRear', e.target.value)}
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-center font-bold text-xl text-white focus:border-blue-500 outline-none h-10"
+                                        />
+                                        <div className={`absolute bottom-0 left-0 h-1 transition-all duration-500 ${state.treadRear < MIN_SAFE ? 'bg-red-500' : 'bg-green-500'}`} style={{width: `${(state.treadRear/8)*100}%`}}></div>
+                                    </div>
+                                    <button onClick={() => adjustTread('treadRear', 0.1)} className="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-bold text-xl active:scale-95 transition-transform">+</button>
                                 </div>
                             </div>
                         </div>
@@ -4155,18 +4190,36 @@
                                 <div className="p-3 bg-orange-900/20 border border-orange-500/50 rounded-lg text-center mt-2">
                                     <div className="text-orange-400 font-bold text-xs uppercase mb-1">¡Advertencia de Seguridad!</div>
                                     <div className="text-orange-200 text-xs">
-                                        Uno o más neumáticos están por debajo de {MIN_SAFE}mm. Considera cambiarlos pronto (Límite legal {MIN_LEGAL}mm). El agarre en lluvia se reduce drásticamente.
+                                        Uno o más neumáticos están por debajo de {MIN_SAFE}mm. Considera cambiarlos pronto (Límite legal {MIN_LEGAL}mm).
                                     </div>
                                 </div>
                             )}
                         </div>
                     </div>
+                </div>
 
+                {/* FOOTER AMAZON - MEDIDOR DIGITAL */}
+                <div className="lg:col-span-12 mt-2 p-6 bg-slate-800 border border-slate-700 rounded-xl flex flex-col items-center gap-4 text-center">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Icons.Search className="w-5 h-5 text-yellow-500" />
+                        <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Herramienta Recomendada</span>
+                    </div>
+                    <p className="text-xs text-slate-400 max-w-2xl">
+                        Para medir con precisión milimétrica, recomiendo usar un medidor digital económico en lugar de la moneda de euro o medidores analógicos imprecisos.
+                    </p>
+                    <a 
+                        href="https://amzn.to/3MlaKKi" 
+                        target="_blank" 
+                        className="bg-yellow-600 hover:bg-yellow-500 text-white text-lg font-bold px-8 py-3 rounded-xl transition-all shadow-lg hover:shadow-yellow-500/20 transform hover:-translate-y-1 flex items-center gap-2"
+                    >
+                        COMPRAR MEDIDOR DIGITAL EN AMAZON
+                    </a>
                 </div>
             </div>
         );
-      };  
-  
+      };
+
+
         
         
       // --- APP PRINCIPAL ---
