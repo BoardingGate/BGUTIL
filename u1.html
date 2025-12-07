@@ -4220,7 +4220,8 @@
       };
 
 
-      // --- CHECKLIST DE ENTREGA (ACTUALIZADO: SIN SCROLL, RESET VERDE Y CONSEJOS) ---
+
+      // --- CHECKLIST DE ENTREGA (ACTUALIZADO: CONSEJOS CON LINKS AMAZON) ---
       const DeliveryChecklist = () => {
         // Estructura de datos del checklist
         const categories = useMemo(() => [
@@ -4409,7 +4410,7 @@
                         );
                     })}
 
-                    {/* NUEVA SECCIÓN DE CONSEJOS E INFORMACIÓN CRÍTICA */}
+                    {/* NUEVA SECCIÓN DE CONSEJOS E INFORMACIÓN CRÍTICA (ACTUALIZADA CON LINKS AMAZON) */}
                     <div className="bg-slate-900/80 border border-slate-700 rounded-xl p-6 mt-8 shadow-xl">
                         <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2">
                             <Icons.Shield className="w-6 h-6 text-blue-400" />
@@ -4420,10 +4421,16 @@
                             {/* MATERIAL */}
                             <div>
                                 <h4 className="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2"><Icons.Wrench className="w-4 h-4"/> Material a llevar</h4>
-                                <ul className="text-sm text-slate-400 space-y-1 list-disc pl-5">
-                                    <li><strong>Linterna potente:</strong> Para inspeccionar bajos, pasos de rueda y zonas oscuras del interior.</li>
+                                <ul className="text-sm text-slate-400 space-y-2 list-disc pl-5">
+                                    <li>
+                                        <strong>Linterna potente:</strong> Para inspeccionar bajos, pasos de rueda y zonas oscuras.
+                                        <a href="https://amzn.to/4rJi3vm" target="_blank" className="text-blue-400 hover:text-blue-300 underline ml-2 font-bold">Ver en Amazon ↗</a>
+                                    </li>
                                     <li><strong>Guantes de látex:</strong> Para tocar gomas y plásticos sin dejar marcas de grasa.</li>
-                                    <li><strong>Rejilla detección (opcional):</strong> Un patrón impreso ayuda a ver abolladuras en la chapa.</li>
+                                    <li>
+                                        <strong>Reflector de abolladuras:</strong> Panel para detectar chinazos o golpes en la chapa.
+                                        <a href="https://amzn.to/4oyRQwJ" target="_blank" className="text-blue-400 hover:text-blue-300 underline ml-2 font-bold">Ver en Amazon ↗</a>
+                                    </li>
                                     <li><strong>Documentación:</strong> DNI, Carnet de Conducir y Póliza de Seguro vigente.</li>
                                 </ul>
                             </div>
@@ -4534,7 +4541,6 @@
             </div>
         );
       };
-  
 
         
       // --- APP PRINCIPAL ---
