@@ -3553,9 +3553,11 @@
         );
       };
 
-      // --- LABORATORIO DE NEUMÁTICOS V7 (COMPLETO: FÍSICA + DESGASTE + EFICIENCIA) ---
+      
+
+      // --- LABORATORIO DE NEUMÁTICOS V9 (FÍSICA EXACTA N2 vs AIRE + EXPLICACIÓN) ---
       const TirePressureLab = () => {
-        const [state, setState] = usePersistentState('tireLabV7', {
+        const [state, setState] = usePersistentState('tireLabV9', {
             recPressure: 2.9, // Objetivo (bar)
             startPressure: 2.9, // Inicial (bar)
             refTemp: 20,      // ºC inicial
@@ -3569,18 +3571,29 @@
         const HIGHWAY_TEMP_ADD = 25; 
         const REF_CONSUMPTION = 14.5; 
 
-        // 1. CÁLCULOS FÍSICOS
+        // 1. CÁLCULOS FÍSICOS RIGUROSOS
         const t1Kelvin = state.refTemp + 273.15;
         const effectiveTargetTemp = state.targetTemp + (state.highwayMode ? HIGHWAY_TEMP_ADD : 0);
         const t2Kelvin = effectiveTargetTemp + 273.15;
         
-        // Presión Base (Gay-Lussac)
+        // A) Variación Base (Ley de Gay-Lussac): P1/T1 = P2/T2
+        // Esto le ocurre a CUALQUIER gas, incluido el Nitrógeno.
         let resultPressureBar = state.startPressure * (t2Kelvin / t1Kelvin);
 
-        // Corrección por Humedad (Aire vs Nitrógeno)
+        // B) Corrección por Presión de Vapor (Solo Aire Húmedo)
+        // El aire comprimido normal tiene humedad. Al calentarse, el vapor de agua expande más que el gas seco.
+        // Estimación empírica: ~0.03 bar extra por cada 10ºC de aumento si hay humedad.
+        let humidityMsg = "Comportamiento lineal (Ley Gas Ideal)";
+        
         if (state.gasType === 'air' && effectiveTargetTemp > state.refTemp) {
-            const humidityExpansion = (effectiveTargetTemp - state.refTemp) * 0.002; 
+            const tempDiff = effectiveTargetTemp - state.refTemp;
+            const humidityExpansion = tempDiff * 0.0035; // Factor de expansión de vapor
             resultPressureBar += humidityExpansion;
+            humidityMsg = `Incluye expansión extra por humedad (+${humidityExpansion.toFixed(2)} bar)`;
+        } else if (state.gasType === 'air') {
+            humidityMsg = "Aire estándar (Contiene humedad)";
+        } else {
+            humidityMsg = "Gas seco inerte (Sin expansión por humedad)";
         }
         
         // 2. LÓGICA DE ESTADO (Desgaste y Colores)
@@ -3593,7 +3606,6 @@
         let wearDesc = "Pisada perfecta. Máximo agarre y vida útil.";
         let WearIcon = Icons.CheckCircle;
 
-        // Umbrales (<85% Rojo, <96% Azul, 96-105% Verde, >105% Azul, >115% Rojo)
         if (val < p * 0.85) {
             statusColor = "text-red-500"; barFillColor = "bg-red-600";
             wearText = "DESGASTE CRÍTICO EN HOMBROS";
@@ -3616,16 +3628,11 @@
             WearIcon = Icons.AlertTriangle;
         }
 
-        // 3. CÁLCULO DE EFICIENCIA (RECUPERADO)
-        // Diferencial respecto a la recomendada
+        // 3. CÁLCULO DE EFICIENCIA
         const pressureDiffPct = (resultPressureBar - state.recPressure) / state.recPressure;
-        // Factor: -0.3% consumo por cada +1% presión (aprox)
-        // Si pressureDiff es negativo (baja presión), efficiencyImpact es positivo (más consumo)
         let efficiencyImpactPct = pressureDiffPct * 100 * -0.3; 
         
         const extraConsumptionKwh = REF_CONSUMPTION * (efficiencyImpactPct / 100);
-        // Regla de tres inversa para km:
-        // Si consumo 14.5 -> hago 100km. Si consumo X -> hago Y km.
         const kmDiff = ((REF_CONSUMPTION / (REF_CONSUMPTION + extraConsumptionKwh)) * 100) - 100;
 
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v)}));
@@ -3636,6 +3643,19 @@
         const getPct = (v) => ((v - minScale) / (maxScale - minScale)) * 100;
         const ticks = [];
         for (let i = minScale; i <= maxScale + 0.01; i += 0.1) ticks.push(i.toFixed(1));
+
+        // Gradiente Fijo
+        const zoneGradient = `linear-gradient(to top, 
+            #ef4444 0%, 
+            #ef4444 ${getPct(p * 0.85)}%, 
+            #3b82f6 ${getPct(p * 0.85)}%, 
+            #3b82f6 ${getPct(p * 0.95)}%, 
+            #22c55e ${getPct(p * 0.95)}%, 
+            #22c55e ${getPct(p * 1.05)}%, 
+            #3b82f6 ${getPct(p * 1.05)}%, 
+            #3b82f6 ${getPct(p * 1.15)}%, 
+            #ef4444 ${getPct(p * 1.15)}%, 
+            #ef4444 100%)`;
 
         return (
             <div className="space-y-6 animate-fade-in">
@@ -3661,9 +3681,12 @@
                             <label className="text-xs font-bold text-blue-400 uppercase block border-b border-slate-700 pb-1">2. Inflado Inicial (Garaje)</label>
                             
                             {/* Selector Gas */}
-                            <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-600 mb-2">
-                                <button onClick={() => setState(p => ({...p, gasType: 'air'}))} className={`flex-1 py-1 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'air' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>☁️ Aire</button>
-                                <button onClick={() => setState(p => ({...p, gasType: 'nitro'}))} className={`flex-1 py-1 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'nitro' ? 'bg-green-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>💧 Nitrógeno</button>
+                            <div>
+                                <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-600 mb-1">
+                                    <button onClick={() => setState(p => ({...p, gasType: 'air'}))} className={`flex-1 py-1 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'air' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>☁️ Aire Común</button>
+                                    <button onClick={() => setState(p => ({...p, gasType: 'nitro'}))} className={`flex-1 py-1 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'nitro' ? 'bg-green-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>💧 Nitrógeno (N2)</button>
+                                </div>
+                                <div className="text-[9px] text-slate-500 text-center italic">{humidityMsg}</div>
                             </div>
 
                             <div>
@@ -3700,31 +3723,28 @@
                     {/* MANÓMETRO */}
                     <div className="md:col-span-5 lg:col-span-4 bg-slate-900/80 border border-slate-800 rounded-xl p-6 flex justify-center relative overflow-hidden">
                         <div className="h-[500px] w-full max-w-[200px] relative flex">
-                            {/* Escala */}
-                            <div className="w-12 h-full relative border-r border-slate-700 mr-2">
+                            {/* Escala con Fondo */}
+                            <div className="w-14 h-full relative border-r border-slate-500 mr-1 rounded-l-md overflow-hidden">
+                                <div className="absolute inset-0 opacity-40" style={{ background: zoneGradient }}></div>
                                 {ticks.map(tick => (
-                                    <div key={tick} className="absolute right-0 w-full flex items-center justify-end" style={{bottom: `${getPct(tick)}%`}}>
-                                        <span className={`text-[9px] font-mono font-bold mr-1 ${Math.abs(tick - state.recPressure) < 0.05 ? 'text-yellow-500' : 'text-slate-600'}`}>{tick}</span>
-                                        <div className={`h-px ${parseFloat(tick) % 0.5 === 0 ? 'w-2 bg-slate-500' : 'w-1 bg-slate-800'}`}></div>
+                                    <div key={tick} className="absolute right-0 w-full flex items-center justify-end pr-1 z-10" style={{bottom: `${getPct(tick)}%`}}>
+                                        <span className={`text-[10px] font-mono font-bold mr-1 drop-shadow-md ${Math.abs(tick - state.recPressure) < 0.05 ? 'text-white scale-125' : 'text-slate-200'}`}>{tick}</span>
+                                        <div className={`h-px bg-white/50 ${parseFloat(tick) % 0.5 === 0 ? 'w-3' : 'w-1.5'}`}></div>
                                     </div>
                                 ))}
                             </div>
-                            {/* Barra */}
-                            <div className="flex-1 h-full bg-slate-900 rounded-t-lg relative overflow-hidden border border-slate-700 shadow-inner">
-                                {/* ZONAS FIJAS */}
-                                <div className="absolute inset-0 w-full h-full opacity-30" 
-                                     style={{background: `linear-gradient(to top, #ef4444 0%, #ef4444 ${getPct(p * 0.85)}%, #3b82f6 ${getPct(p * 0.85)}%, #3b82f6 ${getPct(p * 0.95)}%, #22c55e ${getPct(p * 0.95)}%, #22c55e ${getPct(p * 1.05)}%, #3b82f6 ${getPct(p * 1.05)}%, #3b82f6 ${getPct(p * 1.15)}%, #ef4444 ${getPct(p * 1.15)}%, #ef4444 100%)`}}></div>
-                                {/* Target */}
-                                <div className="absolute w-full border-t-2 border-yellow-500 z-10" style={{bottom: `${getPct(state.recPressure)}%`}}></div>
-                                {/* Fluido */}
-                                <div className={`absolute bottom-0 w-full transition-all duration-700 ease-out shadow-[0_0_15px_rgba(0,0,0,0.5)] border-t border-white/50 ${barFillColor}`} style={{height: `${Math.min(100, Math.max(0, getPct(resultPressureBar)))}%`, opacity: 0.9}}>
+                            {/* Tubo */}
+                            <div className="flex-1 h-full bg-slate-900 rounded-r-lg relative overflow-hidden border border-slate-700 shadow-inner">
+                                <div className="absolute inset-0 w-full h-full opacity-20" style={{ background: zoneGradient }}></div>
+                                <div className="absolute w-full border-t-2 border-dashed border-yellow-400 z-10" style={{bottom: `${getPct(state.recPressure)}%`}}></div>
+                                <div className={`absolute bottom-0 w-full transition-all duration-700 ease-out shadow-[0_0_15px_rgba(0,0,0,0.5)] border-t border-white/50 ${barFillColor}`} style={{height: `${Math.min(100, Math.max(0, getPct(resultPressureBar)))}%`, opacity: 0.95}}>
                                     <div className="absolute top-0 left-0 w-full h-8 bg-gradient-to-b from-white/30 to-transparent"></div>
                                 </div>
                             </div>
                             {/* Valor */}
                             <div className="absolute left-16 z-30 transition-all duration-700" style={{bottom: `${getPct(resultPressureBar)}%`, transform: 'translateY(50%)'}}>
-                                <div className="bg-slate-900 border border-slate-600 px-3 py-1 rounded shadow-xl flex items-center gap-2">
-                                    <span className={`text-2xl font-bold font-mono ${statusColor}`}>{resultPressureBar.toFixed(2)}</span>
+                                <div className="bg-slate-900 border border-slate-500 px-3 py-1 rounded shadow-xl flex items-center gap-2">
+                                    <span className={`text-3xl font-bold font-mono ${statusColor}`}>{resultPressureBar.toFixed(2)}</span>
                                 </div>
                             </div>
                         </div>
@@ -3752,7 +3772,7 @@
                             </div>
                         </div>
 
-                        {/* EFICIENCIA (RECUPERADO) */}
+                        {/* EFICIENCIA */}
                         <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-5 mt-auto">
                             <div className="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-2">
                                 <h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2"><Icons.Zap className="w-4 h-4 text-yellow-400"/> Impacto Eficiencia</h4>
@@ -3760,7 +3780,6 @@
                             </div>
                             
                             <div className="flex items-center justify-around gap-4">
-                                {/* Autonomía */}
                                 <div className="text-center flex-1">
                                     <div className="text-xs text-slate-500 font-bold uppercase mb-1">Autonomía (100km)</div>
                                     <div className={`text-3xl font-mono font-bold ${kmDiff < -0.1 ? 'text-red-400' : kmDiff > 0.1 ? 'text-green-400' : 'text-white'}`}>
@@ -3768,10 +3787,7 @@
                                     </div>
                                     <div className="text-[10px] text-slate-500 mt-1">{kmDiff < 0 ? 'Pérdida por rozamiento' : kmDiff > 0 ? 'Ganancia teórica' : 'Sin impacto'}</div>
                                 </div>
-                                
                                 <div className="w-px h-12 bg-slate-700"></div>
-
-                                {/* Energía */}
                                 <div className="text-center flex-1">
                                     <div className="text-xs text-slate-500 font-bold uppercase mb-1">Energía Extra</div>
                                     <div className={`text-3xl font-mono font-bold ${extraConsumptionKwh > 0.01 ? 'text-red-400' : extraConsumptionKwh < -0.01 ? 'text-green-400' : 'text-white'}`}>
@@ -3789,7 +3805,6 @@
       };
 
         
-           
         
       // --- APP PRINCIPAL ---
 
