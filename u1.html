@@ -4547,8 +4547,8 @@ const Icons = {
       };
 
 
-
-     // --- COMPONENTE: MANUALES TESLA (LINKS CORREGIDOS A OWNERS MANUAL) ---
+        
+      // --- COMPONENTE: MANUALES TESLA (LINKS CORREGIDOS A SERVICE DIY) ---
       const ManualsFinder = () => {
         const [selectedModel, setSelectedModel] = useState(null);
 
@@ -4559,36 +4559,41 @@ const Icons = {
             { id: 'x', name: 'Model X', letter: 'X' }
         ];
 
-        // BASE DE DATOS DE ENLACES ESPECÍFICOS (CORREGIDOS A WWW.TESLA.COM)
+        // BASE DE DATOS DE ENLACES VERIFICADOS (DIY en service.tesla.com)
         const linksDB = {
             '3': {
-                filter: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-DB0A1E3C-926E-498C-A292-11D96411C154.html",
-                wipers: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-1969CB60-4028-4674-8AC3-334493971E2D.html",
-                battery12v: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-3567D5F4-A5F4-4323-8BE0-023D5438FFC6.html", 
+                // Filtro: Service DIY
+                filter: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-DB0A1E3C-926E-498C-A292-11D96411C154.html",
+                // Escobillas: Service DIY
+                wipers: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-1969CB60-4028-4674-8AC3-334493971E2D.html",
+                // 12V: Service DIY
+                battery12v: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-3567D5F4-A5F4-4323-8BE0-023D5438FFC6.html", 
+                // Resto: Owner Manual
                 tow: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-FA9E3DC9-805C-45BD-A64D-C4B3F491B8C0.html",
                 unlock: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-7A32EC01-A17E-42CC-A15B-2E0A39FD07AB.html",
                 tire: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
             },
             'y': {
-                filter: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-DB0A1E3C-926E-498C-A292-11D96411C154.html",
-                wipers: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-1969CB60-4028-4674-8AC3-334493971E2D.html",
-                battery12v: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-3567D5F4-A5F4-4323-8BE0-023D5438FFC6.html",
+                filter: "https://service.tesla.com/docs/Public/diy/modely/es_es/GUID-DB0A1E3C-926E-498C-A292-11D96411C154.html",
+                wipers: "https://service.tesla.com/docs/Public/diy/modely/es_es/GUID-1969CB60-4028-4674-8AC3-334493971E2D.html",
+                battery12v: "https://service.tesla.com/docs/Public/diy/modely/es_es/GUID-3567D5F4-A5F4-4323-8BE0-023D5438FFC6.html",
                 tow: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-FA9E3DC9-805C-45BD-A64D-C4B3F491B8C0.html",
                 unlock: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-7A32EC01-A17E-42CC-A15B-2E0A39FD07AB.html",
                 tire: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
             },
             's': {
-                filter: "https://www.tesla.com/ownersmanual/models/es_es/GUID-02758192-363E-4545-8B6C-77B848737F96.html",
-                wipers: "https://www.tesla.com/ownersmanual/models/es_es/GUID-D497C288-46CC-49E4-8459-7D21AE581335.html",
-                battery12v: "https://www.tesla.com/ownersmanual/models/es_es/GUID-9D6786D5-E217-47C0-B776-3C5389E5F24D.html",
+                // Model S (Palladium 2021+) usa GUIDs diferentes
+                filter: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-02758192-363E-4545-8B6C-77B848737F96.html",
+                wipers: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-D497C288-46CC-49E4-8459-7D21AE581335.html",
+                battery12v: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-9D6786D5-E217-47C0-B776-3C5389E5F24D.html",
                 tow: "https://www.tesla.com/ownersmanual/models/es_es/GUID-95B7262D-C32A-438D-832F-6C4131A95F69.html",
                 unlock: "https://www.tesla.com/ownersmanual/models/es_es/GUID-D6086B6C-0A86-444C-97A8-D89E3060E648.html",
                 tire: "https://www.tesla.com/ownersmanual/models/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
             },
             'x': {
-                filter: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-02758192-363E-4545-8B6C-77B848737F96.html",
-                wipers: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-D497C288-46CC-49E4-8459-7D21AE581335.html",
-                battery12v: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-9D6786D5-E217-47C0-B776-3C5389E5F24D.html",
+                filter: "https://service.tesla.com/docs/Public/diy/modelx/es_es/GUID-02758192-363E-4545-8B6C-77B848737F96.html",
+                wipers: "https://service.tesla.com/docs/Public/diy/modelx/es_es/GUID-D497C288-46CC-49E4-8459-7D21AE581335.html",
+                battery12v: "https://service.tesla.com/docs/Public/diy/modelx/es_es/GUID-9D6786D5-E217-47C0-B776-3C5389E5F24D.html",
                 tow: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-95B7262D-C32A-438D-832F-6C4131A95F69.html",
                 unlock: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-0C763E6E-C693-41E9-8268-F97F7B4F975C.html",
                 tire: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
@@ -4680,6 +4685,7 @@ const Icons = {
             </div>
         );
       };
+
 
         
         
