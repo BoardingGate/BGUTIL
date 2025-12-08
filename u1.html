@@ -4543,11 +4543,11 @@
         );
       };
 
-      // --- COMPONENTE: MANUALES TESLA (LETRAS GRANDES) ---
+
+      // --- COMPONENTE: MANUALES TESLA (V3 - DIY ESPECÍFICOS) ---
       const ManualsFinder = () => {
         const [selectedModel, setSelectedModel] = useState(null);
 
-        // Usamos la propiedad 'letter' en lugar de 'icon'
         const models = [
             { id: '3', name: 'Model 3', letter: '3' },
             { id: 'y', name: 'Model Y', letter: 'Y' },
@@ -4555,63 +4555,84 @@
             { id: 'x', name: 'Model X', letter: 'X' }
         ];
 
-        // Definición de enlaces por modelo (EN ESPAÑOL)
-        const getLinks = (model) => {
-            const mCode = model === '3' ? '3' : model.toUpperCase();
+        // Generador de enlaces
+        const getManualsData = (model) => {
+            const mCode = model === '3' ? '3' : model.toUpperCase(); // Para URLs que requieren mayúsculas
             
-            const baseUrlOwner = `https://www.tesla.com/ownersmanual/model${model}/es_es/`;
-            const baseUrlService = `https://service.tesla.com/docs/Model${mCode}/ServiceManual/es-es/`; 
-            const baseUrlParts = `https://epc.tesla.com/`; 
-            const baseUrlDIY = `https://www.tesla.com/es_ES/support/do-it-yourself-guides`; 
-            const baseUrlRescue = `https://www.tesla.com/es_ES/firstresponders`;
+            // URLs BASE
+            const urlOwner = `https://www.tesla.com/ownersmanual/model${model}/es_es/`;
+            const urlDIY = `https://service.tesla.com/docs/Public/diy/model${model}/es_es/`;
+            const urlService = `https://service.tesla.com/docs/Model${mCode}/ServiceManual/es-es/`;
+            const urlParts = `https://epc.tesla.com/`;
+            const urlRescue = `https://www.tesla.com/es_ES/firstresponders`;
 
-            return [
+            // 1. MANUALES GENERALES
+            const mainLinks = [
                 { 
-                    id: 'owner', 
-                    title: 'Manual del Propietario', 
-                    desc: 'Guía oficial interactiva en español. Pantalla, conducción y funciones.', 
-                    url: baseUrlOwner,
-                    icon: Icons.Book || Icons.FileText, 
-                    color: 'blue'
+                    id: 'owner', title: 'Manual del Propietario', 
+                    desc: 'Guía oficial interactiva. Pantalla, conducción y funciones.', 
+                    url: urlOwner, icon: Icons.Book, color: 'blue'
                 },
                 { 
-                    id: 'diy', 
-                    title: 'Hazlo tú mismo (DIY)', 
-                    desc: 'Mantenimiento básico: filtros, escobillas, 12v, etc.', 
-                    url: baseUrlDIY,
-                    icon: Icons.Wrench || Icons.Settings,
-                    color: 'green'
+                    id: 'service', title: 'Manual de Taller (Service)', 
+                    desc: 'Despiece técnico, pares de apriete y diagramas.', 
+                    url: urlService, icon: Icons.Settings, color: 'red'
                 },
                 { 
-                    id: 'service', 
-                    title: 'Manual de Servicio (Taller)', 
-                    desc: 'Despiece técnico y pares de apriete. (Requiere cuenta Tesla).', 
-                    url: baseUrlService,
-                    icon: Icons.Settings,
-                    color: 'red'
-                },
-                { 
-                    id: 'epc', 
-                    title: 'Catálogo de Piezas (EPC)', 
-                    desc: 'Referencias oficiales de tornillos, grapas y recambios.', 
-                    url: baseUrlParts,
-                    icon: Icons.List || Icons.FileText, 
-                    color: 'slate'
+                    id: 'epc', title: 'Catálogo de Piezas (EPC)', 
+                    desc: 'Referencias de recambios, tornillería y grapas.', 
+                    url: urlParts, icon: Icons.List, color: 'slate'
                 },
                 {
-                    id: 'rescue',
-                    title: 'Rescate y Emergencias',
-                    desc: 'Guía para bomberos: corte de alta tensión y airbags.',
-                    url: baseUrlRescue,
-                    icon: Icons.AlertTriangle,
-                    color: 'orange'
+                    id: 'rescue', title: 'Hoja de Rescate', 
+                    desc: 'Para bomberos/grúas: Puntos de corte y alta tensión.', 
+                    url: urlRescue, icon: Icons.AlertTriangle, color: 'orange'
                 }
             ];
+
+            // 2. ACCESOS DIRECTOS (MANTENIMIENTO FRECUENTE)
+            // Apuntan a la guía DIY específica del modelo o al manual de propietario
+            const quickLinks = [
+                {
+                    id: 'diy_main', title: 'Índice "Hazlo tú mismo"',
+                    desc: 'Portada con todos los procedimientos.',
+                    url: urlDIY, icon: Icons.Wrench, type: 'diy'
+                },
+                {
+                    id: 'filter', title: 'Filtro de Aire',
+                    desc: 'Cómo cambiar el filtro de habitáculo.',
+                    url: urlDIY, icon: Icons.Wind, type: 'diy'
+                },
+                {
+                    id: '12v', title: 'Batería 12V / 16V',
+                    desc: 'Sustitución y arranque de emergencia.',
+                    url: urlDIY, icon: Icons.BatteryCharging, type: 'diy'
+                },
+                {
+                    id: 'wipers', title: 'Escobillas / Limpia',
+                    desc: 'Cambio de gomas del limpiaparabrisas.',
+                    url: urlDIY, icon: Icons.Construction, type: 'diy' // Fallback icon
+                },
+                {
+                    id: 'tow', title: 'Modo Transporte / Grúa',
+                    desc: 'Cómo remolcar el coche sin dañar motores.',
+                    url: urlOwner, icon: Icons.Truck || Icons.AlertTriangle, type: 'owner' // Fallback
+                },
+                {
+                    id: 'unlock', title: 'Apertura Emergencia',
+                    desc: 'Abrir puertas sin electricidad.',
+                    url: urlOwner, icon: Icons.LogOut, type: 'owner'
+                }
+            ];
+
+            return { mainLinks, quickLinks };
         };
 
+        const data = selectedModel ? getManualsData(selectedModel) : null;
+
         return (
-            <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
-                {/* Selector de Modelo */}
+            <div className="max-w-5xl mx-auto space-y-8 animate-fade-in pb-10">
+                {/* 1. SELECTOR DE MODELO */}
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-8 text-center">
                     <h2 className="text-2xl font-display font-bold text-white mb-6">Selecciona tu Modelo</h2>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -4625,65 +4646,98 @@
                                         : 'bg-slate-800 border-slate-700 hover:border-slate-500'
                                     }`}
                             >
-                                {/* LETRA GRANDE DE FONDO */}
                                 <span className={`font-display font-bold text-7xl drop-shadow-xl transition-colors duration-300
                                     ${selectedModel === m.id ? 'text-blue-800' : 'text-slate-700 group-hover:text-slate-600'}`}>
                                     {m.letter}
                                 </span>
-                                
-                                {/* NOMBRE DEL MODELO */}
                                 <span className="font-bold text-lg text-white relative z-10">{m.name}</span>
                             </button>
                         ))}
                     </div>
                 </div>
 
-                {/* Lista de Manuales */}
-                {selectedModel && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
-                        {getLinks(selectedModel).map(link => {
-                            const IconComponent = link.icon;
-                            
-                            return (
-                                <a 
-                                    key={link.id}
-                                    href={link.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className={`group p-6 rounded-xl border flex items-start gap-4 transition-all hover:bg-opacity-20 relative overflow-hidden
-                                        ${link.color === 'blue' ? 'bg-blue-900/10 border-blue-500/30 hover:bg-blue-900/30' : ''}
-                                        ${link.color === 'green' ? 'bg-green-900/10 border-green-500/30 hover:bg-green-900/30' : ''}
-                                        ${link.color === 'red' ? 'bg-red-900/10 border-red-500/30 hover:bg-red-900/30' : ''}
-                                        ${link.color === 'slate' ? 'bg-slate-800/30 border-slate-600/30 hover:bg-slate-800/50' : ''}
-                                        ${link.color === 'orange' ? 'bg-orange-900/10 border-orange-500/30 hover:bg-orange-900/30' : ''}
-                                    `}
-                                >
-                                    <div className={`p-3 rounded-lg shrink-0 ${
-                                        link.color === 'blue' ? 'bg-blue-500/20 text-blue-400' :
-                                        link.color === 'green' ? 'bg-green-500/20 text-green-400' :
-                                        link.color === 'red' ? 'bg-red-500/20 text-red-400' :
-                                        link.color === 'orange' ? 'bg-orange-500/20 text-orange-400' :
-                                        'bg-slate-700 text-slate-400'
-                                    }`}>
-                                        {IconComponent ? <IconComponent className="w-8 h-8" /> : <span className="text-2xl">📄</span>}
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-bold text-white group-hover:underline decoration-2 underline-offset-4">{link.title}</h3>
-                                        <p className="text-sm text-slate-400 mt-1 leading-relaxed">{link.desc}</p>
-                                    </div>
-                                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        {Icons.Link ? <Icons.Link className="w-5 h-5 text-white/50" /> : <span>↗</span>}
-                                    </div>
-                                </a>
-                            );
-                        })}
-                    </div>
+                {selectedModel && data && (
+                    <>
+                        {/* 2. DOCUMENTACIÓN PRINCIPAL */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
+                            {data.mainLinks.map(link => {
+                                const IconComponent = link.icon || Icons.FileText;
+                                return (
+                                    <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
+                                        className={`group p-6 rounded-xl border flex items-start gap-4 transition-all hover:bg-opacity-20 relative overflow-hidden
+                                            ${link.color === 'blue' ? 'bg-blue-900/10 border-blue-500/30 hover:bg-blue-900/30' : ''}
+                                            ${link.color === 'red' ? 'bg-red-900/10 border-red-500/30 hover:bg-red-900/30' : ''}
+                                            ${link.color === 'slate' ? 'bg-slate-800/30 border-slate-600/30 hover:bg-slate-800/50' : ''}
+                                            ${link.color === 'orange' ? 'bg-orange-900/10 border-orange-500/30 hover:bg-orange-900/30' : ''}
+                                        `}
+                                    >
+                                        <div className={`p-3 rounded-lg shrink-0 ${
+                                            link.color === 'blue' ? 'bg-blue-500/20 text-blue-400' :
+                                            link.color === 'red' ? 'bg-red-500/20 text-red-400' :
+                                            link.color === 'orange' ? 'bg-orange-500/20 text-orange-400' :
+                                            'bg-slate-700 text-slate-400'
+                                        }`}>
+                                            <IconComponent className="w-8 h-8" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-lg font-bold text-white group-hover:underline decoration-2 underline-offset-4">{link.title}</h3>
+                                            <p className="text-sm text-slate-400 mt-1 leading-relaxed">{link.desc}</p>
+                                        </div>
+                                        <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            {Icons.Link ? <Icons.Link className="w-5 h-5 text-white/50" /> : <span>↗</span>}
+                                        </div>
+                                    </a>
+                                );
+                            })}
+                        </div>
+
+                        {/* 3. ACCESOS DIRECTOS (DIY & MANTENIMIENTO) */}
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 animate-fade-in">
+                             <div className="flex items-center gap-2 mb-6 border-b border-slate-700 pb-4">
+                                <div className="bg-green-500/20 p-2 rounded-lg text-green-400">
+                                    {Icons.Wrench ? <Icons.Wrench className="w-6 h-6"/> : <span>🔧</span>}
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-white">Mantenimiento Frecuente</h3>
+                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Accesos directos a procedimientos oficiales</p>
+                                </div>
+                             </div>
+
+                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                {data.quickLinks.map(item => {
+                                    const QuickIcon = item.icon || Icons.Settings;
+                                    const isDIY = item.type === 'diy';
+                                    
+                                    return (
+                                        <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer"
+                                           className={`flex flex-col p-4 rounded-xl border transition-all hover:-translate-y-1 hover:shadow-lg
+                                             ${isDIY ? 'bg-green-900/10 border-green-500/20 hover:border-green-500/50' : 'bg-slate-800/30 border-slate-700 hover:border-blue-500/50'}
+                                           `}
+                                        >
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className={`p-2 rounded-lg ${isDIY ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-300'}`}>
+                                                    <QuickIcon className="w-6 h-6" />
+                                                </div>
+                                                <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${isDIY ? 'bg-green-900 text-green-200' : 'bg-slate-900 text-slate-400'}`}>
+                                                    {isDIY ? 'Guía DIY' : 'Manual'}
+                                                </span>
+                                            </div>
+                                            <div className="font-bold text-white mb-1">{item.title}</div>
+                                            <div className="text-xs text-slate-500 leading-tight">{item.desc}</div>
+                                        </a>
+                                    );
+                                })}
+                             </div>
+                             <div className="mt-4 text-[10px] text-center text-slate-500 italic">
+                                * Estos enlaces abren la sección correspondiente de Tesla. Busca el procedimiento específico en el índice lateral de la página que se abre.
+                             </div>
+                        </div>
+                    </>
                 )}
             </div>
         );
       };
-
-     
+        
         
       // --- APP PRINCIPAL ---
 
