@@ -4548,7 +4548,8 @@ const Icons = {
 
 
 
-     // --- COMPONENTE: MANUALES TESLA (FIX V5 - ICONOS SEGUROS) ---
+
+     // --- COMPONENTE: MANUALES TESLA (LINKS DIRECTOS REALES) ---
       const ManualsFinder = () => {
         const [selectedModel, setSelectedModel] = useState(null);
 
@@ -4595,19 +4596,15 @@ const Icons = {
             }
         };
 
-        // Generador de estructura
         const getManualsData = (model) => {
             const mCode = model === '3' ? '3' : model.toUpperCase(); 
             const links = linksDB[model];
 
-            // URLs BASE GENERALES
             const urlOwner = `https://www.tesla.com/ownersmanual/model${model}/es_es/`;
-            const urlDIY = `https://service.tesla.com/docs/Public/diy/model${model}/es_es/`;
             const urlService = `https://service.tesla.com/docs/Model${mCode}/ServiceManual/es-es/`;
             const urlParts = `https://epc.tesla.com/`;
             const urlRescue = `https://www.tesla.com/es_ES/firstresponders`;
 
-            // 1. MANUALES GENERALES
             const mainLinks = [
                 { id: 'owner', title: 'Manual Completo', desc: 'Buscador general oficial.', url: urlOwner, icon: Icons.Book, color: 'blue' },
                 { id: 'service', title: 'Manual de Taller', desc: 'Despiece técnico y pares de apriete.', url: urlService, icon: Icons.Settings, color: 'red' },
@@ -4615,38 +4612,13 @@ const Icons = {
                 { id: 'rescue', title: 'Hoja Rescate', desc: 'Corte alta tensión (Bomberos).', url: urlRescue, icon: Icons.AlertTriangle, color: 'orange' }
             ];
 
-            // 2. ACCESOS DIRECTOS EXACTOS
             const quickLinks = [
-                {
-                    id: 'filter', title: 'Cambiar Filtro Aire',
-                    desc: 'Instrucciones paso a paso para el filtro de habitáculo.',
-                    url: links.filter, icon: Icons.Wind, isDIY: true
-                },
-                {
-                    id: 'wipers', title: 'Cambiar Escobillas',
-                    desc: 'Modo servicio de limpias y sustitución.',
-                    url: links.wipers, icon: Icons.Construction, isDIY: true
-                },
-                {
-                    id: '12v', title: 'Arrancar con Pinzas',
-                    desc: 'Cómo acceder a la batería de 12V/16V y puentear.',
-                    url: links.battery12v, icon: Icons.BatteryCharging, isDIY: true
-                },
-                {
-                    id: 'tow', title: 'Modo Remolque',
-                    desc: 'Activar modo transporte para subir a grúa.',
-                    url: links.tow, icon: Icons.Truck, isDIY: false
-                },
-                {
-                    id: 'unlock', title: 'Abrir sin Batería',
-                    desc: 'Desbloqueo manual de puertas y capó.',
-                    url: links.unlock, icon: Icons.LogOut, isDIY: false
-                },
-                {
-                    id: 'tire', title: 'Presiones Ruedas',
-                    desc: 'Tabla de presiones y reinicio de TPMS.',
-                    url: links.tire, icon: Icons.Gauge, isDIY: false
-                }
+                { id: 'filter', title: 'Cambiar Filtro Aire', desc: 'Instrucciones paso a paso.', url: links.filter, icon: Icons.Wind, isDIY: true },
+                { id: 'wipers', title: 'Cambiar Escobillas', desc: 'Modo servicio de limpias.', url: links.wipers, icon: Icons.Construction, isDIY: true },
+                { id: '12v', title: 'Arrancar con Pinzas', desc: 'Acceso a batería 12V/16V.', url: links.battery12v, icon: Icons.BatteryCharging, isDIY: true },
+                { id: 'tow', title: 'Modo Remolque', desc: 'Modo transporte para grúa.', url: links.tow, icon: Icons.Truck, isDIY: false },
+                { id: 'unlock', title: 'Abrir sin Batería', desc: 'Desbloqueo manual.', url: links.unlock, icon: Icons.LogOut, isDIY: false },
+                { id: 'tire', title: 'Presiones Ruedas', desc: 'Tabla de presiones y TPMS.', url: links.tire, icon: Icons.Gauge, isDIY: false }
             ];
 
             return { mainLinks, quickLinks };
@@ -4656,24 +4628,13 @@ const Icons = {
 
         return (
             <div className="max-w-5xl mx-auto space-y-8 animate-fade-in pb-10">
-                {/* 1. SELECTOR DE MODELO */}
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-8 text-center">
                     <h2 className="text-2xl font-display font-bold text-white mb-6">Selecciona tu Modelo</h2>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         {models.map(m => (
-                            <button 
-                                key={m.id}
-                                onClick={() => setSelectedModel(m.id)}
-                                className={`group p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 flex flex-col items-center justify-center gap-2 overflow-hidden relative
-                                    ${selectedModel === m.id 
-                                        ? 'bg-blue-600 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.5)]' 
-                                        : 'bg-slate-800 border-slate-700 hover:border-slate-500'
-                                    }`}
-                            >
-                                <span className={`font-display font-bold text-7xl drop-shadow-xl transition-colors duration-300
-                                    ${selectedModel === m.id ? 'text-blue-800' : 'text-slate-700 group-hover:text-slate-600'}`}>
-                                    {m.letter}
-                                </span>
+                            <button key={m.id} onClick={() => setSelectedModel(m.id)}
+                                className={`group p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 flex flex-col items-center justify-center gap-2 overflow-hidden relative ${selectedModel === m.id ? 'bg-blue-600 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}>
+                                <span className={`font-display font-bold text-7xl drop-shadow-xl transition-colors duration-300 ${selectedModel === m.id ? 'text-blue-800' : 'text-slate-700 group-hover:text-slate-600'}`}>{m.letter}</span>
                                 <span className="font-bold text-lg text-white relative z-10">{m.name}</span>
                             </button>
                         ))}
@@ -4682,68 +4643,31 @@ const Icons = {
 
                 {selectedModel && data && (
                     <>
-                        {/* 2. DOCUMENTACIÓN PRINCIPAL */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
                             {data.mainLinks.map(link => {
                                 const IconComponent = link.icon || Icons.FileText;
                                 return (
-                                    <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
-                                        className={`group p-4 rounded-xl border flex items-center gap-4 transition-all hover:bg-opacity-20 relative overflow-hidden
-                                            ${link.color === 'blue' ? 'bg-blue-900/10 border-blue-500/30 hover:bg-blue-900/30' : ''}
-                                            ${link.color === 'red' ? 'bg-red-900/10 border-red-500/30 hover:bg-red-900/30' : ''}
-                                            ${link.color === 'slate' ? 'bg-slate-800/30 border-slate-600/30 hover:bg-slate-800/50' : ''}
-                                            ${link.color === 'orange' ? 'bg-orange-900/10 border-orange-500/30 hover:bg-orange-900/30' : ''}
-                                        `}
-                                    >
-                                        <div className={`p-3 rounded-lg shrink-0 ${
-                                            link.color === 'blue' ? 'bg-blue-500/20 text-blue-400' :
-                                            link.color === 'red' ? 'bg-red-500/20 text-red-400' :
-                                            link.color === 'orange' ? 'bg-orange-500/20 text-orange-400' :
-                                            'bg-slate-700 text-slate-400'
-                                        }`}>
-                                            <IconComponent className="w-6 h-6" />
-                                        </div>
-                                        <div>
-                                            <h3 className="text-base font-bold text-white group-hover:underline decoration-2 underline-offset-4">{link.title}</h3>
-                                            <p className="text-xs text-slate-400 leading-tight">{link.desc}</p>
-                                        </div>
-                                        <div className="ml-auto opacity-50 group-hover:opacity-100">
-                                            {Icons.Link ? <Icons.Link className="w-4 h-4 text-white" /> : <span>↗</span>}
-                                        </div>
+                                    <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className={`group p-4 rounded-xl border flex items-center gap-4 transition-all hover:bg-opacity-20 relative overflow-hidden ${link.color === 'blue' ? 'bg-blue-900/10 border-blue-500/30 hover:bg-blue-900/30' : link.color === 'red' ? 'bg-red-900/10 border-red-500/30 hover:bg-red-900/30' : link.color === 'slate' ? 'bg-slate-800/30 border-slate-600/30 hover:bg-slate-800/50' : 'bg-orange-900/10 border-orange-500/30 hover:bg-orange-900/30'}`}>
+                                        <div className={`p-3 rounded-lg shrink-0 ${link.color === 'blue' ? 'bg-blue-500/20 text-blue-400' : link.color === 'red' ? 'bg-red-500/20 text-red-400' : link.color === 'orange' ? 'bg-orange-500/20 text-orange-400' : 'bg-slate-700 text-slate-400'}`}><IconComponent className="w-6 h-6" /></div>
+                                        <div><h3 className="text-base font-bold text-white group-hover:underline decoration-2 underline-offset-4">{link.title}</h3><p className="text-xs text-slate-400 leading-tight">{link.desc}</p></div>
+                                        <div className="ml-auto opacity-50 group-hover:opacity-100">{Icons.Link ? <Icons.Link className="w-4 h-4 text-white" /> : <span>↗</span>}</div>
                                     </a>
                                 );
                             })}
                         </div>
-
-                        {/* 3. ACCESOS DIRECTOS EXACTOS */}
                         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 animate-fade-in">
                              <div className="flex items-center gap-2 mb-6 border-b border-slate-700 pb-4">
-                                <div className="bg-green-500/20 p-2 rounded-lg text-green-400">
-                                    {Icons.Wrench ? <Icons.Wrench className="w-6 h-6"/> : <span>🔧</span>}
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-bold text-white">Procedimientos Específicos</h3>
-                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Enlaces directos al capítulo exacto</p>
-                                </div>
+                                <div className="bg-green-500/20 p-2 rounded-lg text-green-400">{Icons.Wrench ? <Icons.Wrench className="w-6 h-6"/> : <span>🔧</span>}</div>
+                                <div><h3 className="text-xl font-bold text-white">Procedimientos Específicos</h3><p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Enlaces directos al capítulo exacto</p></div>
                              </div>
-
                              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                 {data.quickLinks.map(item => {
                                     const QuickIcon = item.icon || Icons.Settings;
-                                    
                                     return (
-                                        <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer"
-                                           className={`flex flex-col p-4 rounded-xl border transition-all hover:-translate-y-1 hover:shadow-lg
-                                             ${item.isDIY ? 'bg-green-900/10 border-green-500/20 hover:border-green-500/50' : 'bg-slate-800/30 border-slate-700 hover:border-blue-500/50'}
-                                           `}
-                                        >
+                                        <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer" className={`flex flex-col p-4 rounded-xl border transition-all hover:-translate-y-1 hover:shadow-lg ${item.isDIY ? 'bg-green-900/10 border-green-500/20 hover:border-green-500/50' : 'bg-slate-800/30 border-slate-700 hover:border-blue-500/50'}`}>
                                             <div className="flex justify-between items-start mb-3">
-                                                <div className={`p-2 rounded-lg ${item.isDIY ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-300'}`}>
-                                                    <QuickIcon className="w-6 h-6" />
-                                                </div>
-                                                <span className={`text-[9px] font-bold px-2 py-1 rounded uppercase ${item.isDIY ? 'bg-green-900 text-green-200' : 'bg-slate-900 text-slate-500'}`}>
-                                                    {item.isDIY ? 'DIY' : 'Manual'}
-                                                </span>
+                                                <div className={`p-2 rounded-lg ${item.isDIY ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-300'}`}><QuickIcon className="w-6 h-6" /></div>
+                                                <span className={`text-[9px] font-bold px-2 py-1 rounded uppercase ${item.isDIY ? 'bg-green-900 text-green-200' : 'bg-slate-900 text-slate-500'}`}>{item.isDIY ? 'DIY' : 'Manual'}</span>
                                             </div>
                                             <div className="font-bold text-white mb-1 text-sm">{item.title}</div>
                                             <div className="text-xs text-slate-500 leading-tight">{item.desc}</div>
@@ -4756,7 +4680,7 @@ const Icons = {
                 )}
             </div>
         );
-      };
+      };   
         
       // --- APP PRINCIPAL ---
 
