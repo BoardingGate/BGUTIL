@@ -219,7 +219,7 @@
         
 
       // --- ICONS (MODIFICADO: ICONOS MÁS GRANDES POR DEFECTO) ---
-      const Icons = {
+const Icons = {
         Wind: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>,
         Thermometer: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>,
         TrendingUp: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
@@ -250,8 +250,12 @@
         Cpu: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>,
         Microchip: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 12h-5"/><path d="M13 12V7"/><path d="M2 12h5"/><path d="M7 12v5"/><path d="M12 2v20"/><path d="M2 12h20"/><path d="M12 17h5"/><path d="M12 7H7"/></svg>,
         List: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>,
-        CheckCircle: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+        CheckCircle: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>,
+        Book: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>,
+        FileText: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
+        Truck: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
       };
+
 
       // --- COMPONENTE PLACEHOLDER (TEXTO MÁS GRANDE Y CLARO) ---
       const PlaceholderTab = () => (
@@ -4508,7 +4512,7 @@
                                         <div className="p-4 space-y-3">
                                             {defects.map(([key, val]) => { 
                                                 const [catId, itemIdx] = key.split('-'); 
-                                                const cat = categories.find(c => c.id === catId); 
+                                                const cat = categories.find(c => c.id === catId);
                                                 const itemName = cat.items[parseInt(itemIdx)]; 
                                                 return (<div key={key} className="text-sm"><div className="text-white font-bold mb-0.5">• {itemName}</div>{val.note && <div className="text-red-300 text-xs italic pl-3 border-l-2 border-red-500/50">"{val.note}"</div>}</div>); 
                                             })}
@@ -4522,7 +4526,7 @@
                                         <div className="p-4 space-y-3">
                                             {doubts.map(([key, val]) => { 
                                                 const [catId, itemIdx] = key.split('-'); 
-                                                const cat = categories.find(c => c.id === catId); 
+                                                const cat = categories.find (c => c.id === catId); 
                                                 const itemName = cat.items[parseInt(itemIdx)]; 
                                                 return (<div key={key} className="text-sm"><div className="text-white font-bold mb-0.5">• {itemName}</div>{val.note && <div className="text-yellow-200 text-xs italic pl-3 border-l-2 border-yellow-500/50">"{val.note}"</div>}</div>); 
                                             })}
@@ -4542,6 +4546,179 @@
         );
       };
 
+     // --- COMPONENTE: MANUALES TESLA (LINKS EXACTOS SERVICE DIY) ---
+      const ManualsFinder = () => {
+        const [selectedModel, setSelectedModel] = useState(null);
+
+        const models = [
+            { id: 's', name: 'Model S', letter: 'S' },
+            { id: '3', name: 'Model 3', letter: '3' },
+            { id: 'x', name: 'Model X', letter: 'X' },
+            { id: 'y', name: 'Model Y', letter: 'Y' }
+        ];
+
+        // BASE DE DATOS DE ENLACES ESPECÍFICOS (GUIDs EXACTOS)
+        const linksDB = {
+            '3': {
+                // GENERALES
+                owner: "https://www.tesla.com/ownersmanual/model3/es_es/",
+                diyIndex: "https://service.tesla.com/docs/Public/diy/model3/es_es/", 
+                
+                // PROCEDIMIENTOS (GUIDs proporcionados)
+                filter: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-A3E744BD-D5AC-4BB5-90F2-29313C2416C3.html",
+                wipers: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-949BFDA4-8D73-43A6-AAA5-98AE1129AC25.html",
+                battery12v: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-3567D5F4-A5F4-4323-8BE0-023D5438FFC6.html", 
+                
+                // OTROS
+                tow: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-FA9E3DC9-805C-45BD-A64D-C4B3F491B8C0.html",
+                unlock: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-7A32EC01-A17E-42CC-A15B-2E0A39FD07AB.html",
+                tire: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
+            },
+            'y': {
+                owner: "https://www.tesla.com/ownersmanual/modely/es_es/",
+                diyIndex: "https://service.tesla.com/docs/Public/diy/modely/es_es/",
+
+                // Model Y comparte GUIDs con Model 3 para Filtro y Escobillas en la DB de Tesla
+                filter: "https://service.tesla.com/docs/Public/diy/modely/es_es/GUID-A3E744BD-D5AC-4BB5-90F2-29313C2416C3.html",
+                wipers: "https://service.tesla.com/docs/Public/diy/modely/es_es/GUID-949BFDA4-8D73-43A6-AAA5-98AE1129AC25.html",
+                battery12v: "https://service.tesla.com/docs/Public/diy/modely/es_es/GUID-3567D5F4-A5F4-4323-8BE0-023D5438FFC6.html",
+                
+                tow: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-FA9E3DC9-805C-45BD-A64D-C4B3F491B8C0.html",
+                unlock: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-7A32EC01-A17E-42CC-A15B-2E0A39FD07AB.html",
+                tire: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
+            },
+            's': {
+                owner: "https://www.tesla.com/ownersmanual/models/es_es/",
+                diyIndex: "https://service.tesla.com/docs/Public/diy/models/es_es/",
+
+                // Model S (2021+) GUIDs Específicos
+                filter: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-1C305D22-54F0-4241-A875-1030997C3A0F.html",
+                wipers: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-C6603598-6625-45C0-B958-868779901FCD.html",
+                battery12v: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-9D6786D5-E217-47C0-B776-3C5389E5F24D.html",
+                
+                tow: "https://www.tesla.com/ownersmanual/models/es_es/GUID-95B7262D-C32A-438D-832F-6C4131A95F69.html",
+                unlock: "https://www.tesla.com/ownersmanual/models/es_es/GUID-D6086B6C-0A86-444C-97A8-D89E3060E648.html",
+                tire: "https://www.tesla.com/ownersmanual/models/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
+            },
+            'x': {
+                owner: "https://www.tesla.com/ownersmanual/modelx/es_es/",
+                diyIndex: "https://service.tesla.com/docs/Public/diy/modelx/es_es/",
+
+                // Model X GUIDs Específicos
+                filter: "https://service.tesla.com/docs/Public/diy/modelx/es_es/GUID-0128B459-99B4-4061-8408-0113B9B27731.html",
+                wipers: "https://service.tesla.com/docs/Public/diy/modelx/es_es/GUID-7B03C350-13D9-44F0-94A5-0D4A0D841369.html",
+                battery12v: "https://service.tesla.com/docs/Public/diy/modelx/es_es/GUID-9D6786D5-E217-47C0-B776-3C5389E5F24D.html",
+                
+                tow: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-95B7262D-C32A-438D-832F-6C4131A95F69.html",
+                unlock: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-0C763E6E-C693-41E9-8268-F97F7B4F975C.html",
+                tire: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
+            }
+        };
+
+        const getManualsData = (model) => {
+            const mCode = model === '3' ? '3' : model.toUpperCase(); 
+            const links = linksDB[model];
+
+            const urlService = `https://service.tesla.com/docs/Model${mCode}/ServiceManual/es-es/`;
+            const urlParts = `https://epc.tesla.com/`;
+            const urlRescue = `https://www.tesla.com/es_ES/firstresponders`;
+
+            const mainLinks = [
+                { id: 'owner', title: 'Manual Propietario', desc: 'El manual oficial completo.', url: links.owner, icon: Icons.Book, color: 'blue' },
+                { id: 'diy', title: 'Guías "Hazlo tú mismo"', desc: 'Índice de mantenimiento usuario.', url: links.diyIndex, icon: Icons.Wrench, color: 'green' },
+                { id: 'service', title: 'Manual de Taller', desc: 'Despiece técnico avanzado.', url: urlService, icon: Icons.Settings, color: 'red' },
+                { id: 'epc', title: 'Catálogo Piezas', desc: 'Referencias de recambios.', url: urlParts, icon: Icons.List, color: 'slate' },
+                { id: 'rescue', title: 'Hoja Rescate', desc: 'Corte alta tensión (Bomberos).', url: urlRescue, icon: Icons.AlertTriangle, color: 'orange' }
+            ];
+
+            const quickLinks = [
+                { id: 'filter', title: 'Cambiar Filtro Aire', desc: 'Instrucciones paso a paso.', url: links.filter, icon: Icons.Wind, isDIY: true },
+                { id: 'wipers', title: 'Cambiar Escobillas', desc: 'Modo servicio de limpias.', url: links.wipers, icon: Icons.Construction, isDIY: true },
+                { id: '12v', title: 'Arrancar con Pinzas', desc: 'Acceso a batería 12V/16V.', url: links.battery12v, icon: Icons.BatteryCharging, isDIY: true },
+                { id: 'tow', title: 'Modo Remolque', desc: 'Modo transporte para grúa.', url: links.tow, icon: Icons.Truck, isDIY: false },
+                { id: 'unlock', title: 'Abrir sin Batería', desc: 'Desbloqueo manual.', url: links.unlock, icon: Icons.LogOut, isDIY: false },
+                { id: 'tire', title: 'Presiones Ruedas', desc: 'Tabla de presiones y TPMS.', url: links.tire, icon: Icons.Gauge, isDIY: false }
+            ];
+
+            return { mainLinks, quickLinks };
+        };
+
+        const data = selectedModel ? getManualsData(selectedModel) : null;
+
+        return (
+            <div className="max-w-5xl mx-auto space-y-8 animate-fade-in pb-10">
+                <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-8 text-center">
+                    <h2 className="text-2xl font-display font-bold text-white mb-6">Selecciona tu Modelo</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {models.map(m => (
+                            <button key={m.id} onClick={() => setSelectedModel(m.id)}
+                                className={`group p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 flex flex-col items-center justify-center gap-2 overflow-hidden relative ${selectedModel === m.id ? 'bg-blue-600 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}>
+                                <span className={`font-display font-bold text-7xl drop-shadow-xl transition-colors duration-300 ${selectedModel === m.id ? 'text-blue-800' : 'text-slate-700 group-hover:text-slate-600'}`}>{m.letter}</span>
+                                <span className="font-bold text-lg text-white relative z-10">{m.name}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {selectedModel && data && (
+                    <>
+                        {/* SECCIÓN SUPERIOR: ENLACES GENERALES (5 COLUMNAS RESPONSIVE) */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 animate-fade-in">
+                            {data.mainLinks.map(link => {
+                                const IconComponent = link.icon || Icons.FileText;
+                                // Asignamos colores
+                                let bgClass = 'bg-slate-800/30 border-slate-600/30 hover:bg-slate-800/50';
+                                let iconBgClass = 'bg-slate-700 text-slate-400';
+                                
+                                if(link.color === 'blue') { bgClass = 'bg-blue-900/10 border-blue-500/30 hover:bg-blue-900/30'; iconBgClass = 'bg-blue-500/20 text-blue-400'; }
+                                else if(link.color === 'green') { bgClass = 'bg-green-900/10 border-green-500/30 hover:bg-green-900/30'; iconBgClass = 'bg-green-500/20 text-green-400'; }
+                                else if(link.color === 'red') { bgClass = 'bg-red-900/10 border-red-500/30 hover:bg-red-900/30'; iconBgClass = 'bg-red-500/20 text-red-400'; }
+                                else if(link.color === 'orange') { bgClass = 'bg-orange-900/10 border-orange-500/30 hover:bg-orange-900/30'; iconBgClass = 'bg-orange-500/20 text-orange-400'; }
+
+                                return (
+                                    <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className={`group p-4 rounded-xl border flex flex-col justify-between gap-3 transition-all hover:bg-opacity-20 relative overflow-hidden ${bgClass}`}>
+                                        <div className="flex items-start justify-between">
+                                            <div className={`p-3 rounded-lg shrink-0 ${iconBgClass}`}><IconComponent className="w-6 h-6" /></div>
+                                            <div className="opacity-50 group-hover:opacity-100 transition-opacity">↗</div>
+                                        </div>
+                                        <div>
+                                            <h3 className="text-sm font-bold text-white group-hover:underline decoration-2 underline-offset-4 mb-1">{link.title}</h3>
+                                            <p className="text-xs text-slate-400 leading-tight">{link.desc}</p>
+                                        </div>
+                                    </a>
+                                );
+                            })}
+                        </div>
+
+                        {/* SECCIÓN INFERIOR: PROCEDIMIENTOS ESPECÍFICOS */}
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 animate-fade-in">
+                             <div className="flex items-center gap-2 mb-6 border-b border-slate-700 pb-4">
+                                <div className="bg-green-500/20 p-2 rounded-lg text-green-400">{Icons.Search ? <Icons.Search className="w-6 h-6"/> : <span>🔎</span>}</div>
+                                <div><h3 className="text-xl font-bold text-white">Accesos Directos</h3><p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Procedimientos comunes</p></div>
+                             </div>
+                             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                                {data.quickLinks.map(item => {
+                                    const QuickIcon = item.icon || Icons.Settings;
+                                    return (
+                                        <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer" className={`flex flex-col p-4 rounded-xl border transition-all hover:-translate-y-1 hover:shadow-lg ${item.isDIY ? 'bg-green-900/10 border-green-500/20 hover:border-green-500/50' : 'bg-slate-800/30 border-slate-700 hover:border-blue-500/50'}`}>
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className={`p-2 rounded-lg ${item.isDIY ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-300'}`}><QuickIcon className="w-6 h-6" /></div>
+                                                <span className={`text-[9px] font-bold px-2 py-1 rounded uppercase ${item.isDIY ? 'bg-green-900 text-green-200' : 'bg-slate-900 text-slate-500'}`}>{item.isDIY ? 'DIY' : 'Manual'}</span>
+                                            </div>
+                                            <div className="font-bold text-white mb-1 text-sm">{item.title}</div>
+                                            <div className="text-xs text-slate-500 leading-tight">{item.desc}</div>
+                                        </a>
+                                    );
+                                })}
+                             </div>
+                        </div>
+                    </>
+                )}
+            </div>
+        );
+      };
+
+        
         
       // --- APP PRINCIPAL ---
 
@@ -4580,6 +4757,7 @@
                 case 'equiv': return <EquivalenceCalculator />;
                 case 'charge': return <PlaceholderTab />;
                 case 'pickup': return <DeliveryChecklist />;    
+                case 'manuals': return <ManualsFinder />;    
                 default: return <PlaceholderTab />;
             }
         };
@@ -4614,6 +4792,7 @@
                             <TabButton id="nyland" label="Bjørn Nyland" />
                             <TabButton id="equiv" label="Equivalencia" />
                             <TabButton id="pickup" label="Recogida" />
+                            <TabButton id="manuals" label="Manuales" />
                             <TabButton id="charge" label="+EXCEL" />
                         </div>
                     </header>
