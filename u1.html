@@ -4543,35 +4543,26 @@
         );
       };
 
-
-      // --- COMPONENTE: MANUALES TESLA (VERSION EN ESPAÑOL) ---
+      // --- COMPONENTE: MANUALES TESLA (LETRAS GRANDES) ---
       const ManualsFinder = () => {
         const [selectedModel, setSelectedModel] = useState(null);
 
+        // Usamos la propiedad 'letter' en lugar de 'icon'
         const models = [
-            { id: '3', name: 'Model 3', icon: '🚗' },
-            { id: 'y', name: 'Model Y', icon: '🚙' },
-            { id: 's', name: 'Model S', icon: '🏎️' },
-            { id: 'x', name: 'Model X', icon: '🚐' }
+            { id: '3', name: 'Model 3', letter: '3' },
+            { id: 'y', name: 'Model Y', letter: 'Y' },
+            { id: 's', name: 'Model S', letter: 'S' },
+            { id: 'x', name: 'Model X', letter: 'X' }
         ];
 
         // Definición de enlaces por modelo (EN ESPAÑOL)
         const getLinks = (model) => {
             const mCode = model === '3' ? '3' : model.toUpperCase();
             
-            // 1. Manual Propietario (ES)
             const baseUrlOwner = `https://www.tesla.com/ownersmanual/model${model}/es_es/`;
-            
-            // 2. Manual de Servicio (Intentamos forzar ES, aunque partes técnicas pueden salir en inglés)
             const baseUrlService = `https://service.tesla.com/docs/Model${mCode}/ServiceManual/es-es/`; 
-            
-            // 3. Catálogo de Piezas (EPC) - Detecta idioma del navegador automáticamente
             const baseUrlParts = `https://epc.tesla.com/`; 
-            
-            // 4. Hazlo tú mismo (ES)
             const baseUrlDIY = `https://www.tesla.com/es_ES/support/do-it-yourself-guides`; 
-            
-            // 5. Rescate (ES)
             const baseUrlRescue = `https://www.tesla.com/es_ES/firstresponders`;
 
             return [
@@ -4628,10 +4619,20 @@
                             <button 
                                 key={m.id}
                                 onClick={() => setSelectedModel(m.id)}
-                                className={`p-6 rounded-xl border-2 transition-all transform hover:scale-105 flex flex-col items-center justify-center gap-2 ${selectedModel === m.id ? 'bg-blue-600 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}
+                                className={`group p-6 rounded-xl border-2 transition-all duration-300 transform hover:scale-105 flex flex-col items-center justify-center gap-2 overflow-hidden relative
+                                    ${selectedModel === m.id 
+                                        ? 'bg-blue-600 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.5)]' 
+                                        : 'bg-slate-800 border-slate-700 hover:border-slate-500'
+                                    }`}
                             >
-                                <span className="text-4xl">{m.icon}</span>
-                                <span className="font-bold text-lg text-white">{m.name}</span>
+                                {/* LETRA GRANDE DE FONDO */}
+                                <span className={`font-display font-bold text-7xl drop-shadow-xl transition-colors duration-300
+                                    ${selectedModel === m.id ? 'text-blue-800' : 'text-slate-700 group-hover:text-slate-600'}`}>
+                                    {m.letter}
+                                </span>
+                                
+                                {/* NOMBRE DEL MODELO */}
+                                <span className="font-bold text-lg text-white relative z-10">{m.name}</span>
                             </button>
                         ))}
                     </div>
@@ -4641,7 +4642,6 @@
                 {selectedModel && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
                         {getLinks(selectedModel).map(link => {
-                            // Protección contra error #130: Si el icono no existe, usa un span genérico
                             const IconComponent = link.icon;
                             
                             return (
@@ -4682,6 +4682,8 @@
             </div>
         );
       };
+
+     
         
       // --- APP PRINCIPAL ---
 
