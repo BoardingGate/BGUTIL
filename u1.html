@@ -4542,6 +4542,129 @@
         );
       };
 
+
+  // --- NUEVO COMPONENTE: MANUALES TESLA ---
+      const ManualsFinder = () => {
+        const [selectedModel, setSelectedModel] = useState(null);
+
+        const models = [
+            { id: '3', name: 'Model 3', icon: '🚗' },
+            { id: 'y', name: 'Model Y', icon: '🚙' },
+            { id: 's', name: 'Model S', icon: '🏎️' },
+            { id: 'x', name: 'Model X', icon: '🚐' }
+        ];
+
+        // Definición de enlaces por modelo
+        const getLinks = (model) => {
+            const baseUrlOwner = `https://www.tesla.com/ownersmanual/model${model}/es_es/`;
+            const baseUrlService = `https://service.tesla.com/docs/Model${model.toUpperCase()}/ServiceManual/en-us/`; // Inglés suele ser el estándar gratuito, pero a veces redirige
+            const baseUrlParts = `https://epc.tesla.com/`; // El EPC es centralizado
+            const baseUrlDIY = `https://www.tesla.com/support/do-it-yourself-guides`; // Centralizado pero se elige dentro
+
+            return [
+                { 
+                    id: 'owner', 
+                    title: 'Manual del Propietario', 
+                    desc: 'Guía oficial interactiva. Pantalla, conducción y funciones.', 
+                    url: baseUrlOwner,
+                    icon: Icons.Book,
+                    color: 'blue'
+                },
+                { 
+                    id: 'diy', 
+                    title: 'Hazlo tú mismo (DIY)', 
+                    desc: 'Mantenimiento básico: filtros, escobillas, 12v, etc.', 
+                    url: baseUrlDIY,
+                    icon: Icons.Wrench,
+                    color: 'green'
+                },
+                { 
+                    id: 'service', 
+                    title: 'Manual de Servicio (Taller)', 
+                    desc: 'Despiece técnico, pares de apriete, esquemas. (Requiere Login Tesla Gratuito).', 
+                    url: 'https://service.tesla.com/user', // Redirigir al landing para login
+                    icon: Icons.Settings,
+                    color: 'red'
+                },
+                { 
+                    id: 'epc', 
+                    title: 'Catálogo de Piezas (EPC)', 
+                    desc: 'Referencias oficiales de tornillos, grapas y recambios.', 
+                    url: baseUrlParts,
+                    icon: Icons.List,
+                    color: 'slate'
+                },
+                {
+                    id: 'rescue',
+                    title: 'Rescate y Emergencias',
+                    desc: 'Guía para bomberos: corte de alta tensión y airbags.',
+                    url: 'https://www.tesla.com/firstresponders',
+                    icon: Icons.AlertTriangle,
+                    color: 'orange'
+                }
+            ];
+        };
+
+        return (
+            <div className="max-w-4xl mx-auto space-y-8 animate-fade-in">
+                {/* Selector de Modelo */}
+                <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-8 text-center">
+                    <h2 className="text-2xl font-display font-bold text-white mb-6">Selecciona tu Modelo</h2>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {models.map(m => (
+                            <button 
+                                key={m.id}
+                                onClick={() => setSelectedModel(m.id)}
+                                className={`p-6 rounded-xl border-2 transition-all transform hover:scale-105 flex flex-col items-center justify-center gap-2 ${selectedModel === m.id ? 'bg-blue-600 border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.5)]' : 'bg-slate-800 border-slate-700 hover:border-slate-500'}`}
+                            >
+                                <span className="text-4xl">{m.icon}</span>
+                                <span className="font-bold text-lg text-white">{m.name}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Lista de Manuales */}
+                {selectedModel && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
+                        {getLinks(selectedModel).map(link => (
+                            <a 
+                                key={link.id}
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`group p-6 rounded-xl border flex items-start gap-4 transition-all hover:bg-opacity-20 relative overflow-hidden
+                                    ${link.color === 'blue' ? 'bg-blue-900/10 border-blue-500/30 hover:bg-blue-900/30' : ''}
+                                    ${link.color === 'green' ? 'bg-green-900/10 border-green-500/30 hover:bg-green-900/30' : ''}
+                                    ${link.color === 'red' ? 'bg-red-900/10 border-red-500/30 hover:bg-red-900/30' : ''}
+                                    ${link.color === 'slate' ? 'bg-slate-800/30 border-slate-600/30 hover:bg-slate-800/50' : ''}
+                                    ${link.color === 'orange' ? 'bg-orange-900/10 border-orange-500/30 hover:bg-orange-900/30' : ''}
+                                `}
+                            >
+                                <div className={`p-3 rounded-lg shrink-0 ${
+                                    link.color === 'blue' ? 'bg-blue-500/20 text-blue-400' :
+                                    link.color === 'green' ? 'bg-green-500/20 text-green-400' :
+                                    link.color === 'red' ? 'bg-red-500/20 text-red-400' :
+                                    link.color === 'orange' ? 'bg-orange-500/20 text-orange-400' :
+                                    'bg-slate-700 text-slate-400'
+                                }`}>
+                                    <link.icon className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-bold text-white group-hover:underline decoration-2 underline-offset-4">{link.title}</h3>
+                                    <p className="text-sm text-slate-400 mt-1 leading-relaxed">{link.desc}</p>
+                                </div>
+                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Icons.Link className="w-5 h-5 text-white/50" />
+                                </div>
+                            </a>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+      };      
+
         
       // --- APP PRINCIPAL ---
 
@@ -4580,6 +4703,7 @@
                 case 'equiv': return <EquivalenceCalculator />;
                 case 'charge': return <PlaceholderTab />;
                 case 'pickup': return <DeliveryChecklist />;    
+                case 'manuals': return <ManualsFinder />;    
                 default: return <PlaceholderTab />;
             }
         };
@@ -4614,6 +4738,7 @@
                             <TabButton id="nyland" label="Bjørn Nyland" />
                             <TabButton id="equiv" label="Equivalencia" />
                             <TabButton id="pickup" label="Recogida" />
+                            <TabButton id="manuals" label="Manuales" />
                             <TabButton id="charge" label="+EXCEL" />
                         </div>
                     </header>
