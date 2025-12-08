@@ -4512,7 +4512,7 @@ const Icons = {
                                         <div className="p-4 space-y-3">
                                             {defects.map(([key, val]) => { 
                                                 const [catId, itemIdx] = key.split('-'); 
-                                                const cat = categories.find(c => c.id === catId); 
+                                                const cat = categories.find(c => c.id === catId);
                                                 const itemName = cat.items[parseInt(itemIdx)]; 
                                                 return (<div key={key} className="text-sm"><div className="text-white font-bold mb-0.5">• {itemName}</div>{val.note && <div className="text-red-300 text-xs italic pl-3 border-l-2 border-red-500/50">"{val.note}"</div>}</div>); 
                                             })}
@@ -4526,7 +4526,7 @@ const Icons = {
                                         <div className="p-4 space-y-3">
                                             {doubts.map(([key, val]) => { 
                                                 const [catId, itemIdx] = key.split('-'); 
-                                                const cat = categories.findc => c.id === catId); 
+                                                const cat = categories.find (c => c.id === catId); 
                                                 const itemName = cat.items[parseInt(itemIdx)]; 
                                                 return (<div key={key} className="text-sm"><div className="text-white font-bold mb-0.5">• {itemName}</div>{val.note && <div className="text-yellow-200 text-xs italic pl-3 border-l-2 border-yellow-500/50">"{val.note}"</div>}</div>); 
                                             })}
