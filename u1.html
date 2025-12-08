@@ -4543,7 +4543,7 @@
       };
 
 
-  // --- NUEVO COMPONENTE: MANUALES TESLA ---
+      // --- COMPONENTE: MANUALES TESLA ---
       const ManualsFinder = () => {
         const [selectedModel, setSelectedModel] = useState(null);
 
@@ -4556,10 +4556,13 @@
 
         // Definición de enlaces por modelo
         const getLinks = (model) => {
+            // Ajustamos IDs para URLs oficiales
+            const mCode = model === '3' ? '3' : model.toUpperCase();
+            
             const baseUrlOwner = `https://www.tesla.com/ownersmanual/model${model}/es_es/`;
-            const baseUrlService = `https://service.tesla.com/docs/Model${model.toUpperCase()}/ServiceManual/en-us/`; // Inglés suele ser el estándar gratuito, pero a veces redirige
-            const baseUrlParts = `https://epc.tesla.com/`; // El EPC es centralizado
-            const baseUrlDIY = `https://www.tesla.com/support/do-it-yourself-guides`; // Centralizado pero se elige dentro
+            const baseUrlService = `https://service.tesla.com/docs/Model${mCode}/ServiceManual/en-us/`; 
+            const baseUrlParts = `https://epc.tesla.com/`; 
+            const baseUrlDIY = `https://www.tesla.com/support/do-it-yourself-guides`; 
 
             return [
                 { 
@@ -4581,8 +4584,8 @@
                 { 
                     id: 'service', 
                     title: 'Manual de Servicio (Taller)', 
-                    desc: 'Despiece técnico, pares de apriete, esquemas. (Requiere Login Tesla Gratuito).', 
-                    url: 'https://service.tesla.com/user', // Redirigir al landing para login
+                    desc: 'Despiece técnico, pares de apriete, esquemas. (Requiere Login Tesla).', 
+                    url: baseUrlService,
                     icon: Icons.Settings,
                     color: 'red'
                 },
@@ -4663,8 +4666,9 @@
                 )}
             </div>
         );
-      };      
+      };
 
+        
         
       // --- APP PRINCIPAL ---
 
