@@ -4544,9 +4544,7 @@
       };
 
 
-     
-
-      // --- COMPONENTE: MANUALES TESLA ---
+      // --- COMPONENTE: MANUALES TESLA (VERSION EN ESPAÑOL) ---
       const ManualsFinder = () => {
         const [selectedModel, setSelectedModel] = useState(null);
 
@@ -4557,23 +4555,32 @@
             { id: 'x', name: 'Model X', icon: '🚐' }
         ];
 
-        // Definición de enlaces por modelo
+        // Definición de enlaces por modelo (EN ESPAÑOL)
         const getLinks = (model) => {
-            // Ajustamos IDs para URLs oficiales
             const mCode = model === '3' ? '3' : model.toUpperCase();
             
+            // 1. Manual Propietario (ES)
             const baseUrlOwner = `https://www.tesla.com/ownersmanual/model${model}/es_es/`;
-            const baseUrlService = `https://service.tesla.com/docs/Model${mCode}/ServiceManual/en-us/`; 
+            
+            // 2. Manual de Servicio (Intentamos forzar ES, aunque partes técnicas pueden salir en inglés)
+            const baseUrlService = `https://service.tesla.com/docs/Model${mCode}/ServiceManual/es-es/`; 
+            
+            // 3. Catálogo de Piezas (EPC) - Detecta idioma del navegador automáticamente
             const baseUrlParts = `https://epc.tesla.com/`; 
-            const baseUrlDIY = `https://www.tesla.com/support/do-it-yourself-guides`; 
+            
+            // 4. Hazlo tú mismo (ES)
+            const baseUrlDIY = `https://www.tesla.com/es_ES/support/do-it-yourself-guides`; 
+            
+            // 5. Rescate (ES)
+            const baseUrlRescue = `https://www.tesla.com/es_ES/firstresponders`;
 
             return [
                 { 
                     id: 'owner', 
                     title: 'Manual del Propietario', 
-                    desc: 'Guía oficial interactiva. Pantalla, conducción y funciones.', 
+                    desc: 'Guía oficial interactiva en español. Pantalla, conducción y funciones.', 
                     url: baseUrlOwner,
-                    icon: Icons.Book,
+                    icon: Icons.Book || Icons.FileText, 
                     color: 'blue'
                 },
                 { 
@@ -4581,13 +4588,13 @@
                     title: 'Hazlo tú mismo (DIY)', 
                     desc: 'Mantenimiento básico: filtros, escobillas, 12v, etc.', 
                     url: baseUrlDIY,
-                    icon: Icons.Wrench,
+                    icon: Icons.Wrench || Icons.Settings,
                     color: 'green'
                 },
                 { 
                     id: 'service', 
                     title: 'Manual de Servicio (Taller)', 
-                    desc: 'Despiece técnico, pares de apriete, esquemas. (Requiere Login Tesla).', 
+                    desc: 'Despiece técnico y pares de apriete. (Requiere cuenta Tesla).', 
                     url: baseUrlService,
                     icon: Icons.Settings,
                     color: 'red'
@@ -4597,14 +4604,14 @@
                     title: 'Catálogo de Piezas (EPC)', 
                     desc: 'Referencias oficiales de tornillos, grapas y recambios.', 
                     url: baseUrlParts,
-                    icon: Icons.List,
+                    icon: Icons.List || Icons.FileText, 
                     color: 'slate'
                 },
                 {
                     id: 'rescue',
                     title: 'Rescate y Emergencias',
                     desc: 'Guía para bomberos: corte de alta tensión y airbags.',
-                    url: 'https://www.tesla.com/firstresponders',
+                    url: baseUrlRescue,
                     icon: Icons.AlertTriangle,
                     color: 'orange'
                 }
@@ -4633,43 +4640,48 @@
                 {/* Lista de Manuales */}
                 {selectedModel && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in">
-                        {getLinks(selectedModel).map(link => (
-                            <a 
-                                key={link.id}
-                                href={link.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`group p-6 rounded-xl border flex items-start gap-4 transition-all hover:bg-opacity-20 relative overflow-hidden
-                                    ${link.color === 'blue' ? 'bg-blue-900/10 border-blue-500/30 hover:bg-blue-900/30' : ''}
-                                    ${link.color === 'green' ? 'bg-green-900/10 border-green-500/30 hover:bg-green-900/30' : ''}
-                                    ${link.color === 'red' ? 'bg-red-900/10 border-red-500/30 hover:bg-red-900/30' : ''}
-                                    ${link.color === 'slate' ? 'bg-slate-800/30 border-slate-600/30 hover:bg-slate-800/50' : ''}
-                                    ${link.color === 'orange' ? 'bg-orange-900/10 border-orange-500/30 hover:bg-orange-900/30' : ''}
-                                `}
-                            >
-                                <div className={`p-3 rounded-lg shrink-0 ${
-                                    link.color === 'blue' ? 'bg-blue-500/20 text-blue-400' :
-                                    link.color === 'green' ? 'bg-green-500/20 text-green-400' :
-                                    link.color === 'red' ? 'bg-red-500/20 text-red-400' :
-                                    link.color === 'orange' ? 'bg-orange-500/20 text-orange-400' :
-                                    'bg-slate-700 text-slate-400'
-                                }`}>
-                                    <link.icon className="w-8 h-8" />
-                                </div>
-                                <div>
-                                    <h3 className="text-lg font-bold text-white group-hover:underline decoration-2 underline-offset-4">{link.title}</h3>
-                                    <p className="text-sm text-slate-400 mt-1 leading-relaxed">{link.desc}</p>
-                                </div>
-                                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Icons.Link className="w-5 h-5 text-white/50" />
-                                </div>
-                            </a>
-                        ))}
+                        {getLinks(selectedModel).map(link => {
+                            // Protección contra error #130: Si el icono no existe, usa un span genérico
+                            const IconComponent = link.icon;
+                            
+                            return (
+                                <a 
+                                    key={link.id}
+                                    href={link.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`group p-6 rounded-xl border flex items-start gap-4 transition-all hover:bg-opacity-20 relative overflow-hidden
+                                        ${link.color === 'blue' ? 'bg-blue-900/10 border-blue-500/30 hover:bg-blue-900/30' : ''}
+                                        ${link.color === 'green' ? 'bg-green-900/10 border-green-500/30 hover:bg-green-900/30' : ''}
+                                        ${link.color === 'red' ? 'bg-red-900/10 border-red-500/30 hover:bg-red-900/30' : ''}
+                                        ${link.color === 'slate' ? 'bg-slate-800/30 border-slate-600/30 hover:bg-slate-800/50' : ''}
+                                        ${link.color === 'orange' ? 'bg-orange-900/10 border-orange-500/30 hover:bg-orange-900/30' : ''}
+                                    `}
+                                >
+                                    <div className={`p-3 rounded-lg shrink-0 ${
+                                        link.color === 'blue' ? 'bg-blue-500/20 text-blue-400' :
+                                        link.color === 'green' ? 'bg-green-500/20 text-green-400' :
+                                        link.color === 'red' ? 'bg-red-500/20 text-red-400' :
+                                        link.color === 'orange' ? 'bg-orange-500/20 text-orange-400' :
+                                        'bg-slate-700 text-slate-400'
+                                    }`}>
+                                        {IconComponent ? <IconComponent className="w-8 h-8" /> : <span className="text-2xl">📄</span>}
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-bold text-white group-hover:underline decoration-2 underline-offset-4">{link.title}</h3>
+                                        <p className="text-sm text-slate-400 mt-1 leading-relaxed">{link.desc}</p>
+                                    </div>
+                                    <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {Icons.Link ? <Icons.Link className="w-5 h-5 text-white/50" /> : <span>↗</span>}
+                                    </div>
+                                </a>
+                            );
+                        })}
                     </div>
                 )}
             </div>
         );
-      };        
+      };
         
       // --- APP PRINCIPAL ---
 
