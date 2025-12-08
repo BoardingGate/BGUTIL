@@ -4523,7 +4523,7 @@
                                         <div className="p-4 space-y-3">
                                             {doubts.map(([key, val]) => { 
                                                 const [catId, itemIdx] = key.split('-'); 
-                                                const cat = categories.find(c => c.id === catId); 
+                                                const cat = categories.findc => c.id === catId); 
                                                 const itemName = cat.items[parseInt(itemIdx)]; 
                                                 return (<div key={key} className="text-sm"><div className="text-white font-bold mb-0.5">• {itemName}</div>{val.note && <div className="text-yellow-200 text-xs italic pl-3 border-l-2 border-yellow-500/50">"{val.note}"</div>}</div>); 
                                             })}
@@ -4544,7 +4544,7 @@
       };
 
 
-      // --- COMPONENTE: MANUALES TESLA (V3 - DIY ESPECÍFICOS) ---
+      // --- COMPONENTE: MANUALES TESLA (V4 - ENLACES DIRECTOS EXACTOS) ---
       const ManualsFinder = () => {
         const [selectedModel, setSelectedModel] = useState(null);
 
@@ -4555,11 +4555,48 @@
             { id: 'x', name: 'Model X', letter: 'X' }
         ];
 
-        // Generador de enlaces
+        // BASE DE DATOS DE ENLACES ESPECÍFICOS (Deep Links)
+        const linksDB = {
+            '3': {
+                filter: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-DB0A1E3C-926E-498C-A292-11D96411C154.html",
+                wipers: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-1969CB60-4028-4674-8AC3-334493971E2D.html",
+                battery12v: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-3567D5F4-A5F4-4323-8BE0-023D5438FFC6.html", // Puenteo
+                tow: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-FA9E3DC9-805C-45BD-A64D-C4B3F491B8C0.html", // Instrucciones para grúa
+                unlock: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-7A32EC01-A17E-42CC-A15B-2E0A39FD07AB.html", // Abrir sin energía
+                tire: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html" // Presiones
+            },
+            'y': {
+                filter: "https://service.tesla.com/docs/Public/diy/modely/es_es/GUID-DB0A1E3C-926E-498C-A292-11D96411C154.html",
+                wipers: "https://service.tesla.com/docs/Public/diy/modely/es_es/GUID-1969CB60-4028-4674-8AC3-334493971E2D.html",
+                battery12v: "https://service.tesla.com/docs/Public/diy/modely/es_es/GUID-3567D5F4-A5F4-4323-8BE0-023D5438FFC6.html",
+                tow: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-FA9E3DC9-805C-45BD-A64D-C4B3F491B8C0.html",
+                unlock: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-7A32EC01-A17E-42CC-A15B-2E0A39FD07AB.html",
+                tire: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
+            },
+            's': {
+                filter: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-02758192-363E-4545-8B6C-77B848737F96.html", // 2021+
+                wipers: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-D497C288-46CC-49E4-8459-7D21AE581335.html",
+                battery12v: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-9D6786D5-E217-47C0-B776-3C5389E5F24D.html",
+                tow: "https://www.tesla.com/ownersmanual/models/es_es/GUID-95B7262D-C32A-438D-832F-6C4131A95F69.html",
+                unlock: "https://www.tesla.com/ownersmanual/models/es_es/GUID-D6086B6C-0A86-444C-97A8-D89E3060E648.html", // Apertura puertas
+                tire: "https://www.tesla.com/ownersmanual/models/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
+            },
+            'x': {
+                filter: "https://service.tesla.com/docs/Public/diy/modelx/es_es/GUID-02758192-363E-4545-8B6C-77B848737F96.html",
+                wipers: "https://service.tesla.com/docs/Public/diy/modelx/es_es/GUID-D497C288-46CC-49E4-8459-7D21AE581335.html",
+                battery12v: "https://service.tesla.com/docs/Public/diy/modelx/es_es/GUID-9D6786D5-E217-47C0-B776-3C5389E5F24D.html",
+                tow: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-95B7262D-C32A-438D-832F-6C4131A95F69.html",
+                unlock: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-0C763E6E-C693-41E9-8268-F97F7B4F975C.html", // Puertas halcón sin energía
+                tire: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
+            }
+        };
+
+        // Generador de estructura
         const getManualsData = (model) => {
-            const mCode = model === '3' ? '3' : model.toUpperCase(); // Para URLs que requieren mayúsculas
-            
-            // URLs BASE
+            const mCode = model === '3' ? '3' : model.toUpperCase(); 
+            const links = linksDB[model];
+
+            // URLs BASE GENERALES
             const urlOwner = `https://www.tesla.com/ownersmanual/model${model}/es_es/`;
             const urlDIY = `https://service.tesla.com/docs/Public/diy/model${model}/es_es/`;
             const urlService = `https://service.tesla.com/docs/Model${mCode}/ServiceManual/es-es/`;
@@ -4568,60 +4605,43 @@
 
             // 1. MANUALES GENERALES
             const mainLinks = [
-                { 
-                    id: 'owner', title: 'Manual del Propietario', 
-                    desc: 'Guía oficial interactiva. Pantalla, conducción y funciones.', 
-                    url: urlOwner, icon: Icons.Book, color: 'blue'
-                },
-                { 
-                    id: 'service', title: 'Manual de Taller (Service)', 
-                    desc: 'Despiece técnico, pares de apriete y diagramas.', 
-                    url: urlService, icon: Icons.Settings, color: 'red'
-                },
-                { 
-                    id: 'epc', title: 'Catálogo de Piezas (EPC)', 
-                    desc: 'Referencias de recambios, tornillería y grapas.', 
-                    url: urlParts, icon: Icons.List, color: 'slate'
-                },
-                {
-                    id: 'rescue', title: 'Hoja de Rescate', 
-                    desc: 'Para bomberos/grúas: Puntos de corte y alta tensión.', 
-                    url: urlRescue, icon: Icons.AlertTriangle, color: 'orange'
-                }
+                { id: 'owner', title: 'Manual Completo', desc: 'Buscador general oficial.', url: urlOwner, icon: Icons.Book, color: 'blue' },
+                { id: 'service', title: 'Manual de Taller', desc: 'Despiece técnico y pares de apriete.', url: urlService, icon: Icons.Settings, color: 'red' },
+                { id: 'epc', title: 'Catálogo Piezas', desc: 'Referencias de recambios.', url: urlParts, icon: Icons.List, color: 'slate' },
+                { id: 'rescue', title: 'Hoja Rescate', desc: 'Corte alta tensión (Bomberos).', url: urlRescue, icon: Icons.AlertTriangle, color: 'orange' }
             ];
 
-            // 2. ACCESOS DIRECTOS (MANTENIMIENTO FRECUENTE)
-            // Apuntan a la guía DIY específica del modelo o al manual de propietario
+            // 2. ACCESOS DIRECTOS EXACTOS
             const quickLinks = [
                 {
-                    id: 'diy_main', title: 'Índice "Hazlo tú mismo"',
-                    desc: 'Portada con todos los procedimientos.',
-                    url: urlDIY, icon: Icons.Wrench, type: 'diy'
+                    id: 'filter', title: 'Cambiar Filtro Aire',
+                    desc: 'Instrucciones paso a paso para el filtro de habitáculo.',
+                    url: links.filter, icon: Icons.Wind, isDIY: true
                 },
                 {
-                    id: 'filter', title: 'Filtro de Aire',
-                    desc: 'Cómo cambiar el filtro de habitáculo.',
-                    url: urlDIY, icon: Icons.Wind, type: 'diy'
+                    id: 'wipers', title: 'Cambiar Escobillas',
+                    desc: 'Modo servicio de limpias y sustitución.',
+                    url: links.wipers, icon: Icons.Construction, isDIY: true
                 },
                 {
-                    id: '12v', title: 'Batería 12V / 16V',
-                    desc: 'Sustitución y arranque de emergencia.',
-                    url: urlDIY, icon: Icons.BatteryCharging, type: 'diy'
+                    id: '12v', title: 'Arrancar con Pinzas',
+                    desc: 'Cómo acceder a la batería de 12V/16V y puentear.',
+                    url: links.battery12v, icon: Icons.BatteryCharging, isDIY: true
                 },
                 {
-                    id: 'wipers', title: 'Escobillas / Limpia',
-                    desc: 'Cambio de gomas del limpiaparabrisas.',
-                    url: urlDIY, icon: Icons.Construction, type: 'diy' // Fallback icon
+                    id: 'tow', title: 'Modo Remolque',
+                    desc: 'Activar modo transporte para subir a grúa.',
+                    url: links.tow, icon: Icons.Truck || Icons.AlertTriangle, isDIY: false
                 },
                 {
-                    id: 'tow', title: 'Modo Transporte / Grúa',
-                    desc: 'Cómo remolcar el coche sin dañar motores.',
-                    url: urlOwner, icon: Icons.Truck || Icons.AlertTriangle, type: 'owner' // Fallback
+                    id: 'unlock', title: 'Abrir sin Batería',
+                    desc: 'Desbloqueo manual de puertas y capó.',
+                    url: links.unlock, icon: Icons.LogOut, isDIY: false
                 },
                 {
-                    id: 'unlock', title: 'Apertura Emergencia',
-                    desc: 'Abrir puertas sin electricidad.',
-                    url: urlOwner, icon: Icons.LogOut, type: 'owner'
+                    id: 'tire', title: 'Presiones Ruedas',
+                    desc: 'Tabla de presiones y reinicio de TPMS.',
+                    url: links.tire, icon: Icons.Gauge || Icons.Settings, isDIY: false
                 }
             ];
 
@@ -4664,7 +4684,7 @@
                                 const IconComponent = link.icon || Icons.FileText;
                                 return (
                                     <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
-                                        className={`group p-6 rounded-xl border flex items-start gap-4 transition-all hover:bg-opacity-20 relative overflow-hidden
+                                        className={`group p-4 rounded-xl border flex items-center gap-4 transition-all hover:bg-opacity-20 relative overflow-hidden
                                             ${link.color === 'blue' ? 'bg-blue-900/10 border-blue-500/30 hover:bg-blue-900/30' : ''}
                                             ${link.color === 'red' ? 'bg-red-900/10 border-red-500/30 hover:bg-red-900/30' : ''}
                                             ${link.color === 'slate' ? 'bg-slate-800/30 border-slate-600/30 hover:bg-slate-800/50' : ''}
@@ -4677,59 +4697,55 @@
                                             link.color === 'orange' ? 'bg-orange-500/20 text-orange-400' :
                                             'bg-slate-700 text-slate-400'
                                         }`}>
-                                            <IconComponent className="w-8 h-8" />
+                                            <IconComponent className="w-6 h-6" />
                                         </div>
                                         <div>
-                                            <h3 className="text-lg font-bold text-white group-hover:underline decoration-2 underline-offset-4">{link.title}</h3>
-                                            <p className="text-sm text-slate-400 mt-1 leading-relaxed">{link.desc}</p>
+                                            <h3 className="text-base font-bold text-white group-hover:underline decoration-2 underline-offset-4">{link.title}</h3>
+                                            <p className="text-xs text-slate-400 leading-tight">{link.desc}</p>
                                         </div>
-                                        <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            {Icons.Link ? <Icons.Link className="w-5 h-5 text-white/50" /> : <span>↗</span>}
+                                        <div className="ml-auto opacity-50 group-hover:opacity-100">
+                                            {Icons.Link ? <Icons.Link className="w-4 h-4 text-white" /> : <span>↗</span>}
                                         </div>
                                     </a>
                                 );
                             })}
                         </div>
 
-                        {/* 3. ACCESOS DIRECTOS (DIY & MANTENIMIENTO) */}
+                        {/* 3. ACCESOS DIRECTOS EXACTOS */}
                         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 animate-fade-in">
                              <div className="flex items-center gap-2 mb-6 border-b border-slate-700 pb-4">
                                 <div className="bg-green-500/20 p-2 rounded-lg text-green-400">
                                     {Icons.Wrench ? <Icons.Wrench className="w-6 h-6"/> : <span>🔧</span>}
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-bold text-white">Mantenimiento Frecuente</h3>
-                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Accesos directos a procedimientos oficiales</p>
+                                    <h3 className="text-xl font-bold text-white">Procedimientos Específicos</h3>
+                                    <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Enlaces directos al capítulo exacto</p>
                                 </div>
                              </div>
 
                              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                                 {data.quickLinks.map(item => {
                                     const QuickIcon = item.icon || Icons.Settings;
-                                    const isDIY = item.type === 'diy';
                                     
                                     return (
                                         <a key={item.id} href={item.url} target="_blank" rel="noopener noreferrer"
                                            className={`flex flex-col p-4 rounded-xl border transition-all hover:-translate-y-1 hover:shadow-lg
-                                             ${isDIY ? 'bg-green-900/10 border-green-500/20 hover:border-green-500/50' : 'bg-slate-800/30 border-slate-700 hover:border-blue-500/50'}
+                                             ${item.isDIY ? 'bg-green-900/10 border-green-500/20 hover:border-green-500/50' : 'bg-slate-800/30 border-slate-700 hover:border-blue-500/50'}
                                            `}
                                         >
                                             <div className="flex justify-between items-start mb-3">
-                                                <div className={`p-2 rounded-lg ${isDIY ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-300'}`}>
+                                                <div className={`p-2 rounded-lg ${item.isDIY ? 'bg-green-500/20 text-green-400' : 'bg-slate-700 text-slate-300'}`}>
                                                     <QuickIcon className="w-6 h-6" />
                                                 </div>
-                                                <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${isDIY ? 'bg-green-900 text-green-200' : 'bg-slate-900 text-slate-400'}`}>
-                                                    {isDIY ? 'Guía DIY' : 'Manual'}
+                                                <span className={`text-[9px] font-bold px-2 py-1 rounded uppercase ${item.isDIY ? 'bg-green-900 text-green-200' : 'bg-slate-900 text-slate-500'}`}>
+                                                    {item.isDIY ? 'DIY' : 'Manual'}
                                                 </span>
                                             </div>
-                                            <div className="font-bold text-white mb-1">{item.title}</div>
+                                            <div className="font-bold text-white mb-1 text-sm">{item.title}</div>
                                             <div className="text-xs text-slate-500 leading-tight">{item.desc}</div>
                                         </a>
                                     );
                                 })}
-                             </div>
-                             <div className="mt-4 text-[10px] text-center text-slate-500 italic">
-                                * Estos enlaces abren la sección correspondiente de Tesla. Busca el procedimiento específico en el índice lateral de la página que se abre.
                              </div>
                         </div>
                     </>
@@ -4737,7 +4753,7 @@
             </div>
         );
       };
-        
+     
         
       // --- APP PRINCIPAL ---
 
