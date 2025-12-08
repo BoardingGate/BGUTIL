@@ -219,7 +219,7 @@
         
 
       // --- ICONS (MODIFICADO: ICONOS MÁS GRANDES POR DEFECTO) ---
-      const Icons = {
+const Icons = {
         Wind: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>,
         Thermometer: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>,
         TrendingUp: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
@@ -251,8 +251,11 @@
         Microchip: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 12h-5"/><path d="M13 12V7"/><path d="M2 12h5"/><path d="M7 12v5"/><path d="M12 2v20"/><path d="M2 12h20"/><path d="M12 17h5"/><path d="M12 7H7"/></svg>,
         List: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>,
         CheckCircle: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>,
-        Book: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>  
+        Book: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>,
+        FileText: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
+        Truck: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
       };
+
 
       // --- COMPONENTE PLACEHOLDER (TEXTO MÁS GRANDE Y CLARO) ---
       const PlaceholderTab = () => (
@@ -4544,9 +4547,8 @@
       };
 
 
-        
-        
-    // --- COMPONENTE: MANUALES TESLA (V4 - ENLACES DIRECTOS EXACTOS) ---
+
+     // --- COMPONENTE: MANUALES TESLA (FIX V5 - ICONOS SEGUROS) ---
       const ManualsFinder = () => {
         const [selectedModel, setSelectedModel] = useState(null);
 
@@ -4562,10 +4564,10 @@
             '3': {
                 filter: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-DB0A1E3C-926E-498C-A292-11D96411C154.html",
                 wipers: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-1969CB60-4028-4674-8AC3-334493971E2D.html",
-                battery12v: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-3567D5F4-A5F4-4323-8BE0-023D5438FFC6.html", // Puenteo
-                tow: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-FA9E3DC9-805C-45BD-A64D-C4B3F491B8C0.html", // Instrucciones para grúa
-                unlock: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-7A32EC01-A17E-42CC-A15B-2E0A39FD07AB.html", // Abrir sin energía
-                tire: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html" // Presiones
+                battery12v: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-3567D5F4-A5F4-4323-8BE0-023D5438FFC6.html", 
+                tow: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-FA9E3DC9-805C-45BD-A64D-C4B3F491B8C0.html",
+                unlock: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-7A32EC01-A17E-42CC-A15B-2E0A39FD07AB.html",
+                tire: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
             },
             'y': {
                 filter: "https://service.tesla.com/docs/Public/diy/modely/es_es/GUID-DB0A1E3C-926E-498C-A292-11D96411C154.html",
@@ -4576,11 +4578,11 @@
                 tire: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
             },
             's': {
-                filter: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-02758192-363E-4545-8B6C-77B848737F96.html", // 2021+
+                filter: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-02758192-363E-4545-8B6C-77B848737F96.html",
                 wipers: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-D497C288-46CC-49E4-8459-7D21AE581335.html",
                 battery12v: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-9D6786D5-E217-47C0-B776-3C5389E5F24D.html",
                 tow: "https://www.tesla.com/ownersmanual/models/es_es/GUID-95B7262D-C32A-438D-832F-6C4131A95F69.html",
-                unlock: "https://www.tesla.com/ownersmanual/models/es_es/GUID-D6086B6C-0A86-444C-97A8-D89E3060E648.html", // Apertura puertas
+                unlock: "https://www.tesla.com/ownersmanual/models/es_es/GUID-D6086B6C-0A86-444C-97A8-D89E3060E648.html",
                 tire: "https://www.tesla.com/ownersmanual/models/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
             },
             'x': {
@@ -4588,7 +4590,7 @@
                 wipers: "https://service.tesla.com/docs/Public/diy/modelx/es_es/GUID-D497C288-46CC-49E4-8459-7D21AE581335.html",
                 battery12v: "https://service.tesla.com/docs/Public/diy/modelx/es_es/GUID-9D6786D5-E217-47C0-B776-3C5389E5F24D.html",
                 tow: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-95B7262D-C32A-438D-832F-6C4131A95F69.html",
-                unlock: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-0C763E6E-C693-41E9-8268-F97F7B4F975C.html", // Puertas halcón sin energía
+                unlock: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-0C763E6E-C693-41E9-8268-F97F7B4F975C.html",
                 tire: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
             }
         };
@@ -4633,7 +4635,7 @@
                 {
                     id: 'tow', title: 'Modo Remolque',
                     desc: 'Activar modo transporte para subir a grúa.',
-                    url: links.tow, icon: Icons.Truck || Icons.AlertTriangle, isDIY: false
+                    url: links.tow, icon: Icons.Truck, isDIY: false
                 },
                 {
                     id: 'unlock', title: 'Abrir sin Batería',
@@ -4643,7 +4645,7 @@
                 {
                     id: 'tire', title: 'Presiones Ruedas',
                     desc: 'Tabla de presiones y reinicio de TPMS.',
-                    url: links.tire, icon: Icons.Gauge || Icons.Settings, isDIY: false
+                    url: links.tire, icon: Icons.Gauge, isDIY: false
                 }
             ];
 
@@ -4755,8 +4757,6 @@
             </div>
         );
       };
-
-     
         
       // --- APP PRINCIPAL ---
 
