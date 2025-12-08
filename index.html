@@ -4546,7 +4546,7 @@ const Icons = {
         );
       };
 
-     // --- COMPONENTE: MANUALES TESLA (LINKS EXACTOS SERVICE DIY) ---
+     // --- COMPONENTE: MANUALES TESLA (LINKS EXACTOS + AMAZON RECAMBIOS) ---
       const ManualsFinder = () => {
         const [selectedModel, setSelectedModel] = useState(null);
 
@@ -4555,21 +4555,16 @@ const Icons = {
             { id: '3', name: 'Model 3', letter: '3' },
             { id: 'x', name: 'Model X', letter: 'X' },
             { id: 'y', name: 'Model Y', letter: 'Y' }
-        ];
+            ];
 
         // BASE DE DATOS DE ENLACES ESPECÍFICOS (GUIDs EXACTOS)
         const linksDB = {
             '3': {
-                // GENERALES
                 owner: "https://www.tesla.com/ownersmanual/model3/es_es/",
                 diyIndex: "https://service.tesla.com/docs/Public/diy/model3/es_es/", 
-                
-                // PROCEDIMIENTOS (GUIDs proporcionados)
                 filter: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-A3E744BD-D5AC-4BB5-90F2-29313C2416C3.html",
                 wipers: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-949BFDA4-8D73-43A6-AAA5-98AE1129AC25.html",
                 battery12v: "https://service.tesla.com/docs/Public/diy/model3/es_es/GUID-3567D5F4-A5F4-4323-8BE0-023D5438FFC6.html", 
-                
-                // OTROS
                 tow: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-FA9E3DC9-805C-45BD-A64D-C4B3F491B8C0.html",
                 unlock: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-7A32EC01-A17E-42CC-A15B-2E0A39FD07AB.html",
                 tire: "https://www.tesla.com/ownersmanual/model3/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
@@ -4577,12 +4572,9 @@ const Icons = {
             'y': {
                 owner: "https://www.tesla.com/ownersmanual/modely/es_es/",
                 diyIndex: "https://service.tesla.com/docs/Public/diy/modely/es_es/",
-
-                // Model Y comparte GUIDs con Model 3 para Filtro y Escobillas en la DB de Tesla
                 filter: "https://service.tesla.com/docs/Public/diy/modely/es_es/GUID-A3E744BD-D5AC-4BB5-90F2-29313C2416C3.html",
                 wipers: "https://service.tesla.com/docs/Public/diy/modely/es_es/GUID-949BFDA4-8D73-43A6-AAA5-98AE1129AC25.html",
                 battery12v: "https://service.tesla.com/docs/Public/diy/modely/es_es/GUID-3567D5F4-A5F4-4323-8BE0-023D5438FFC6.html",
-                
                 tow: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-FA9E3DC9-805C-45BD-A64D-C4B3F491B8C0.html",
                 unlock: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-7A32EC01-A17E-42CC-A15B-2E0A39FD07AB.html",
                 tire: "https://www.tesla.com/ownersmanual/modely/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
@@ -4590,12 +4582,9 @@ const Icons = {
             's': {
                 owner: "https://www.tesla.com/ownersmanual/models/es_es/",
                 diyIndex: "https://service.tesla.com/docs/Public/diy/models/es_es/",
-
-                // Model S (2021+) GUIDs Específicos
                 filter: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-1C305D22-54F0-4241-A875-1030997C3A0F.html",
                 wipers: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-C6603598-6625-45C0-B958-868779901FCD.html",
                 battery12v: "https://service.tesla.com/docs/Public/diy/models/es_es/GUID-9D6786D5-E217-47C0-B776-3C5389E5F24D.html",
-                
                 tow: "https://www.tesla.com/ownersmanual/models/es_es/GUID-95B7262D-C32A-438D-832F-6C4131A95F69.html",
                 unlock: "https://www.tesla.com/ownersmanual/models/es_es/GUID-D6086B6C-0A86-444C-97A8-D89E3060E648.html",
                 tire: "https://www.tesla.com/ownersmanual/models/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
@@ -4603,17 +4592,23 @@ const Icons = {
             'x': {
                 owner: "https://www.tesla.com/ownersmanual/modelx/es_es/",
                 diyIndex: "https://service.tesla.com/docs/Public/diy/modelx/es_es/",
-
-                // Model X GUIDs Específicos
                 filter: "https://service.tesla.com/docs/Public/diy/modelx/es_es/GUID-0128B459-99B4-4061-8408-0113B9B27731.html",
                 wipers: "https://service.tesla.com/docs/Public/diy/modelx/es_es/GUID-7B03C350-13D9-44F0-94A5-0D4A0D841369.html",
                 battery12v: "https://service.tesla.com/docs/Public/diy/modelx/es_es/GUID-9D6786D5-E217-47C0-B776-3C5389E5F24D.html",
-                
                 tow: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-95B7262D-C32A-438D-832F-6C4131A95F69.html",
                 unlock: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-0C763E6E-C693-41E9-8268-F97F7B4F975C.html",
                 tire: "https://www.tesla.com/ownersmanual/modelx/es_es/GUID-94F63B13-EA2C-45D9-83AB-5DCA6295D587.html"
             }
         };
+
+        // LISTA DE PRODUCTOS AMAZON (GENÉRICA)
+        const amazonProducts = [
+            { title: "Filtros Aire Cabina", url: "https://amzn.to/3KyZKIM", icon: Icons.Wind },
+            { title: "Escobillas Limpia", url: "https://amzn.to/4s1K2XB", icon: Icons.Construction },
+            { title: "Líquido Limpia", url: "https://amzn.to/4pY3sdX", icon: Icons.Fuel }, // Icono Fuel usado como líquido
+            { title: "Limpiador Circuito", url: "https://amzn.to/44i8QjD", icon: Icons.Activity },
+            { title: "Detailing / CarPro", url: "https://amzn.to/4oSGfZS", icon: Icons.Shield }
+        ];
 
         const getManualsData = (model) => {
             const mCode = model === '3' ? '3' : model.toUpperCase(); 
@@ -4662,11 +4657,10 @@ const Icons = {
 
                 {selectedModel && data && (
                     <>
-                        {/* SECCIÓN SUPERIOR: ENLACES GENERALES (5 COLUMNAS RESPONSIVE) */}
+                        {/* SECCIÓN SUPERIOR: ENLACES GENERALES */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 animate-fade-in">
                             {data.mainLinks.map(link => {
                                 const IconComponent = link.icon || Icons.FileText;
-                                // Asignamos colores
                                 let bgClass = 'bg-slate-800/30 border-slate-600/30 hover:bg-slate-800/50';
                                 let iconBgClass = 'bg-slate-700 text-slate-400';
                                 
@@ -4690,7 +4684,7 @@ const Icons = {
                             })}
                         </div>
 
-                        {/* SECCIÓN INFERIOR: PROCEDIMIENTOS ESPECÍFICOS */}
+                        {/* SECCIÓN MEDIO: PROCEDIMIENTOS ESPECÍFICOS */}
                         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 animate-fade-in">
                              <div className="flex items-center gap-2 mb-6 border-b border-slate-700 pb-4">
                                 <div className="bg-green-500/20 p-2 rounded-lg text-green-400">{Icons.Search ? <Icons.Search className="w-6 h-6"/> : <span>🔎</span>}</div>
@@ -4712,12 +4706,34 @@ const Icons = {
                                 })}
                              </div>
                         </div>
+
+                        {/* SECCIÓN INFERIOR: RECAMBIOS AMAZON (NUEVA) */}
+                        <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 animate-fade-in">
+                             <div className="flex items-center gap-2 mb-6 border-b border-slate-700 pb-4">
+                                <div className="bg-yellow-500/20 p-2 rounded-lg text-yellow-400">{Icons.Truck ? <Icons.Truck className="w-6 h-6"/> : <span>📦</span>}</div>
+                                <div><h3 className="text-xl font-bold text-white">Recambios y Productos</h3><p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Recomendados en Amazon</p></div>
+                             </div>
+                             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                                {amazonProducts.map((item, idx) => {
+                                    const AmzIcon = item.icon || Icons.Settings;
+                                    return (
+                                        <a key={idx} href={item.url} target="_blank" rel="noopener noreferrer" className="flex flex-col p-4 rounded-xl border border-slate-700 bg-slate-800/30 hover:border-yellow-500/50 hover:bg-yellow-900/10 transition-all hover:-translate-y-1 hover:shadow-lg group">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className="p-2 rounded-lg bg-slate-700 text-slate-300 group-hover:bg-yellow-500/20 group-hover:text-yellow-400 transition-colors"><AmzIcon className="w-6 h-6" /></div>
+                                                <span className="text-[9px] font-bold px-2 py-1 rounded uppercase bg-slate-900 text-slate-500 border border-slate-700 group-hover:border-yellow-500/30 group-hover:text-yellow-500/80">Amazon</span>
+                                            </div>
+                                            <div className="font-bold text-white mb-1 text-sm group-hover:text-yellow-200">{item.title}</div>
+                                            <div className="text-xs text-slate-500 leading-tight group-hover:text-slate-400">Ver precio y disponibilidad ↗</div>
+                                        </a>
+                                    );
+                                })}
+                             </div>
+                        </div>
                     </>
                 )}
             </div>
         );
       };
-
         
         
       // --- APP PRINCIPAL ---
