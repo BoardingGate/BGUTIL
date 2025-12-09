@@ -4736,44 +4736,63 @@ const Icons = {
       };
 
 
-      // --- COMPONENTE: CALCULADORA DE LLANTAS Y EFICIENCIA ---
+      // --- COMPONENTE: CALCULADORA DE LLANTAS, PERFIL Y EFICIENCIA ---
       const TireCalculator = () => {
-        // Datos base (Configuración por defecto: Model 3 Highland RWD)
-        const [config, setConfig] = usePersistentState('tireConfig', {
+        // Datos base (Configuración por defecto: Model 3 Highland RWD - 18")
+        const [config, setConfig] = usePersistentState('tireConfigV2', {
             baseRange: 554,   // WLTP Oficial con 18"
             batteryKwh: 60,   // Capacidad útil aprox
             priceKwh: 0.09,
             annualKm: 20000
         });
 
-        // Estado de las dos configuraciones a comparar
-        const [setupA, setSetupA] = usePersistentState('tireSetupA', { size: 18, hasCaps: true });
-        const [setupB, setSetupB] = usePersistentState('tireSetupB', { size: 19, hasCaps: false });
+        // Estado de las dos configuraciones (A = Origen, B = Destino)
+        // Añadimos ancho (width) y perfil (profile)
+        const [setupA, setSetupA] = usePersistentState('tireSetupA_V2', { size: 18, width: 235, profile: 45, hasCaps: true });
+        const [setupB, setSetupB] = usePersistentState('tireSetupB_V2', { size: 19, width: 235, profile: 40, hasCaps: false });
 
-        // Penalizaciones estimadas según pruebas del mundo real (vs 18" con tapacubos)
-        // 18" es la base (0%). 
-        const penalties = {
-            18: 0,
-            19: 0.050, // ~5% pérdida
-            20: 0.090, // ~9.0% pérdida
-            21: 0.120  // ~12% pérdida
-        };
-        const capPenalty = 0.040; // ~4% pérdida por quitar tapacubos
+        // PRESETS: Medidas habituales en Tesla
+        const presets = [
+            { label: "M3 18\" Aero", s: 18, w: 235, p: 45, caps: true },
+            { label: "M3 19\" Nova", s: 19, w: 235, p: 40, caps: false },
+            { label: "M3 20\" Perf", s: 20, w: 235, p: 35, caps: false }, // Uberturbine
+            { label: "MY 19\" Gemini", s: 19, w: 255, p: 45, caps: true },
+            { label: "MY 20\" Induc", s: 20, w: 255, p: 40, caps: false },
+            { label: "MY 21\" Uber", s: 21, w: 275, p: 35, caps: false }, // Trasera Performance
+            { label: "MS 21\" Arach", s: 21, w: 295, p: 30, caps: false }, // Trasera Plaid
+        ];
 
         const handleConfig = (k, v) => setConfig(prev => ({...prev, [k]: parseFloat(v) || 0}));
 
-        // Función de cálculo
+        // FÍSICA: Cálculo de penalizaciones
         const calculateStats = (setup) => {
-            let penalty = penalties[setup.size] || 0;
-            // Si la llanta tiene opción de tapacubos (18, 19, 20 en algunos casos) y se quitan:
-            if (!setup.hasCaps) penalty += capPenalty;
+            let penalty = 0;
+
+            // 1. Penalización por LLANTA (Peso rotacional + Inercia) vs 18"
+            const rimPenalties = { 18: 0, 19: 0.05, 20: 0.09, 21: 0.12 };
+            penalty += rimPenalties[setup.size] || 0;
+
+            // 2. Penalización por ANCHO (Rozamiento + Aerodinámica frontal)
+            // Referencia base: 235mm. Por cada 10mm extra, ~1.5% consumo extra
+            const widthDiff = Math.max(0, setup.width - 235);
+            const widthPenalty = (widthDiff / 10) * 0.015; 
+            penalty += widthPenalty;
+
+            // 3. Penalización por TAPACUBOS (Aerodinámica lateral)
+            // Si la llanta permite tapacubos y se quitan, penaliza.
+            // Asumimos que 21" no suele llevar tapacubos eficientes tipo Aero.
+            if (!setup.hasCaps) penalty += 0.04;
 
             const efficiencyFactor = 1 - penalty;
             const realRange = config.baseRange * efficiencyFactor;
             const consumption = config.batteryKwh / (realRange / 100); // kWh/100km
             const annualCost = (consumption * config.annualKm / 100) * config.priceKwh;
 
-            return { realRange, consumption, annualCost, penalty };
+            // Cálculo diámetro total (para velocímetro)
+            // Diámetro = (Ancho * Perfil/100 * 2) + (Llanta * 25.4)
+            const diameterMm = (setup.width * (setup.profile / 100) * 2) + (setup.size * 25.4);
+
+            return { realRange, consumption, annualCost, penalty, diameterMm };
         };
 
         const statsA = calculateStats(setupA);
@@ -4782,49 +4801,74 @@ const Icons = {
         const diffKm = statsB.realRange - statsA.realRange;
         const diffCost = statsB.annualCost - statsA.annualCost;
         const diffPct = ((statsB.realRange - statsA.realRange) / statsA.realRange) * 100;
+        
+        // Error de velocímetro
+        const diameterDiffPct = ((statsB.diameterMm - statsA.diameterMm) / statsA.diameterMm) * 100;
+        const speedReading = 120 + (120 * (diameterDiffPct/100)); // A 120 de marcador
 
-        // Sub-componente para selector de rueda
+        // Sub-componente Selector
         const WheelSelector = ({ title, state, setState, stats }) => (
-            <div className="bg-slate-900/50 p-5 rounded-xl border border-slate-700">
-                <h4 className="text-sm font-bold text-slate-300 uppercase mb-4 text-center border-b border-slate-700 pb-2">{title}</h4>
+            <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700">
+                <h4 className="text-sm font-bold text-slate-300 uppercase mb-3 text-center border-b border-slate-700 pb-2">{title}</h4>
                 
                 {/* Visualizador Rueda */}
                 <div className="flex justify-center mb-4 relative">
                     <div className={`rounded-full border-4 border-zinc-700 bg-zinc-800 flex items-center justify-center shadow-2xl transition-all duration-500
-                        ${state.size === 18 ? 'w-24 h-24' : state.size === 19 ? 'w-28 h-28' : state.size === 20 ? 'w-32 h-32' : 'w-36 h-36'}
+                        ${state.size === 18 ? 'w-20 h-20' : state.size === 19 ? 'w-24 h-24' : state.size === 20 ? 'w-28 h-28' : 'w-32 h-32'}
                     `}>
                         <div className={`w-full h-full rounded-full flex items-center justify-center opacity-80 ${state.hasCaps ? 'bg-zinc-600' : 'bg-zinc-900'}`}>
-                            <span className="font-display font-bold text-white text-xl">{state.size}"</span>
+                            <span className="font-display font-bold text-white text-lg">{state.size}"</span>
                         </div>
-                        {/* Neumático */}
-                        <div className="absolute inset-[-8px] rounded-full border-[6px] border-black/60 z-[-1]"></div>
+                        {/* Perfil del neumático (Grosor visual) */}
+                        <div className="absolute inset-[-6px] rounded-full border-[6px] border-black/60 z-[-1]"></div>
+                    </div>
+                    <div className="absolute bottom-0 bg-black/60 px-2 rounded text-[10px] text-white font-mono">
+                        {state.width}/{state.profile} R{state.size}
                     </div>
                 </div>
 
-                <div className="space-y-4">
-                    <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Tamaño Llanta</label>
-                        <div className="grid grid-cols-4 gap-1">
-                            {[18, 19, 20, 21].map(s => (
-                                <button key={s} onClick={() => setState({...state, size: s})} 
-                                    className={`py-2 text-sm font-bold rounded transition-colors ${state.size === s ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
-                                    {s}"
-                                </button>
-                            ))}
+                <div className="space-y-3">
+                    {/* Botonera Presets */}
+                    <div className="flex flex-wrap gap-1 justify-center mb-2">
+                        {presets.slice(0,4).map((p, i) => (
+                            <button key={i} onClick={() => setState({size: p.s, width: p.w, profile: p.p, hasCaps: p.caps})} 
+                                className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded text-[9px] text-slate-300 font-bold">
+                                {p.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Selectores */}
+                    <div className="grid grid-cols-3 gap-2">
+                        <div>
+                            <label className="text-[9px] font-bold text-slate-500 block text-center">ANCHO</label>
+                            <select value={state.width} onChange={e => setState({...state, width: parseInt(e.target.value)})} className="w-full bg-slate-800 text-white text-xs font-bold p-1 rounded border border-slate-600 text-center">
+                                {[235, 245, 255, 265, 275, 285, 295].map(w => <option key={w} value={w}>{w}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-bold text-slate-500 block text-center">PERFIL</label>
+                            <select value={state.profile} onChange={e => setState({...state, profile: parseInt(e.target.value)})} className="w-full bg-slate-800 text-white text-xs font-bold p-1 rounded border border-slate-600 text-center">
+                                {[30, 35, 40, 45, 50, 55].map(p => <option key={p} value={p}>{p}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="text-[9px] font-bold text-slate-500 block text-center">LLANTA</label>
+                            <select value={state.size} onChange={e => setState({...state, size: parseInt(e.target.value)})} className="w-full bg-slate-800 text-white text-xs font-bold p-1 rounded border border-slate-600 text-center">
+                                {[18, 19, 20, 21].map(s => <option key={s} value={s}>{s}"</option>)}
+                            </select>
                         </div>
                     </div>
 
-                    <div>
-                        <label className="text-xs font-bold text-slate-500 block mb-1">Aerodinámica</label>
-                        <div className="flex bg-slate-800 rounded p-1">
-                            <button onClick={() => setState({...state, hasCaps: true})} className={`flex-1 py-1 text-[10px] font-bold uppercase rounded ${state.hasCaps ? 'bg-green-600 text-white' : 'text-slate-400'}`}>Con Tapacubos</button>
-                            <button onClick={() => setState({...state, hasCaps: false})} className={`flex-1 py-1 text-[10px] font-bold uppercase rounded ${!state.hasCaps ? 'bg-red-600 text-white' : 'text-slate-400'}`}>Sin (Llantas)</button>
-                        </div>
-                    </div>
+                    {/* Tapacubos */}
+                    <button onClick={() => setState({...state, hasCaps: !state.hasCaps})} 
+                        className={`w-full py-2 text-xs font-bold uppercase rounded border transition-colors ${state.hasCaps ? 'bg-green-900/40 border-green-500 text-green-400' : 'bg-slate-800 border-slate-600 text-slate-400'}`}>
+                        {state.hasCaps ? 'Aero Caps: SÍ' : 'Aero Caps: NO'}
+                    </button>
 
-                    <div className="mt-4 pt-4 border-t border-slate-700/50 text-center">
-                        <div className="text-3xl font-display font-bold text-white">{formatDecimal(stats.realRange, 0)} km</div>
-                        <div className="text-xs font-bold text-slate-400">Autonomía Estimada</div>
+                    <div className="mt-2 pt-2 border-t border-slate-700/50 text-center">
+                        <div className="text-2xl font-display font-bold text-white">{formatDecimal(stats.realRange, 0)} km</div>
+                        <div className="text-[10px] font-bold text-slate-400">Rango Real Estimado</div>
                     </div>
                 </div>
             </div>
@@ -4839,9 +4883,9 @@ const Icons = {
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div>
-                            <label className="text-sm font-bold text-slate-400 block mb-2">Autonomía WLTP (18" + Tapacubos)</label>
+                            <label className="text-sm font-bold text-slate-400 block mb-2">Autonomía WLTP (Ref. 18")</label>
                             <FormattedInput value={config.baseRange} onChange={v => handleConfig('baseRange', v)} grouped={true} />
-                            <div className="text-[10px] text-slate-500 mt-1">* Ej: 554 (M3 RWD), 629 (M3 LR), 455 (MY RWD)</div>
+                            <div className="text-[10px] text-slate-500 mt-1">* Ej: 554 (M3H RWD), 629 (M3H LR), 455 (MY RWD)</div>
                         </div>
                         <div>
                             <label className="text-sm font-bold text-slate-400 block mb-2">Precio Electricidad (€/kWh)</label>
@@ -4898,15 +4942,33 @@ const Icons = {
                     </div>
                 </div>
 
-                <div className="text-xs text-center text-slate-500 max-w-3xl mx-auto">
-                    * Cálculos basados en física aproximada: +1 pulgada de llanta ≈ 4-5% pérdida de eficiencia. Quitar tapacubos aerodinámicos ≈ 3.5% pérdida (varía según velocidad, impacto mayor en autopista). El cambio de perfil de neumático se ajusta para mantener el diámetro total similar, por lo que el error de velocímetro es despreciable en medidas oficiales.
+                {/* ADVERTENCIA VELOCÍMETRO */}
+                <div className={`mt-4 p-4 rounded-xl border flex items-start gap-3 ${Math.abs(diameterDiffPct) > 3 ? 'bg-orange-900/20 border-orange-500/50' : 'bg-slate-800/50 border-slate-700'}`}>
+                    <div className="p-2 bg-slate-900 rounded text-slate-300 font-mono text-xs text-center min-w-[60px]">
+                        <div>Ø Diám.</div>
+                        <div className={Math.abs(diameterDiffPct) > 3 ? 'text-orange-400 font-bold' : 'text-green-400 font-bold'}>
+                            {diffKm > 0 ? '+' : ''}{formatDecimal(diameterDiffPct, 1)}%
+                        </div>
+                    </div>
+                    <div>
+                        <div className="text-sm font-bold text-white mb-1">
+                            {Math.abs(diameterDiffPct) > 3 ? '⚠️ Precaución: Cambio de diámetro significativo' : '✅ Cambio de diámetro aceptable (<3%)'}
+                        </div>
+                        <p className="text-xs text-slate-400 leading-relaxed">
+                            Con la configuración B, cuando tu marcador indique <strong>120 km/h</strong>, tu velocidad real será de <strong>~{formatDecimal(speedReading, 0)} km/h</strong>.
+                            {Math.abs(diameterDiffPct) > 3 && " Revisa la normativa de ITV, cambios superiores al 3% suelen requerir homologación."}
+                        </p>
+                    </div>
+                </div>
+
+                <div className="text-xs text-center text-slate-500 max-w-3xl mx-auto mt-4">
+                    * Cálculos físicos aproximados: +1" de llanta ≈ 4-5% pérdida. +10mm de ancho ≈ 1.5% pérdida. Quitar tapacubos ≈ 4% pérdida (autopista).
                 </div>
             </div>
         );
       };
 
-        
-        
+      
       // --- APP PRINCIPAL ---
 
       const App = () => {
