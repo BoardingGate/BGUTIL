@@ -4968,7 +4968,312 @@ const Icons = {
         );
       };
 
-      
+   
+      // --- COMPONENTE: GUÍA Y CALCULADORA ITV (V6 - REMOLQUE & CÚTER) ---
+      const ITVGuide = () => {
+        const [state, setState] = usePersistentState('itvState_v2', {
+            purchaseDate: '',
+            lastItvDate: ''
+        });
+
+        // Helper para parsear fecha manual (DD/MM/AAAA)
+        const parseManualDate = (dateStr) => {
+            if (!dateStr) return null;
+            const parts = dateStr.replace(/-/g, '/').split('/');
+            if (parts.length !== 3) return null;
+            
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10);
+            const year = parseInt(parts[2], 10);
+
+            if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+            if (year < 2000 || year > 2100) return null;
+
+            return new Date(year, month - 1, day);
+        };
+
+        // CÁLCULO DE FECHAS
+        const calculateITV = () => {
+            const purchase = parseManualDate(state.purchaseDate);
+            const last = parseManualDate(state.lastItvDate);
+            const now = new Date();
+            
+            if (!purchase) return null;
+
+            const ageInMilliseconds = now - purchase;
+            const ageInYears = ageInMilliseconds / (1000 * 60 * 60 * 24 * 365.25);
+
+            let nextDate = new Date();
+            let periodicity = "";
+
+            if (!last) {
+                nextDate = new Date(purchase);
+                nextDate.setFullYear(purchase.getFullYear() + 4);
+                periodicity = "Exento (hasta los 4 años)";
+            } else {
+                nextDate = new Date(last);
+                if (ageInYears < 10) {
+                    nextDate.setFullYear(last.getFullYear() + 2);
+                    periodicity = "Bienal (cada 2 años)";
+                } else {
+                    nextDate.setFullYear(last.getFullYear() + 1);
+                    periodicity = "Anual (cada año)";
+                }
+            }
+
+            const diffTime = nextDate - now;
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+
+            return {
+                nextDateStr: nextDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' }),
+                daysLeft: diffDays,
+                periodicity,
+                age: ageInYears
+            };
+        };
+
+        const result = calculateITV();
+
+        const StepCard = ({ number, title, icon: Icon, children }) => (
+            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <Icon className="w-16 h-16 text-slate-400" />
+                </div>
+                <div className="flex gap-4 relative z-10">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg border border-blue-400">
+                        {number}
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
+                        <div className="text-sm text-slate-300 leading-relaxed space-y-3">
+                            {children}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+
+        return (
+            <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-10">
+                
+                {/* 1. CALCULADORA */}
+                <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 shadow-xl">
+                    <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
+                        <Icons.Calendar /> Calculadora Próxima ITV
+                    </h2>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label className="text-sm font-bold text-slate-400 block mb-2">Fecha Matrícula / Compra</label>
+                            <input 
+                                type="text" inputMode="numeric" placeholder="DD/MM/AAAA"
+                                value={state.purchaseDate} onFocus={(e) => scrollToSafeZone(e.target)}
+                                onChange={(e) => setState({...state, purchaseDate: e.target.value})}
+                                className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white font-mono font-bold focus:border-blue-500 outline-none text-center tracking-widest"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-sm font-bold text-slate-400 block mb-2">Fecha Última ITV (Opcional)</label>
+                            <input 
+                                type="text" inputMode="numeric" placeholder="DD/MM/AAAA"
+                                value={state.lastItvDate} onFocus={(e) => scrollToSafeZone(e.target)}
+                                onChange={(e) => setState({...state, lastItvDate: e.target.value})}
+                                className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white font-mono font-bold focus:border-blue-500 outline-none text-center tracking-widest"
+                            />
+                        </div>
+                    </div>
+
+                    {result && (
+                        <div className={`rounded-xl p-6 border flex flex-col md:flex-row justify-between items-center gap-4 transition-colors
+                            ${result.daysLeft < 0 ? 'bg-red-900/20 border-red-500/50' : result.daysLeft < 30 ? 'bg-yellow-900/20 border-yellow-500/50' : 'bg-green-900/20 border-green-500/50'}
+                        `}>
+                            <div className="text-center md:text-left">
+                                <div className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Tu próxima inspección</div>
+                                <div className="text-3xl font-display font-bold text-white">{result.nextDateStr}</div>
+                                <div className="text-sm font-bold text-slate-400 mt-1">{result.periodicity}</div>
+                            </div>
+                            <div className="text-center">
+                                <div className={`text-4xl font-bold ${result.daysLeft < 0 ? 'text-red-500' : result.daysLeft < 30 ? 'text-yellow-500' : 'text-green-500'}`}>
+                                    {result.daysLeft < 0 ? 'CADUCADA' : `${result.daysLeft} días`}
+                                </div>
+                                {result.daysLeft < 0 && <div className="text-xs text-red-300 font-bold mt-1">¡Pide cita urgente!</div>}
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* 2. GUÍA PASO A PASO */}
+                <div className="space-y-4">
+                    <h3 className="text-lg font-bold text-slate-300 uppercase tracking-widest pl-2 border-l-4 border-blue-500">Protocolo de Inspección</h3>
+                    
+                    <StepCard number="1" title="VIN Troquelado (Bastidor)" icon={Icons.Search}>
+                        <p>El inspector necesita ver el número de bastidor <strong>grabado en el metal</strong> (la pegatina de la puerta o el cristal no valen).</p>
+                        <div className="bg-slate-800 p-3 rounded border border-slate-700 mt-2">
+                            <strong className="text-white block mb-1">¿Dónde está?</strong>
+                            <p>Abre la puerta del <strong>acompañante</strong>. Levanta la alfombrilla y busca una zona marcada en la moqueta cerca del umbral o bajo el asiento.</p>
+                            <p className="text-yellow-400 text-xs mt-2 font-bold bg-yellow-900/20 p-2 rounded">⚠️ ¡OJO! A menudo la moqueta está marcada pero NO cortada. Es posible que necesites un cúter para cortar la línea pre-marcada y levantar la solapa.</p>
+                        </div>
+                    </StepCard>
+
+                    <StepCard number="2" title="Luces (Manual)" icon={Icons.Sun}>
+                        <p className="text-slate-400 italic mb-2">Ve a <strong>Controles {'>'} Luces</strong>:</p>
+                        <ul className="list-disc pl-4 space-y-2 text-white">
+                            <li><span className="text-slate-400">Posición:</span> Pulsa el icono "Parking" (la P con rayitas).</li>
+                            <li><span className="text-slate-400">Cruce (Cortas):</span> Pulsa el icono "On" (Luz encendida).</li>
+                            <li><span className="text-slate-400">Largas:</span> Empuja la palanca izquierda (o botón volante) hasta que el icono azul quede fijo.</li>
+                            <li><span className="text-slate-400">Antiniebla Trasero:</span> Pulsa el botón "Antiniebla Trasera" en pantalla.</li>
+                            <li><span className="text-slate-400">Emergencia:</span> Botón físico en techo o consola.</li>
+                        </ul>
+                    </StepCard>
+
+                    <StepCard number="3" title="Limpiaparabrisas y Agua" icon={Icons.Wind}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-slate-800 p-3 rounded border border-slate-700">
+                                <strong className="text-blue-400 block mb-1">Un Barrido</strong>
+                                <p>Pulsa <strong>una vez</strong> (clic corto) el botón del extremo de la palanca izquierda (o botón limpias en volante Highland).</p>
+                            </div>
+                            <div className="bg-slate-800 p-3 rounded border border-slate-700">
+                                <strong className="text-blue-400 block mb-1">Echar Agua</strong>
+                                <p>Mantén pulsado <strong>a fondo</strong> el mismo botón durante unos segundos hasta que salga el chorro.</p>
+                            </div>
+                        </div>
+                    </StepCard>
+
+                    <StepCard number="4" title="FRENÓMETRO (Rodillos)" icon={Icons.AlertTriangle}>
+                        <div className="bg-red-500/10 border border-red-500/30 p-3 rounded mb-2 text-red-200 text-sm">
+                            <strong>IMPORTANTE:</strong> El coche debe estar en <strong>NEUTRO (N)</strong>. <strong>No te quites el cinturón</strong> o se bloqueará a Parking (P).
+                        </div>
+                        <ul className="list-disc pl-4 space-y-2 mb-4">
+                            <li>
+                                <strong>Opción A (Dentro del coche):</strong> Mueve la palanca de marchas (o selector pantalla) levemente a la N y <strong>mantén 2 segundos</strong>.
+                            </li>
+                        </ul>
+                        
+                        <div className="bg-slate-800 p-3 rounded border border-blue-500/30">
+                            <strong className="text-blue-400 block mb-1">Opción B: MODO REMOLQUE (Si te hacen bajar)</strong>
+                            <p className="text-xs mb-2">Si el inspector te obliga a salir del vehículo, usa esto para que las ruedas sigan libres:</p>
+                            <ol className="list-decimal pl-4 text-xs space-y-1 text-white">
+                                <li>Con el coche parado, pisa el freno.</li>
+                                <li>Ve a <strong>Controles {'>'} Servicio {'>'} Remolque</strong>.</li>
+                                <li>Mantén pulsado el botón <strong>"Modo de transporte"</strong> hasta que se ponga azul.</li>
+                                <li>Ahora puedes bajar y empujar el coche; las ruedas están libres (N).</li>
+                            </ol>
+                        </div>
+                    </StepCard>
+
+                    <StepCard number="5" title="Freno de Mano" icon={Icons.CheckCircle}>
+                        <ul className="list-disc pl-4 space-y-2">
+                            <li><strong>Activar:</strong> Pulsa el botón del extremo de la palanca derecha (Park) o P en pantalla.</li>
+                            <li><strong>Desactivar Automático:</strong> Si te piden quitarlo sin moverte: pisa el freno y pulsa el botón "Freno de estacionamiento" (rojo) en la pantalla (Controles > Seguridad).</li>
+                        </ul>
+                    </StepCard>
+
+                    <StepCard number="6" title="Foso (Bajos)" icon={Icons.Eye}>
+                        <p><strong>NO apagues el coche.</strong></p>
+                        <p>Si tienes <strong>Suspensión Neumática</strong> (Model S / X):</p>
+                        <div className="bg-blue-900/30 p-2 rounded border border-blue-500/30 font-mono text-xs text-blue-300 mb-2">
+                            Controles {'>'} Suspensión {'>'} Muy Alta {'>'} Avanzado {'>'} MODO GATO
+                        </div>
+                    </StepCard>
+                </div>
+
+                {/* 3. LISTAS DE VERIFICACIÓN (SPLIT: DOCS Y VISUAL) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    
+                    {/* DOCUMENTACIÓN */}
+                    <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-6 h-full">
+                        <h3 className="text-sm font-bold text-blue-300 uppercase mb-4 flex items-center gap-2">
+                            <Icons.FileText className="w-4 h-4"/> Documentación Obligatoria
+                        </h3>
+                        <div className="space-y-4 text-sm text-slate-300">
+                            <div className="flex items-center gap-3 bg-blue-900/10 p-2 rounded border border-blue-500/10">
+                                <input type="checkbox" className="w-5 h-5 accent-blue-500" /> 
+                                <div>
+                                    <strong className="block text-white">Ficha Técnica</strong>
+                                    <span className="text-xs text-slate-400">Tarjeta ITV (Azul o eITV)</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 bg-blue-900/10 p-2 rounded border border-blue-500/10">
+                                <input type="checkbox" className="w-5 h-5 accent-blue-500" /> 
+                                <div>
+                                    <strong className="block text-white">Permiso de Circulación</strong>
+                                    <span className="text-xs text-slate-400">Documento original</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 bg-blue-900/10 p-2 rounded border border-blue-500/10">
+                                <input type="checkbox" className="w-5 h-5 accent-blue-500" /> 
+                                <div>
+                                    <strong className="block text-white">Seguro en vigor</strong>
+                                    <span className="text-xs text-slate-400">Recibo del banco (Recomendado*)</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 bg-blue-900/10 p-2 rounded border border-blue-500/10">
+                                <input type="checkbox" className="w-5 h-5 accent-blue-500" /> 
+                                <div>
+                                    <strong className="block text-white">DNI / NIE</strong>
+                                    <span className="text-xs text-slate-400">Del conductor que pasa la ITV</span>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-blue-300/70 italic mt-2 leading-tight">
+                                * Normalmente lo comprueban telemáticamente, pero si el sistema falla, te pedirán el recibo físico o en el móvil.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* REVISIÓN VISUAL */}
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 h-full">
+                        <h3 className="text-sm font-bold text-slate-300 uppercase mb-4 flex items-center gap-2">
+                            <Icons.CheckCircle className="w-4 h-4 text-green-500"/> Revisión Visual Vehículo
+                        </h3>
+                        <div className="space-y-3 text-sm text-slate-400">
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Agua del limpiaparabrisas (Rellenar)</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Escobillas limpiaparabrisas (Goma)</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Todas las luces funcionan</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Neumáticos {'>'} 1.6mm y sin grietas</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Cinturones traseros abrochan bien</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Claxón funciona</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Triángulos/V16 y Chaleco a mano (consultar cual es obligatoria, en principio V16)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* FOOTER AMAZON - V16 */}
+                <div className="mt-6 p-6 bg-slate-800 border border-slate-700 rounded-xl flex flex-col items-center gap-4 text-center">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Icons.AlertTriangle className="w-5 h-5 text-orange-500" />
+                        <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Accesorio Recomendado ITV</span>
+                    </div>
+                    <p className="text-xs text-slate-400 max-w-2xl">
+                        Evita faltas leves por no llevar la luz de emergencia V16 (obligatoria) para no tener que bajar del coche en caso de avería.
+                    </p>
+                    <a 
+                        href="https://amzn.to/4rLuBCv" 
+                        target="_blank" 
+                        className="bg-orange-600 hover:bg-orange-500 text-white text-lg font-bold px-8 py-3 rounded-xl transition-all shadow-lg hover:shadow-orange-500/20 transform hover:-translate-y-1 flex items-center gap-2"
+                    >
+                        COMPRAR LUZ V16 HOMOLOGADA
+                    </a>
+                </div>
+
+            </div>
+        );
+      };
+        
+        
       // --- APP PRINCIPAL ---
 
       const App = () => {
@@ -5006,6 +5311,7 @@ const Icons = {
                 case 'nyland': return <NylandCalculator />;
                 case 'equiv': return <EquivalenceCalculator />;
                 case 'charge': return <PlaceholderTab />;
+                case 'itv': return <ITVGuide />;    
                 case 'pickup': return <DeliveryChecklist />;    
                 case 'manuals': return <ManualsFinder />;    
                 default: return <PlaceholderTab />;
@@ -5042,6 +5348,7 @@ const Icons = {
                             <TabButton id="updates" label="UPDATES" />
                             <TabButton id="nyland" label="Bjørn Nyland" />
                             <TabButton id="equiv" label="Equivalencia" />
+                            <TabButton id="itv" label="ITV" />
                             <TabButton id="pickup" label="Recogida" />
                             <TabButton id="manuals" label="Manuales" />
                             <TabButton id="charge" label="+EXCEL" />
