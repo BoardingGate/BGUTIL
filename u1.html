@@ -4754,11 +4754,11 @@ const Icons = {
         // 18" es la base (0%). 
         const penalties = {
             18: 0,
-            19: 0.045, // ~4.5% pérdida
-            20: 0.085, // ~8.5% pérdida
-            21: 0.115  // ~11.5% pérdida
+            19: 0.050, // ~5% pérdida
+            20: 0.090, // ~9.0% pérdida
+            21: 0.120  // ~12% pérdida
         };
-        const capPenalty = 0.035; // ~3.5% pérdida por quitar tapacubos
+        const capPenalty = 0.040; // ~4% pérdida por quitar tapacubos
 
         const handleConfig = (k, v) => setConfig(prev => ({...prev, [k]: parseFloat(v) || 0}));
 
