@@ -4968,9 +4968,7 @@ const Icons = {
         );
       };
 
-     
-    
-      // --- COMPONENTE: GUÍA Y CALCULADORA ITV (V4 - CON V16 AMAZON) ---
+      // --- COMPONENTE: GUÍA Y CALCULADORA ITV (V5 - CON DOCUMENTACIÓN) ---
       const ITVGuide = () => {
         const [state, setState] = usePersistentState('itvState_v2', {
             purchaseDate: '',
@@ -5168,32 +5166,80 @@ const Icons = {
                     </StepCard>
                 </div>
 
-                {/* 3. CHECKLIST RÁPIDO */}
-                <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mt-6">
-                    <h3 className="text-sm font-bold text-slate-300 uppercase mb-4 flex items-center gap-2">
-                        <Icons.CheckCircle className="w-4 h-4 text-green-500"/> Check-list Previo
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-400">
-                        <div className="flex items-center gap-2">
-                            <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Agua del limpiaparabrisas (Rellenar)</span>
+                {/* 3. LISTAS DE VERIFICACIÓN (SPLIT: DOCS Y VISUAL) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                    
+                    {/* DOCUMENTACIÓN */}
+                    <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-6 h-full">
+                        <h3 className="text-sm font-bold text-blue-300 uppercase mb-4 flex items-center gap-2">
+                            <Icons.FileText className="w-4 h-4"/> Documentación Obligatoria
+                        </h3>
+                        <div className="space-y-4 text-sm text-slate-300">
+                            <div className="flex items-center gap-3 bg-blue-900/10 p-2 rounded border border-blue-500/10">
+                                <input type="checkbox" className="w-5 h-5 accent-blue-500" /> 
+                                <div>
+                                    <strong className="block text-white">Ficha Técnica</strong>
+                                    <span className="text-xs text-slate-400">Tarjeta ITV (Azul o eITV)</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 bg-blue-900/10 p-2 rounded border border-blue-500/10">
+                                <input type="checkbox" className="w-5 h-5 accent-blue-500" /> 
+                                <div>
+                                    <strong className="block text-white">Permiso de Circulación</strong>
+                                    <span className="text-xs text-slate-400">Documento original</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 bg-blue-900/10 p-2 rounded border border-blue-500/10">
+                                <input type="checkbox" className="w-5 h-5 accent-blue-500" /> 
+                                <div>
+                                    <strong className="block text-white">Seguro en vigor</strong>
+                                    <span className="text-xs text-slate-400">Recibo del banco (Recomendado*)</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 bg-blue-900/10 p-2 rounded border border-blue-500/10">
+                                <input type="checkbox" className="w-5 h-5 accent-blue-500" /> 
+                                <div>
+                                    <strong className="block text-white">DNI / NIE</strong>
+                                    <span className="text-xs text-slate-400">Del conductor que pasa la ITV</span>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-blue-300/70 italic mt-2 leading-tight">
+                                * Normalmente lo comprueban telemáticamente, pero si el sistema falla, te pedirán el recibo físico o en el móvil.
+                            </p>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span className="text-white font-bold">Escobillas limpiaparabrisas (Estado goma)</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Todas las luces funcionan</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Neumáticos {'>'} 1.6mm y sin grietas</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Cinturones traseros abrochan bien</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Triángulos/V16 y Chaleco a mano (o lo que se les ocurra, sino lleva una espada jedai)</span>
+                    </div>
+
+                    {/* REVISIÓN VISUAL */}
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 h-full">
+                        <h3 className="text-sm font-bold text-slate-300 uppercase mb-4 flex items-center gap-2">
+                            <Icons.CheckCircle className="w-4 h-4 text-green-500"/> Revisión Visual Vehículo
+                        </h3>
+                        <div className="space-y-3 text-sm text-slate-400">
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Agua del limpiaparabrisas (Rellenar)</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span className="text-white font-bold">Escobillas limpiaparabrisas (Goma)</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Todas las luces funcionan</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Neumáticos {'>'} 1.6mm y sin grietas</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Cinturones traseros abrochan bien</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Claxón funciona</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Triángulos/V16 y Chaleco a mano</span>
+                            </div>
                         </div>
                     </div>
                 </div>
+
 
                 {/* FOOTER AMAZON - V16 */}
                 <div className="mt-6 p-6 bg-slate-800 border border-slate-700 rounded-xl flex flex-col items-center gap-4 text-center">
