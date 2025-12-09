@@ -4740,7 +4740,7 @@ const Icons = {
       const TireCalculator = () => {
         // Datos base (Configuración por defecto: Model 3 Highland RWD)
         const [config, setConfig] = usePersistentState('tireConfig', {
-            baseRange: 513,   // WLTP Oficial con 18"
+            baseRange: 554,   // WLTP Oficial con 18"
             batteryKwh: 60,   // Capacidad útil aprox
             priceKwh: 0.09,
             annualKm: 20000
@@ -4841,7 +4841,7 @@ const Icons = {
                         <div>
                             <label className="text-sm font-bold text-slate-400 block mb-2">Autonomía WLTP (18" + Tapacubos)</label>
                             <FormattedInput value={config.baseRange} onChange={v => handleConfig('baseRange', v)} grouped={true} />
-                            <div className="text-[10px] text-slate-500 mt-1">* Ej: 513 (M3 RWD), 629 (M3 LR), 455 (MY RWD)</div>
+                            <div className="text-[10px] text-slate-500 mt-1">* Ej: 554 (M3 RWD), 629 (M3 LR), 455 (MY RWD)</div>
                         </div>
                         <div>
                             <label className="text-sm font-bold text-slate-400 block mb-2">Precio Electricidad (€/kWh)</label>
