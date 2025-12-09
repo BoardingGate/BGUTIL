@@ -4968,7 +4968,8 @@ const Icons = {
         );
       };
 
-      // --- COMPONENTE: GUÍA Y CALCULADORA ITV (V5 - CON DOCUMENTACIÓN) ---
+   
+      // --- COMPONENTE: GUÍA Y CALCULADORA ITV (V6 - REMOLQUE & CÚTER) ---
       const ITVGuide = () => {
         const [state, setState] = usePersistentState('itvState_v2', {
             purchaseDate: '',
@@ -5109,7 +5110,8 @@ const Icons = {
                         <p>El inspector necesita ver el número de bastidor <strong>grabado en el metal</strong> (la pegatina de la puerta o el cristal no valen).</p>
                         <div className="bg-slate-800 p-3 rounded border border-slate-700 mt-2">
                             <strong className="text-white block mb-1">¿Dónde está?</strong>
-                            <p>Abre la puerta del <strong>acompañante</strong>. Levanta la alfombrilla y busca una <strong>pestaña recortada en la moqueta</strong> cerca del umbral de la puerta o bajo el asiento. Levanta esa pestaña para ver el metal.</p>
+                            <p>Abre la puerta del <strong>acompañante</strong>. Levanta la alfombrilla y busca una zona marcada en la moqueta cerca del umbral o bajo el asiento.</p>
+                            <p className="text-yellow-400 text-xs mt-2 font-bold bg-yellow-900/20 p-2 rounded">⚠️ ¡OJO! A menudo la moqueta está marcada pero NO cortada. Es posible que necesites un cúter para cortar la línea pre-marcada y levantar la solapa.</p>
                         </div>
                     </StepCard>
 
@@ -5139,15 +5141,24 @@ const Icons = {
 
                     <StepCard number="4" title="FRENÓMETRO (Rodillos)" icon={Icons.AlertTriangle}>
                         <div className="bg-red-500/10 border border-red-500/30 p-3 rounded mb-2 text-red-200 text-sm">
-                            <strong>IMPORTANTE:</strong> El coche debe estar en <strong>NEUTRO (N)</strong>. <strong>No te quites el cinturón</strong> o se bloqueará.
+                            <strong>IMPORTANTE:</strong> El coche debe estar en <strong>NEUTRO (N)</strong>. <strong>No te quites el cinturón</strong> o se bloqueará a Parking (P).
                         </div>
-                        <ul className="list-disc pl-4 space-y-2">
+                        <ul className="list-disc pl-4 space-y-2 mb-4">
                             <li>
-                                <strong>Poner NEUTRO (N):</strong> 
-                                <br/><span className="text-blue-300 font-bold">Model 3/Y:</span> Mueve la palanca de marchas un "clic" leve (sin llegar al fondo) y <strong>MANTENLA 2 SEGUNDOS</strong>.
-                                <br/><span className="text-blue-300 font-bold">Highland / S / X:</span> Selector de marchas en pantalla > Mantén pulsada la <strong>N</strong>.
+                                <strong>Opción A (Dentro del coche):</strong> Mueve la palanca de marchas (o selector pantalla) levemente a la N y <strong>mantén 2 segundos</strong>.
                             </li>
                         </ul>
+                        
+                        <div className="bg-slate-800 p-3 rounded border border-blue-500/30">
+                            <strong className="text-blue-400 block mb-1">Opción B: MODO REMOLQUE (Si te hacen bajar)</strong>
+                            <p className="text-xs mb-2">Si el inspector te obliga a salir del vehículo, usa esto para que las ruedas sigan libres:</p>
+                            <ol className="list-decimal pl-4 text-xs space-y-1 text-white">
+                                <li>Con el coche parado, pisa el freno.</li>
+                                <li>Ve a <strong>Controles {'>'} Servicio {'>'} Remolque</strong>.</li>
+                                <li>Mantén pulsado el botón <strong>"Modo de transporte"</strong> hasta que se ponga azul.</li>
+                                <li>Ahora puedes bajar y empujar el coche; las ruedas están libres (N).</li>
+                            </ol>
+                        </div>
                     </StepCard>
 
                     <StepCard number="5" title="Freno de Mano" icon={Icons.CheckCircle}>
@@ -5219,7 +5230,7 @@ const Icons = {
                                 <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Agua del limpiaparabrisas (Rellenar)</span>
                             </div>
                             <div className="flex items-center gap-2">
-                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span className="text-white font-bold">Escobillas limpiaparabrisas (Goma)</span>
+                                <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Escobillas limpiaparabrisas (Goma)</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Todas las luces funcionan</span>
@@ -5239,7 +5250,6 @@ const Icons = {
                         </div>
                     </div>
                 </div>
-
 
                 {/* FOOTER AMAZON - V16 */}
                 <div className="mt-6 p-6 bg-slate-800 border border-slate-700 rounded-xl flex flex-col items-center gap-4 text-center">
