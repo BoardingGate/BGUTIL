@@ -4968,40 +4968,51 @@ const Icons = {
         );
       };
 
-
-      // --- COMPONENTE: GUÍA Y CALCULADORA ITV ---
+     
+    
+      // --- COMPONENTE: GUÍA Y CALCULADORA ITV (V4 - CON V16 AMAZON) ---
       const ITVGuide = () => {
-        const [state, setState] = usePersistentState('itvState', {
+        const [state, setState] = usePersistentState('itvState_v2', {
             purchaseDate: '',
             lastItvDate: ''
         });
 
-        // 1. CÁLCULO DE FECHAS (NORMATIVA ESPAÑA TURISMOS)
-        const calculateITV = () => {
-            if (!state.purchaseDate) return null;
+        // Helper para parsear fecha manual (DD/MM/AAAA)
+        const parseManualDate = (dateStr) => {
+            if (!dateStr) return null;
+            const parts = dateStr.replace(/-/g, '/').split('/');
+            if (parts.length !== 3) return null;
+            
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10);
+            const year = parseInt(parts[2], 10);
 
-            const purchase = new Date(state.purchaseDate);
-            const last = state.lastItvDate ? new Date(state.lastItvDate) : null;
+            if (isNaN(day) || isNaN(month) || isNaN(year)) return null;
+            if (year < 2000 || year > 2100) return null;
+
+            return new Date(year, month - 1, day);
+        };
+
+        // CÁLCULO DE FECHAS
+        const calculateITV = () => {
+            const purchase = parseManualDate(state.purchaseDate);
+            const last = parseManualDate(state.lastItvDate);
             const now = new Date();
             
-            // Edad del coche en años
+            if (!purchase) return null;
+
             const ageInMilliseconds = now - purchase;
             const ageInYears = ageInMilliseconds / (1000 * 60 * 60 * 24 * 365.25);
 
             let nextDate = new Date();
             let periodicity = "";
-            let status = "pending"; // pending, valid, expired
 
-            // Lógica 4 - 2 - 1
             if (!last) {
-                // Si nunca la ha pasado, la primera es a los 4 años
                 nextDate = new Date(purchase);
                 nextDate.setFullYear(purchase.getFullYear() + 4);
                 periodicity = "Exento (hasta los 4 años)";
             } else {
-                // Si ya la ha pasado, calculamos la siguiente según la edad ACTUAL
                 nextDate = new Date(last);
-                
                 if (ageInYears < 10) {
                     nextDate.setFullYear(last.getFullYear() + 2);
                     periodicity = "Bienal (cada 2 años)";
@@ -5011,7 +5022,6 @@ const Icons = {
                 }
             }
 
-            // Días restantes
             const diffTime = nextDate - now;
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
 
@@ -5025,7 +5035,6 @@ const Icons = {
 
         const result = calculateITV();
 
-        // Estilos para los pasos
         const StepCard = ({ number, title, icon: Icon, children }) => (
             <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-5 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -5037,7 +5046,7 @@ const Icons = {
                     </div>
                     <div className="flex-1">
                         <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
-                        <div className="text-sm text-slate-400 leading-relaxed space-y-2">
+                        <div className="text-sm text-slate-300 leading-relaxed space-y-3">
                             {children}
                         </div>
                     </div>
@@ -5058,19 +5067,19 @@ const Icons = {
                         <div>
                             <label className="text-sm font-bold text-slate-400 block mb-2">Fecha Matrícula / Compra</label>
                             <input 
-                                type="date" 
-                                value={state.purchaseDate} 
+                                type="text" inputMode="numeric" placeholder="DD/MM/AAAA"
+                                value={state.purchaseDate} onFocus={(e) => scrollToSafeZone(e.target)}
                                 onChange={(e) => setState({...state, purchaseDate: e.target.value})}
-                                className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white font-mono focus:border-blue-500 outline-none"
+                                className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white font-mono font-bold focus:border-blue-500 outline-none text-center tracking-widest"
                             />
                         </div>
                         <div>
                             <label className="text-sm font-bold text-slate-400 block mb-2">Fecha Última ITV (Opcional)</label>
                             <input 
-                                type="date" 
-                                value={state.lastItvDate} 
+                                type="text" inputMode="numeric" placeholder="DD/MM/AAAA"
+                                value={state.lastItvDate} onFocus={(e) => scrollToSafeZone(e.target)}
                                 onChange={(e) => setState({...state, lastItvDate: e.target.value})}
-                                className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white font-mono focus:border-blue-500 outline-none"
+                                className="w-full bg-slate-800 border border-slate-600 rounded-lg p-3 text-white font-mono font-bold focus:border-blue-500 outline-none text-center tracking-widest"
                             />
                         </div>
                     </div>
@@ -5084,7 +5093,6 @@ const Icons = {
                                 <div className="text-3xl font-display font-bold text-white">{result.nextDateStr}</div>
                                 <div className="text-sm font-bold text-slate-400 mt-1">{result.periodicity}</div>
                             </div>
-                            
                             <div className="text-center">
                                 <div className={`text-4xl font-bold ${result.daysLeft < 0 ? 'text-red-500' : result.daysLeft < 30 ? 'text-yellow-500' : 'text-green-500'}`}>
                                     {result.daysLeft < 0 ? 'CADUCADA' : `${result.daysLeft} días`}
@@ -5099,82 +5107,116 @@ const Icons = {
                 <div className="space-y-4">
                     <h3 className="text-lg font-bold text-slate-300 uppercase tracking-widest pl-2 border-l-4 border-blue-500">Protocolo de Inspección</h3>
                     
-                    <StepCard number="1" title="Llegada y Motor" icon={Icons.Zap}>
-                        <p>Al contrario que los térmicos, <strong>NO apagues el coche</strong>.</p>
-                        <p>Mantén el coche "encendido" (tarjeta en la consola si es necesario o teléfono con Bluetooth activo) para que no se active el freno de mano automático al bajarte si te lo piden.</p>
+                    <StepCard number="1" title="VIN Troquelado (Bastidor)" icon={Icons.Search}>
+                        <p>El inspector necesita ver el número de bastidor <strong>grabado en el metal</strong> (la pegatina de la puerta o el cristal no valen).</p>
+                        <div className="bg-slate-800 p-3 rounded border border-slate-700 mt-2">
+                            <strong className="text-white block mb-1">¿Dónde está?</strong>
+                            <p>Abre la puerta del <strong>acompañante</strong>. Levanta la alfombrilla y busca una <strong>pestaña recortada en la moqueta</strong> cerca del umbral de la puerta o bajo el asiento. Levanta esa pestaña para ver el metal.</p>
+                        </div>
                     </StepCard>
 
-                    <StepCard number="2" title="Luces y Limpiaparabrisas" icon={Icons.Sun}>
-                        <p><strong>Antinieblas traseros:</strong> Menú > Luces > Antiniebla Trasero.</p>
-                        <p><strong>Limpia:</strong> Pulsa el botón del extremo de la palanca intermitentes para un barrido y echar agua.</p>
-                        <p className="text-yellow-400 font-bold">¡OJO!</p>
-                        <p>Si te piden abrir el capó delantero (Frunk), hazlo desde la pantalla. No hay palanca física.</p>
+                    <StepCard number="2" title="Luces (Manual)" icon={Icons.Sun}>
+                        <p className="text-slate-400 italic mb-2">Ve a <strong>Controles {'>'} Luces</strong>:</p>
+                        <ul className="list-disc pl-4 space-y-2 text-white">
+                            <li><span className="text-slate-400">Posición:</span> Pulsa el icono "Parking" (la P con rayitas).</li>
+                            <li><span className="text-slate-400">Cruce (Cortas):</span> Pulsa el icono "On" (Luz encendida).</li>
+                            <li><span className="text-slate-400">Largas:</span> Empuja la palanca izquierda (o botón volante) hasta que el icono azul quede fijo.</li>
+                            <li><span className="text-slate-400">Antiniebla Trasero:</span> Pulsa el botón "Antiniebla Trasera" en pantalla.</li>
+                            <li><span className="text-slate-400">Emergencia:</span> Botón físico en techo o consola.</li>
+                        </ul>
                     </StepCard>
 
-                    <StepCard number="3" title="FRENÓMETRO (Rodillos)" icon={Icons.AlertTriangle}>
+                    <StepCard number="3" title="Limpiaparabrisas y Agua" icon={Icons.Wind}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="bg-slate-800 p-3 rounded border border-slate-700">
+                                <strong className="text-blue-400 block mb-1">Un Barrido</strong>
+                                <p>Pulsa <strong>una vez</strong> (clic corto) el botón del extremo de la palanca izquierda (o botón limpias en volante Highland).</p>
+                            </div>
+                            <div className="bg-slate-800 p-3 rounded border border-slate-700">
+                                <strong className="text-blue-400 block mb-1">Echar Agua</strong>
+                                <p>Mantén pulsado <strong>a fondo</strong> el mismo botón durante unos segundos hasta que salga el chorro.</p>
+                            </div>
+                        </div>
+                    </StepCard>
+
+                    <StepCard number="4" title="FRENÓMETRO (Rodillos)" icon={Icons.AlertTriangle}>
                         <div className="bg-red-500/10 border border-red-500/30 p-3 rounded mb-2 text-red-200 text-sm">
-                            <strong>CRÍTICO:</strong> El coche debe estar en <strong>NEUTRO (N)</strong> para que las ruedas giren libres. Si entra la "P" (Parking) o la "D" (Drive) con Hold, puedes dañar los motores o saltar del rodillo.
+                            <strong>IMPORTANTE:</strong> El coche debe estar en <strong>NEUTRO (N)</strong>. <strong>No te quites el cinturón</strong> o se bloqueará.
                         </div>
                         <ul className="list-disc pl-4 space-y-2">
                             <li>
                                 <strong>Poner NEUTRO (N):</strong> 
-                                <br/><span className="text-white">Model 3/Y (Palancas):</span> Mueve la palanca derecha hacia arriba o abajo (el primer toque, sin llegar al fondo) y <strong>MANTENLA 2 SEGUNDOS</strong>.
-                                <br/><span className="text-white">Highland / S / X (Pantalla):</span> Toca el icono del coche > Selector de marchas > Mantén pulsada la <strong>N</strong>.
-                            </li>
-                            <li>
-                                <strong>Evitar que se bloquee:</strong> Desactiva el "Freno de mano automático" si te bajas, o mejor, <strong>no te quites el cinturón y mantén la puerta cerrada</strong> mientras estás en los rodillos. Si levantas el culo del asiento, el coche pondrá "P" automáticamente.
-                            </li>
-                            <li>
-                                <strong>Modo Rodillo (Opcional):</strong> Si el técnico se pone pesado, puedes activar <em>Controles > Servicio > Modo remolque</em>, pero con la <strong>N</strong> suele bastar.
+                                <br/><span className="text-blue-300 font-bold">Model 3/Y:</span> Mueve la palanca de marchas un "clic" leve (sin llegar al fondo) y <strong>MANTENLA 2 SEGUNDOS</strong>.
+                                <br/><span className="text-blue-300 font-bold">Highland / S / X:</span> Selector de marchas en pantalla > Mantén pulsada la <strong>N</strong>.
                             </li>
                         </ul>
                     </StepCard>
 
-                    <StepCard number="4" title="Foso e Inspección de Bajos" icon={Icons.Eye}>
-                        <p>Si tienes <strong>Suspensión Neumática</strong> (Model S / X):</p>
-                        <div className="bg-blue-900/30 p-2 rounded border border-blue-500/30 font-mono text-xs text-blue-300 mb-2">
-                            Controles > Suspensión > Muy Alta > MODO GATO (Jack Mode)
-                        </div>
-                        <p>Esto evita que la suspensión intente autonivelarse mientras la menean, lo que podría dañar el compresor.</p>
+                    <StepCard number="5" title="Freno de Mano" icon={Icons.CheckCircle}>
+                        <ul className="list-disc pl-4 space-y-2">
+                            <li><strong>Activar:</strong> Pulsa el botón del extremo de la palanca derecha (Park) o P en pantalla.</li>
+                            <li><strong>Desactivar Automático:</strong> Si te piden quitarlo sin moverte: pisa el freno y pulsa el botón "Freno de estacionamiento" (rojo) en la pantalla (Controles > Seguridad).</li>
+                        </ul>
                     </StepCard>
 
-                    <StepCard number="5" title="OBD y Emisiones" icon={Icons.Cpu}>
-                        <p>¡Tranquilo! Tu coche es eléctrico. <strong>No hay prueba de gases.</strong></p>
-                        <p>A veces conectan el OBD para leer errores de centralita (normativa nueva), pero en muchos casos con ver que no hay testigos de error en la pantalla les vale. El puerto OBD en Model 3/Y suele estar bajo la salida de aire trasera (difícil acceso) o bajo el volante a la izquierda (depende del año).</p>
+                    <StepCard number="6" title="Foso (Bajos)" icon={Icons.Eye}>
+                        <p><strong>NO apagues el coche.</strong></p>
+                        <p>Si tienes <strong>Suspensión Neumática</strong> (Model S / X):</p>
+                        <div className="bg-blue-900/30 p-2 rounded border border-blue-500/30 font-mono text-xs text-blue-300 mb-2">
+                            Controles {'>'} Suspensión {'>'} Muy Alta {'>'} Avanzado {'>'} MODO GATO
+                        </div>
                     </StepCard>
                 </div>
 
                 {/* 3. CHECKLIST RÁPIDO */}
                 <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 mt-6">
                     <h3 className="text-sm font-bold text-slate-300 uppercase mb-4 flex items-center gap-2">
-                        <Icons.CheckCircle className="w-4 h-4 text-green-500"/> Revisa esto antes de ir
+                        <Icons.CheckCircle className="w-4 h-4 text-green-500"/> Check-list Previo
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-slate-400">
                         <div className="flex items-center gap-2">
                             <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Agua del limpiaparabrisas (Rellenar)</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Todas las luces funcionan (Freno, marcha atrás...)</span>
+                            <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span className="text-white font-bold">Escobillas limpiaparabrisas (Estado goma)</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Neumáticos con dibujo {'>'} 1.6mm</span>
+                            <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Todas las luces funcionan</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Neumáticos {'>'} 1.6mm y sin grietas</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Cinturones traseros abrochan bien</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Claxón funciona</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Triángulos/V16 y Chaleco en el maletero</span>
+                            <input type="checkbox" className="w-4 h-4 accent-blue-500" /> <span>Triángulos/V16 y Chaleco a mano (o lo que se les ocurra, sino lleva una espada jedai)</span>
                         </div>
                     </div>
+                </div>
+
+                {/* FOOTER AMAZON - V16 */}
+                <div className="mt-6 p-6 bg-slate-800 border border-slate-700 rounded-xl flex flex-col items-center gap-4 text-center">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Icons.AlertTriangle className="w-5 h-5 text-orange-500" />
+                        <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Accesorio Recomendado ITV</span>
+                    </div>
+                    <p className="text-xs text-slate-400 max-w-2xl">
+                        Evita faltas leves por no llevar la luz de emergencia V16 (obligatoria) para no tener que bajar del coche en caso de avería.
+                    </p>
+                    <a 
+                        href="https://amzn.to/4rLuBCv" 
+                        target="_blank" 
+                        className="bg-orange-600 hover:bg-orange-500 text-white text-lg font-bold px-8 py-3 rounded-xl transition-all shadow-lg hover:shadow-orange-500/20 transform hover:-translate-y-1 flex items-center gap-2"
+                    >
+                        COMPRAR LUZ V16 HOMOLOGADA
+                    </a>
                 </div>
 
             </div>
         );
       };
-
+        
         
       // --- APP PRINCIPAL ---
 
