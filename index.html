@@ -3889,48 +3889,47 @@ const Icons = {
       };
 
   
-
-// --- GUÍA DE ROTACIÓN DE NEUMÁTICOS (MODIFICADO CON BOTONES Y AMAZON) ---
+      // --- GUÍA DE ROTACIÓN DE NEUMÁTICOS (V2 - INTERVALO PERSONALIZABLE) ---
       const TireRotationGuide = () => {
-        const [state, setState] = usePersistentState('tireRotState', {
+        const [state, setState] = usePersistentState('tireRotState_v2', {
             currentKm: 0,
             lastRotKm: 0,
-            isStaggered: false, // Doble medida (ej: Model Y Perf)
-            isDirectional: false, // Neumáticos con sentido de giro
+            rotationInterval: 10000, // Intervalo por defecto
+            isStaggered: false, 
+            isDirectional: false,
             treadFront: 6.5,
             treadRear: 5.5,
             model: 'Y'
         });
 
-        // Constantes Tesla
-        const ROTATION_INTERVAL = 10000; // 10k km o 6250 millas
-        const MAX_DIFF_MM = 1.5; // Diferencia máxima entre ejes antes de rotar
+        // Constantes Técnicas
+        const MAX_DIFF_MM = 1.5; 
         const MIN_LEGAL = 1.6;
         const MIN_SAFE = 3.0;
-        const TORQUE_NM = 175; // 129 lb-ft
+        const TORQUE_NM = 175; 
 
+        // Cálculos dinámicos
+        const interval = state.rotationInterval || 10000; // Fallback de seguridad
         const kmSinceLast = state.currentKm - state.lastRotKm;
         const wearDiff = Math.abs(state.treadFront - state.treadRear);
-        const needsRotationByKm = kmSinceLast >= ROTATION_INTERVAL;
+        const needsRotationByKm = kmSinceLast >= interval;
         
-        // Determinar patrón visual
+        // Patrones de rotación
         let patternName = "Cruzado Trasero (Rearward Cross)";
         let patternDesc = "El patrón estándar para AWD/RWD con medidas iguales.";
-        // Lógica de flechas para el SVG
-        // 0: FL, 1: FR, 2: RL, 3: RR
         let arrows = []; 
 
         if (state.isStaggered) {
             if (state.isDirectional) {
                 patternName = "Imposible Rotar";
                 patternDesc = "Doble medida + Direccionales: No se pueden cambiar de posición sin desmontar la goma de la llanta.";
-                arrows = []; // Sin movimiento
+                arrows = []; 
             } else {
                 patternName = "Lado a Lado (Side-to-Side)";
                 patternDesc = "Solo se pueden intercambiar izquierda con derecha en el mismo eje.";
                 arrows = [
-                    { start: 0, end: 1 }, { start: 1, end: 0 }, // Delanteros
-                    { start: 2, end: 3 }, { start: 3, end: 2 }  // Traseros
+                    { start: 0, end: 1 }, { start: 1, end: 0 }, 
+                    { start: 2, end: 3 }, { start: 3, end: 2 }  
                 ];
             }
         } else {
@@ -3938,18 +3937,17 @@ const Icons = {
                 patternName = "De Frente a Atrás (Front-to-Back)";
                 patternDesc = "Los neumáticos direccionales deben mantenerse en el mismo lado del coche.";
                 arrows = [
-                    { start: 0, end: 2 }, { start: 2, end: 0 }, // Izquierda
-                    { start: 1, end: 3 }, { start: 3, end: 1 }  // Derecha
+                    { start: 0, end: 2 }, { start: 2, end: 0 }, 
+                    { start: 1, end: 3 }, { start: 3, end: 1 }  
                 ];
             } else {
-                // Estándar Tesla (y mayoría AWD/RWD)
                 patternName = "Cruzado Modificado";
                 patternDesc = "Los traseros pasan delante cruzados. Los delanteros pasan atrás en el mismo lado.";
                 arrows = [
-                    { start: 0, end: 2 }, // FL -> RL
-                    { start: 1, end: 3 }, // FR -> RR
-                    { start: 2, end: 1 }, // RL -> FR
-                    { start: 3, end: 0 }  // RR -> FL
+                    { start: 0, end: 2 }, 
+                    { start: 1, end: 3 }, 
+                    { start: 2, end: 1 }, 
+                    { start: 3, end: 0 }  
                 ];
             }
         }
@@ -3957,21 +3955,19 @@ const Icons = {
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
         const handleNum = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v) || 0}));
 
-        // Helper para botones +/- en profundidad
         const adjustTread = (key, delta) => {
             setState(prev => {
                 const current = parseFloat(prev[key]) || 0;
-                const newVal = Math.max(0, Math.min(15, (current + delta).toFixed(1))); // Limite 0-15mm
+                const newVal = Math.max(0, Math.min(15, (current + delta).toFixed(1))); 
                 return { ...prev, [key]: parseFloat(newVal) };
             });
         };
 
-        // Coordenadas visuales neumáticos (Top-Left 0,0 relativo al container coche)
         const tirePos = [
-            { x: 30, y: 40, label: "DEL. IZQ" },  // 0
-            { x: 130, y: 40, label: "DEL. DER" }, // 1
-            { x: 30, y: 200, label: "TRAS. IZQ" },// 2
-            { x: 130, y: 200, label: "TRAS. DER" }// 3
+            { x: 30, y: 40, label: "DEL. IZQ" },  
+            { x: 130, y: 40, label: "DEL. DER" }, 
+            { x: 30, y: 200, label: "TRAS. IZQ" },
+            { x: 130, y: 200, label: "TRAS. DER" }
         ];
 
         const getArrowPath = (startIdx, endIdx) => {
@@ -4022,7 +4018,7 @@ const Icons = {
                             {/* Kilometraje */}
                             <div className="pt-4 border-t border-slate-800">
                                 <h3 className="text-sm font-bold text-slate-300 uppercase mb-3">Control de Kilómetros</h3>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-2 gap-4 mb-4">
                                     <div>
                                         <label className="text-xs font-bold text-slate-400 block mb-1">Km Actuales</label>
                                         <FormattedInput value={state.currentKm} onChange={v => handleNum('currentKm', v)} grouped={true} />
@@ -4032,10 +4028,17 @@ const Icons = {
                                         <FormattedInput value={state.lastRotKm} onChange={v => handleNum('lastRotKm', v)} grouped={true} />
                                     </div>
                                 </div>
+                                
+                                {/* NUEVO CAMPO INTERVALO */}
+                                <div className="mb-4">
+                                    <label className="text-xs font-bold text-blue-400 block mb-1 uppercase">Intervalo Deseado</label>
+                                    <FormattedInput value={state.rotationInterval} onChange={v => handleNum('rotationInterval', v)} grouped={true} />
+                                </div>
+
                                 <div className={`mt-4 p-3 rounded-lg border text-center font-bold ${needsRotationByKm ? 'bg-red-900/30 border-red-500 text-red-200' : 'bg-green-900/20 border-green-500/30 text-green-200'}`}>
                                     {needsRotationByKm 
-                                        ? `⚠️ ¡ROTA YA! Hace ${formatMoney(kmSinceLast)} km que no rotas (Límite 10.000).` 
-                                        : `✅ Todo bien. Faltan ${formatMoney(ROTATION_INTERVAL - kmSinceLast)} km.`
+                                        ? `⚠️ ¡ROTA YA! Has superado el intervalo de ${formatMoney(interval)} km.` 
+                                        : `✅ Todo bien. Faltan ${formatMoney(interval - kmSinceLast)} km para rotar.`
                                     }
                                 </div>
                             </div>
@@ -4184,7 +4187,7 @@ const Icons = {
                                     <div>
                                         <div className="text-green-400 font-bold text-sm uppercase">Desgaste Equilibrado</div>
                                         <div className="text-green-200 text-xs mt-1">
-                                            La diferencia es aceptable ({wearDiff.toFixed(1)}mm). Rota solo si has superado los 10.000 km.
+                                            La diferencia es aceptable ({wearDiff.toFixed(1)}mm). Rota solo si has superado el kilometraje de intervalo.
                                         </div>
                                     </div>
                                 </div>
@@ -4222,7 +4225,6 @@ const Icons = {
             </div>
         );
       };
-
 
 
       // --- CHECKLIST DE ENTREGA (ACTUALIZADO: CONSEJOS CON LINKS AMAZON) ---
