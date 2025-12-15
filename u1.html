@@ -1,4 +1,4 @@
-v2
+v3
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -3581,145 +3581,61 @@ const Icons = {
         );
       };
 
-
-   
-      // --- LABORATORIO DE NEUMÁTICOS V15 (RUEDA DONUT ORIGINAL EXACTA + PSI) ---
+  // --- LABORATORIO DE NEUMÁTICOS V10 (COMBINADO) ---
       const TirePressureLab = () => {
-        const [state, setState] = usePersistentState('tireLabV15', {
-            recPressure: 2.9, // Objetivo (bar)
-            startPressure: 2.9, // Inicial (bar)
-            refTemp: 20,      // ºC inicial
-            targetTemp: 5,    // ºC destino
-            highwayMode: false,
-            gasType: 'air'    // 'air' | 'nitro'
+        const [state, setState] = usePersistentState('tireLabV10', {
+            recPressure: 2.9, startPressure: 2.9, refTemp: 20, targetTemp: 5, highwayMode: false, gasType: 'air'
         });
 
-        // Constantes
         const BAR_TO_PSI = 14.5038;
         const HIGHWAY_TEMP_ADD = 25; 
         const REF_CONSUMPTION = 14.5; 
 
-        // Helper para mostrar PSI
         const toPsi = (bar) => (bar * BAR_TO_PSI).toFixed(0);
 
-        // Helper para botones de ajuste fino
         const adjust = (key, delta, min, max) => {
             setState(prev => {
                 const newVal = parseFloat((prev[key] + delta).toFixed(1));
-                if (newVal >= min && newVal <= max) {
-                    return { ...prev, [key]: newVal };
-                }
+                if (newVal >= min && newVal <= max) return { ...prev, [key]: newVal };
                 return prev;
             });
         };
 
-        // 1. CÁLCULOS FÍSICOS
+        const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v)}));
+
+        // FÍSICA
         const t1Kelvin = state.refTemp + 273.15;
         const effectiveTargetTemp = state.targetTemp + (state.highwayMode ? HIGHWAY_TEMP_ADD : 0);
         const t2Kelvin = effectiveTargetTemp + 273.15;
-        
-        // Presión Base (Gay-Lussac)
         let resultPressureBar = state.startPressure * (t2Kelvin / t1Kelvin);
 
-        // Corrección por Humedad (Aire vs Nitrógeno)
-        let gasText = "Gas inerte y seco. Presión muy estable ante cambios térmicos.";
-        if (state.gasType === 'air') {
-            gasText = "El aire contiene humedad. El vapor de agua se expande más con el calor, variando la presión.";
-            if (effectiveTargetTemp > state.refTemp) {
-                const humidityExpansion = (effectiveTargetTemp - state.refTemp) * 0.002; 
-                resultPressureBar += humidityExpansion;
-            }
+        if (state.gasType === 'air' && effectiveTargetTemp > state.refTemp) {
+            resultPressureBar += (effectiveTargetTemp - state.refTemp) * 0.002; 
         }
         
-        // 2. LÓGICA DE ESTADO
+        // ESTADO
         const p = state.recPressure;
         const val = resultPressureBar;
-        
         let statusColor = "text-green-400";
-        let barFillColor = "bg-green-500";
         let wearText = "DESGASTE UNIFORME";
-        let wearDesc = "Pisada perfecta. La superficie de contacto es plana, ofreciendo máximo agarre y vida útil óptima.";
         let WearIcon = Icons.CheckCircle;
 
-        if (val < p * 0.85) {
-            statusColor = "text-red-500"; barFillColor = "bg-red-600";
-            wearText = "DESGASTE CRÍTICO (HOMBROS)";
-            wearDesc = "PELIGRO: El neumático se apoya en los laterales. Riesgo de reventón por fatiga en flancos y desgaste acelerado en bordes.";
-            WearIcon = Icons.AlertTriangle;
-        } else if (val < p * 0.96) {
-            statusColor = "text-blue-400"; barFillColor = "bg-blue-500";
-            wearText = "SUBINFLADO (BORDES)";
-            wearDesc = "Presión insuficiente. Aumenta la huella de contacto lateral, generando más rozamiento y temperatura.";
-            WearIcon = Icons.TrendingUp;
-        } else if (val > p * 1.05 && val < p * 1.15) {
-            statusColor = "text-blue-400"; barFillColor = "bg-blue-500";
-            wearText = "SOBREINFLADO LEVE (CENTRO)";
-            wearDesc = "El neumático empieza a abombarse. Menos rozamiento (más eficiente) pero suspensión más seca y menor confort.";
-            WearIcon = Icons.Activity;
-        } else if (val >= p * 1.15) {
-            statusColor = "text-red-500"; barFillColor = "bg-red-600";
-            wearText = "DESGASTE CRÍTICO (CENTRO)";
-            wearDesc = "PELIGRO: Exceso de balón. La huella de contacto es mínima (solo el centro), perdiendo frenada y agarre en curva.";
-            WearIcon = Icons.AlertTriangle;
-        }
+        if (val < p * 0.85) { statusColor = "text-red-500"; wearText = "CRÍTICO (HOMBROS)"; WearIcon = Icons.AlertTriangle; } 
+        else if (val < p * 0.96) { statusColor = "text-blue-400"; wearText = "BAJA (BORDES)"; WearIcon = Icons.TrendingUp; } 
+        else if (val > p * 1.05 && val < p * 1.15) { statusColor = "text-blue-400"; wearText = "ALTA (CENTRO)"; WearIcon = Icons.Activity; } 
+        else if (val >= p * 1.15) { statusColor = "text-red-500"; wearText = "SOBREPRESIÓN"; WearIcon = Icons.AlertTriangle; }
 
-        // 3. CÁLCULO DE EFICIENCIA
+        // EFICIENCIA
         const pressureDiffPct = (resultPressureBar - state.recPressure) / state.recPressure;
-        let efficiencyImpactPct = pressureDiffPct * 100 * -0.3; 
-        const extraConsumptionKwh = REF_CONSUMPTION * (efficiencyImpactPct / 100);
+        const extraConsumptionKwh = REF_CONSUMPTION * (pressureDiffPct * 100 * -0.3 / 100);
         const kmDiff = ((REF_CONSUMPTION / (REF_CONSUMPTION + extraConsumptionKwh)) * 100) - 100;
 
-        // Comentarios Auxiliares Detallados
-        let effComment = "✅ Presión correcta: Equilibrio ideal entre agarre, confort y consumo.";
-        if (kmDiff < -0.5) effComment = "❌ PÉRDIDA: El neumático 'flanea', aumentando la superficie de rozamiento y generando calor residual.";
-        else if (kmDiff > 0.5) effComment = "⚠️ GANANCIA: Menor huella de contacto reduce el rozamiento (Hyper-miling), pero pierdes confort y agarre.";
-
-        const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v)}));
-
-        // Escala Gráfica
-        const minScale = 1.8;
-        const maxScale = 3.8;
-        const getPct = (v) => ((v - minScale) / (maxScale - minScale)) * 100;
-        const ticks = [];
-        for (let i = minScale; i <= maxScale + 0.01; i += 0.1) ticks.push(i.toFixed(1));
-
-        // Gradiente Fijo
-        const zoneGradient = `linear-gradient(to top, 
-            #ef4444 0%, 
-            #ef4444 ${getPct(p * 0.85)}%, 
-            #3b82f6 ${getPct(p * 0.85)}%, 
-            #3b82f6 ${getPct(p * 0.95)}%, 
-            #22c55e ${getPct(p * 0.95)}%, 
-            #22c55e ${getPct(p * 1.05)}%, 
-            #3b82f6 ${getPct(p * 1.05)}%, 
-            #3b82f6 ${getPct(p * 1.15)}%, 
-            #ef4444 ${getPct(p * 1.15)}%, 
-            #ef4444 100%)`;
-
-        // Helper para detectar umbrales (para pintarlos de blanco)
-        const isThreshold = (v) => {
-            const thresholds = [p*0.85, p*0.96, p*1.05, p*1.15];
-            return thresholds.some(t => Math.abs(v - t) < 0.06);
-        };
-
-        // COMPONENTE HELPER PARA SLIDER CON BOTONES (CON PSI INTEGRADO)
-        const PrecisionSlider = ({ label, value, min, max, step, onChangeKey, unit, colorClass = "text-white", showPsi = false }) => (
+        const PrecisionSlider = ({ label, value, min, max, step, onChangeKey, unit, colorClass = "text-white" }) => (
             <div>
-                <div className="flex justify-between mb-1 text-xs font-bold text-slate-300">
-                    <span>{label}</span>
-                    <span className={colorClass}>
-                        {value} {unit} 
-                        {showPsi && <span className="text-slate-500 font-normal ml-1">({toPsi(value)} PSI)</span>}
-                    </span>
-                </div>
+                <div className="flex justify-between mb-1 text-xs font-bold text-slate-300"><span>{label}</span><span className={colorClass}>{value} {unit}</span></div>
                 <div className="flex items-center gap-3">
                     <button onClick={() => adjust(onChangeKey, -step, min, max)} className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-white font-bold text-lg select-none">-</button>
-                    <input 
-                        type="range" min={min} max={max} step={step} 
-                        value={value} 
-                        onChange={(e) => handleChange(onChangeKey, e.target.value)} 
-                        className="flex-1 h-2 bg-slate-700 rounded-lg cursor-pointer accent-blue-500"
-                    />
+                    <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => handleChange(onChangeKey, e.target.value)} className="flex-1 h-2 bg-slate-700 rounded-lg cursor-pointer accent-blue-500"/>
                     <button onClick={() => adjust(onChangeKey, step, min, max)} className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-white font-bold text-lg select-none">+</button>
                 </div>
             </div>
@@ -3727,229 +3643,438 @@ const Icons = {
 
         return (
             <div className="space-y-6 animate-fade-in">
-                
-                {/* 1. CONFIGURACIÓN */}
+                {/* 1. CONFIGURACIÓN (TOP) */}
                 <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-lg">
-                    <h2 className="text-lg font-display font-bold text-white mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
-                        <Icons.Settings className="w-5 h-5 text-slate-400" /> Parámetros de Inflado
-                    </h2>
-                    
+                    <h2 className="text-lg font-display font-bold text-white mb-4 flex items-center gap-2 border-b border-slate-800 pb-2"><Icons.Settings className="w-5 h-5 text-slate-400" /> Laboratorio de Presión</h2>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* OBJETIVO */}
                         <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 flex flex-col justify-center">
-                            <label className="text-xs font-bold text-yellow-500 uppercase block mb-3">1. Referencia Fabricante (Puerta)</label>
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-3xl font-mono font-bold text-white">
-                                    {state.recPressure} <span className="text-sm text-slate-500">bar</span>
-                                    <span className="text-lg text-slate-400 font-normal ml-2">({toPsi(state.recPressure)} PSI)</span>
-                                </span>
-                            </div>
-                            {/* Slider Objetivo con Botones */}
+                            <label className="text-xs font-bold text-yellow-500 uppercase block mb-3">Referencia (Puerta)</label>
+                            <div className="flex items-center justify-between mb-2"><span className="text-3xl font-mono font-bold text-white">{state.recPressure} <span className="text-sm text-slate-500">bar</span></span></div>
                             <div className="flex items-center gap-3">
                                 <button onClick={() => adjust('recPressure', -0.1, 2.2, 3.4)} className="w-8 h-8 bg-slate-700 hover:bg-slate-600 rounded text-yellow-500 font-bold">-</button>
-                                <input type="range" min="2.2" max="3.4" step="0.1" value={state.recPressure} onChange={e => handleChange('recPressure', e.target.value)} className="flex-1 h-3 bg-slate-700 rounded-lg accent-yellow-500 cursor-pointer slider-thumb"/>
+                                <input type="range" min="2.2" max="3.4" step="0.1" value={state.recPressure} onChange={e => handleChange('recPressure', e.target.value)} className="flex-1 h-3 bg-slate-700 rounded-lg accent-yellow-500 cursor-pointer"/>
                                 <button onClick={() => adjust('recPressure', 0.1, 2.2, 3.4)} className="w-8 h-8 bg-slate-700 hover:bg-slate-600 rounded text-yellow-500 font-bold">+</button>
                             </div>
                         </div>
-
-                        {/* INICIO */}
                         <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
-                            <label className="text-xs font-bold text-blue-400 uppercase block border-b border-slate-700 pb-1">2. Inflado Inicial (Garaje)</label>
-                            
-                            {/* Selector Gas */}
-                            <div>
-                                <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-600 mb-1">
-                                    <button onClick={() => setState(p => ({...p, gasType: 'air'}))} className={`flex-1 py-2 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'air' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>☁️ Aire Común</button>
-                                    <button onClick={() => setState(p => ({...p, gasType: 'nitro'}))} className={`flex-1 py-2 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'nitro' ? 'bg-green-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>💧 Nitrógeno (N2)</button>
-                                </div>
-                                <div className="text-[9px] text-slate-400 text-center italic px-1 h-6 flex items-center justify-center">{gasText}</div>
-                            </div>
-
-                            <PrecisionSlider label="Presión Puesta" value={state.startPressure} min={2.0} max={3.6} step={0.1} onChangeKey="startPressure" unit="bar" showPsi={true} />
+                            <label className="text-xs font-bold text-blue-400 uppercase block border-b border-slate-700 pb-1">Inflado Inicial</label>
+                            <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-600 mb-1"><button onClick={() => setState(p => ({...p, gasType: 'air'}))} className={`flex-1 py-2 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'air' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Aire</button><button onClick={() => setState(p => ({...p, gasType: 'nitro'}))} className={`flex-1 py-2 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'nitro' ? 'bg-green-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Nitrógeno</button></div>
+                            <PrecisionSlider label="Presión Puesta" value={state.startPressure} min={1.5} max={4.0} step={0.1} onChangeKey="startPressure" unit="bar" />
                             <PrecisionSlider label="Temp. Ambiente" value={state.refTemp} min={-10} max={45} step={1} onChangeKey="refTemp" unit="ºC" colorClass="text-orange-400" />
                         </div>
-
-                        {/* DESTINO */}
                         <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
-                            <label className="text-xs font-bold text-cyan-400 uppercase block border-b border-slate-700 pb-1">3. Condiciones Destino</label>
-                            
+                            <label className="text-xs font-bold text-cyan-400 uppercase block border-b border-slate-700 pb-1">Condiciones Rodaje</label>
                             <PrecisionSlider label="Temp. Exterior" value={state.targetTemp} min={-20} max={50} step={1} onChangeKey="targetTemp" unit="ºC" colorClass="text-cyan-400" />
-                            
-                            {/* Toggle Autopista */}
-                            <div className="mt-4 pt-2">
-                                <div className="flex items-center justify-between cursor-pointer" onClick={() => setState(p => ({...p, highwayMode: !p.highwayMode}))}>
-                                    <span className="text-xs font-bold text-slate-300">¿Rodando en Autopista?</span>
-                                    <div className={`w-14 h-7 flex items-center rounded-full p-1 transition-colors duration-300 ${state.highwayMode ? 'bg-green-500' : 'bg-slate-700'}`}>
-                                        <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ${state.highwayMode ? 'translate-x-7' : 'translate-x-0'}`}></div>
-                                    </div>
-                                </div>
-                                <div className="text-[9px] text-slate-500 mt-2 italic text-right h-4">
-                                    {state.highwayMode ? `Fricción alta: El neumático se calienta +${HIGHWAY_TEMP_ADD}ºC` : "Rodaje urbano o parado: Temperatura estable."}
-                                </div>
-                            </div>
+                            <div className="mt-4 pt-2 cursor-pointer" onClick={() => setState(p => ({...p, highwayMode: !p.highwayMode}))}><div className="flex items-center justify-between"><span className="text-xs font-bold text-slate-300">Modo Autopista</span><div className={`w-10 h-6 rounded-full p-1 transition-colors ${state.highwayMode ? 'bg-green-500' : 'bg-slate-700'}`}><div className={`bg-white w-4 h-4 rounded-full transition-transform ${state.highwayMode ? 'translate-x-4' : 'translate-x-0'}`}></div></div></div><div className="text-[9px] text-slate-500 mt-1 italic text-right">{state.highwayMode ? "+25ºC fricción" : "Sin fricción extra"}</div></div>
                         </div>
                     </div>
                 </div>
 
-                {/* 2. RESULTADOS (MANÓMETRO + RUEDA + DATOS) */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                {/* 2. VISUALIZADOR COMBINADO (CENTRO) */}
+                <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden relative shadow-2xl">
+                    <div className="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur px-3 py-1 rounded border border-slate-700"><div className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2"><Icons.Activity className="w-4 h-4"/> Simulación Visual (2D + 3D)</div></div>
                     
-                    {/* VISUALIZADOR 2D + 3D (BARRA + RUEDA DONUT ORIGINAL) */}
-                    <div className="md:col-span-12 lg:col-span-5 bg-slate-900/80 border border-slate-800 rounded-xl flex flex-col relative overflow-hidden h-[500px]">
+                    {/* LAYOUT COMBINADO: 2 COLUMNAS */}
+                    <div className="grid grid-cols-12 h-full">
+                        {/* 2D: Manómetro */}
+                        <div className="col-span-3 md:col-span-2 border-r border-slate-800 bg-slate-900/50">
+                            <Manometer2D currentBar={resultPressureBar} targetBar={state.recPressure} />
+                        </div>
                         
-                        {/* TÍTULO SEPARADO (Solución solapamiento) */}
-                        <div className="absolute top-4 left-6 z-20 bg-slate-900/80 px-3 py-1 rounded border border-slate-700 backdrop-blur-sm">
-                            <h3 className="text-sm font-display font-bold text-slate-300 uppercase flex items-center gap-2">
-                                <Icons.Activity className="w-4 h-4"/> Simulación Visual
-                            </h3>
-                        </div>
-
-                        {/* ÁREA GRÁFICA (FLEX ROW PARA BARRA Y RUEDA) */}
-                        <div className="flex-1 flex items-end justify-center relative pb-8 pt-4 gap-0">
+                        {/* 3D: Rueda Centrada */}
+                        <div className="col-span-9 md:col-span-10 relative">
+                            <Tire3DScene currentBar={resultPressureBar} targetBar={state.recPressure} />
                             
-                            {/* 1. BARRA VERTICAL (MANÓMETRO) */}
-                            <div className="w-24 h-full relative flex mr-4">
-                                {/* Escala */}
-                                <div className="w-8 h-full relative border-r border-slate-500 mr-1">
-                                    {ticks.map(tick => {
-                                        const val = parseFloat(tick);
-                                        const isTarget = Math.abs(val - state.recPressure) < 0.05;
-                                        const isThresh = isThreshold(val);
-                                        
-                                        return (
-                                            <div key={tick} className="absolute right-0 w-full flex items-center justify-end pr-1" style={{bottom: `${getPct(tick)}%`}}>
-                                                <span className={`text-[9px] font-mono mr-1 ${isTarget ? 'text-yellow-400 font-bold' : isThresh ? 'text-white' : 'text-slate-500'}`}>{tick}</span>
-                                                <div className={`h-px ${isTarget ? 'bg-yellow-400 w-3' : 'bg-slate-600 w-1.5'}`}></div>
-                                            </div>
-                                        );
-                                    })}
+                            {/* Datos Flotantes sobre el 3D */}
+                            <div className="absolute bottom-4 right-4 flex gap-4 pointer-events-none">
+                                <div className="bg-slate-900/90 border border-slate-600 px-4 py-2 rounded-xl text-center shadow-xl backdrop-blur-md">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase">PRESIÓN REAL</div>
+                                    <div className={`text-2xl font-mono font-bold ${statusColor}`}>{resultPressureBar.toFixed(2)} bar</div>
+                                    <div className="text-xs font-bold text-white">{toPsi(resultPressureBar)} PSI</div>
                                 </div>
-                                {/* Tubo */}
-                                <div className="flex-1 h-full bg-slate-900 rounded-t-lg relative overflow-hidden border border-slate-700 shadow-inner">
-                                    <div className="absolute inset-0 opacity-20" style={{ background: zoneGradient }}></div>
-                                    <div className="absolute w-full border-t-2 border-dashed border-yellow-400 z-10 opacity-80" style={{bottom: `${getPct(state.recPressure)}%`}}></div>
-                                    <div className={`absolute bottom-0 w-full transition-all duration-700 ease-out shadow-[0_0_15px_rgba(0,0,0,0.5)] border-t border-white/50 ${barFillColor}`} style={{height: `${Math.min(100, Math.max(0, getPct(resultPressureBar)))}%`, opacity: 0.95}}>
-                                        <div className="absolute top-0 left-0 w-full h-8 bg-gradient-to-b from-white/30 to-transparent"></div>
-                                    </div>
+                                <div className="bg-slate-900/90 border border-slate-600 px-4 py-2 rounded-xl text-center shadow-xl backdrop-blur-md hidden sm:block">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase">TEMP GAS</div>
+                                    <div className="text-2xl font-mono font-bold text-orange-300">{effectiveTargetTemp.toFixed(0)}°C</div>
                                 </div>
-                                {/* Valor flotante */}
-                                <div className="absolute left-full ml-2 z-30 transition-all duration-700 pointer-events-none" style={{bottom: `${getPct(resultPressureBar)}%`, transform: 'translateY(50%)'}}>
-                                    <div className="bg-slate-900/90 border border-slate-500 px-2 py-1 rounded shadow-xl flex flex-col items-start min-w-[70px]">
-                                        <span className={`text-lg font-bold font-mono ${statusColor}`}>{resultPressureBar.toFixed(2)}</span>
-                                        <span className="text-[9px] font-bold text-slate-400">{toPsi(resultPressureBar)} PSI</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* 2. RUEDA ESTILO DONUT (3D CSS ORIGINAL REPLICADA) */}
-                            <div className="flex flex-col items-center justify-center h-full pb-10 pl-6 perspective-[800px]">
-                                <div 
-                                    className="relative w-56 h-56 rounded-full shadow-[inset_-10px_-10px_20px_rgba(0,0,0,0.8),_10px_10px_30px_rgba(0,0,0,0.5)] transition-all duration-700 ease-out flex items-center justify-center bg-slate-800"
-                                    style={{
-                                        borderWidth: '4.5rem', // Donut grueso
-                                        borderColor: '#1e293b', // Color neumático
-                                        transform: `scale(${0.85 + (resultPressureBar/20)}) rotateY(-25deg)`, // Perspectiva isométrica
-                                        boxShadow: 'inset -20px -20px 40px rgba(0,0,0,0.6), 10px 10px 30px rgba(0,0,0,0.5)'
-                                    }}
-                                >
-                                    {/* Tread pattern (Dashed border spin) */}
-                                    <div className="absolute inset-[-4.5rem] rounded-full border-[4.5rem] border-dashed border-slate-700/20 animate-[spin_4s_linear_infinite]"></div>
-                                    
-                                    {/* Brillo lateral (Efecto volumen) */}
-                                    <div className="absolute inset-[-4.5rem] rounded-full bg-gradient-to-br from-blue-400/10 via-transparent to-transparent pointer-events-none z-20"></div>
-
-                                    {/* Rim / Llantas */}
-                                    <div className="absolute inset-0 bg-slate-900 rounded-full flex items-center justify-center shadow-inner z-10">
-                                        <div className="w-3 h-3 bg-slate-600 rounded-full"></div>
-                                        {/* Eje saliente */}
-                                        <div className="absolute left-1/2 top-1/2 w-20 h-4 bg-slate-800 origin-left transform -translate-y-1/2 rotate-y-90 translate-z-10 shadow-lg"></div>
-                                    </div>
-                                </div>
-                                {/* Sombra suelo */}
-                                <div className="w-40 h-6 bg-black/50 blur-xl rounded-[100%] mt-[-20px] transform rotate-x-60"></div>
-                            </div>
-
-                        </div>
-                    </div>
-
-                    {/* DATOS + EFICIENCIA */}
-                    <div className="md:col-span-12 lg:col-span-7 flex flex-col gap-4">
-                        
-                        {/* ESTADO DESGASTE */}
-                        <div className={`p-6 rounded-xl border-2 shadow-lg flex flex-col justify-center items-center text-center transition-colors ${statusColor.includes('red') ? 'bg-red-900/20 border-red-500/50' : statusColor.includes('blue') ? 'bg-blue-900/20 border-blue-500/50' : 'bg-green-900/20 border-green-500/50'}`}>
-                            <WearIcon className={`w-16 h-16 mb-2 ${statusColor} opacity-90`} />
-                            <h3 className={`text-2xl font-black uppercase leading-none mb-2 ${statusColor} drop-shadow-lg`}>{wearText}</h3>
-                            <p className="text-slate-200 text-sm font-medium leading-relaxed max-w-lg">{wearDesc}</p>
-                        </div>
-
-                        {/* DATOS NUMÉRICOS CON PSI */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-slate-800/60 border border-slate-700 p-4 rounded-xl text-center flex flex-col justify-center">
-                                <div className="text-xs font-bold text-slate-500 uppercase mb-1">Presión Real</div>
-                                <div className="text-3xl font-mono font-bold text-white">{resultPressureBar.toFixed(2)} <span className="text-sm text-slate-500">bar</span></div>
-                                <div className="text-xl font-bold text-blue-400 mt-1">{toPsi(resultPressureBar)} PSI</div>
-                            </div>
-                            <div className="bg-slate-800/60 border border-slate-700 p-4 rounded-xl text-center flex flex-col justify-center">
-                                <div className="text-xs font-bold text-slate-500 uppercase mb-1">Temp. Gas Interno</div>
-                                <div className="text-4xl font-mono font-bold text-orange-300">{effectiveTargetTemp.toFixed(0)}°C</div>
-                                <div className="text-[10px] text-slate-500 mt-1">{state.highwayMode ? '(En rodaje)' : '(Estático)'}</div>
                             </div>
                         </div>
-
-                        {/* EFICIENCIA CON COMENTARIOS AUXILIARES */}
-                        <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-5 mt-auto">
-                            <div className="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-2">
-                                <h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2"><Icons.Zap className="w-4 h-4 text-yellow-400"/> Análisis de Eficiencia</h4>
-                                <span className="text-[10px] text-slate-500 font-bold">Ref: {REF_CONSUMPTION} kWh/100</span>
-                            </div>
-                            
-                            <div className="flex items-center justify-around gap-4 mb-3">
-                                <div className="text-center flex-1">
-                                    <div className="text-xs text-slate-500 font-bold uppercase mb-1">Rango (100km)</div>
-                                    <div className={`text-3xl font-mono font-bold ${kmDiff < -0.1 ? 'text-red-400' : kmDiff > 0.1 ? 'text-green-400' : 'text-white'}`}>
-                                        {kmDiff > 0 ? '+' : ''}{kmDiff.toFixed(1)} <span className="text-sm text-slate-500">km</span>
-                                    </div>
-                                </div>
-                                <div className="w-px h-12 bg-slate-700"></div>
-                                <div className="text-center flex-1">
-                                    <div className="text-xs text-slate-500 font-bold uppercase mb-1">Energía Extra</div>
-                                    <div className={`text-3xl font-mono font-bold ${extraConsumptionKwh > 0.01 ? 'text-red-400' : extraConsumptionKwh < -0.01 ? 'text-green-400' : 'text-white'}`}>
-                                        {extraConsumptionKwh > 0 ? '+' : ''}{extraConsumptionKwh.toFixed(2)} <span className="text-sm text-slate-500">kWh</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {/* Comentario Auxiliar Restaurado */}
-                            <div className={`text-xs font-bold text-center p-3 rounded border leading-relaxed ${kmDiff < -0.1 ? 'bg-red-900/20 border-red-500/30 text-red-200' : kmDiff > 0.1 ? 'bg-green-900/20 border-green-500/30 text-green-200' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
-                                {effComment}
-                            </div>
-                        </div>
-
                     </div>
                 </div>
 
-                {/* FOOTER AMAZON - XIAOMI COMPRESSOR */}
-                <div className="mt-2 p-6 bg-slate-800 border border-slate-700 rounded-xl flex flex-col items-center gap-4 text-center">
-                    <div className="flex items-center gap-2 mb-1">
-                        <Icons.Zap className="w-5 h-5 text-orange-500" />
-                        <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Accesorio Recomendado</span>
+                {/* 3. PANELES DE DIAGNÓSTICO (ABAJO) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Desgaste */}
+                    <div className={`p-6 rounded-xl border-2 shadow-lg flex flex-col justify-center items-center text-center transition-colors ${statusColor.includes('red') ? 'bg-red-900/20 border-red-500/50' : statusColor.includes('blue') ? 'bg-blue-900/20 border-blue-500/50' : 'bg-green-900/20 border-green-500/50'}`}>
+                        <WearIcon className={`w-12 h-12 mb-2 ${statusColor}`} />
+                        <h3 className={`text-2xl font-black uppercase leading-tight mb-2 ${statusColor}`}>{wearText}</h3>
+                        <p className="text-slate-300 text-sm font-medium">
+                            {val < p * 0.96 ? "Neumático aplastado. Riesgo de reventón y desgaste rápido en hombros." : 
+                             val > p * 1.05 ? "Neumático abombado. Desgaste central y menor superficie de frenada." : 
+                             "Pisada óptima. Máxima adherencia y vida útil."}
+                        </p>
                     </div>
-                    <p className="text-xs text-slate-400 max-w-2xl">
-                        Para mantener la presión exacta en cualquier lugar sin depender de gasolineras (y ajustarla en frío), el compresor portátil de Xiaomi es el estándar de oro para propietarios de Tesla.
-                    </p>
-                    <a 
-                        href="https://www.amazon.es/s?k=xiaomi+portable+electric+air+compressor+2" 
-                        target="_blank" 
-                        className="bg-orange-600 hover:bg-orange-500 text-white text-lg font-bold px-8 py-3 rounded-xl transition-all shadow-lg hover:shadow-orange-500/20 transform hover:-translate-y-1 flex items-center gap-2"
-                    >
-                        COMPRAR XIAOMI AIR COMPRESSOR 2 PRO
-                    </a>
+
+                    {/* Eficiencia */}
+                    <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-6 flex flex-col justify-center">
+                        <div className="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-2"><h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2"><Icons.Zap className="w-4 h-4 text-yellow-400"/> Impacto en Autonomía</h4></div>
+                        <div className="grid grid-cols-2 gap-4 text-center">
+                            <div><div className="text-xs text-slate-500 font-bold uppercase mb-1">Rango (100km)</div><div className={`text-2xl font-mono font-bold ${kmDiff < -0.1 ? 'text-red-400' : kmDiff > 0.1 ? 'text-green-400' : 'text-white'}`}>{kmDiff > 0 ? '+' : ''}{kmDiff.toFixed(1)} <span className="text-sm text-slate-500">km</span></div></div>
+                            <div><div className="text-xs text-slate-500 font-bold uppercase mb-1">Consumo Extra</div><div className={`text-2xl font-mono font-bold ${extraConsumptionKwh > 0.01 ? 'text-red-400' : extraConsumptionKwh < -0.01 ? 'text-green-400' : 'text-white'}`}>{extraConsumptionKwh > 0 ? '+' : ''}{extraConsumptionKwh.toFixed(2)} <span className="text-sm text-slate-500">kWh</span></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* FOOTER AMAZON */}
+                <div className="mt-2 p-4 bg-slate-800 border border-slate-700 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="text-left"><div className="flex items-center gap-2 mb-1"><Icons.Zap className="w-5 h-5 text-orange-500" /><span className="text-sm font-bold text-slate-300 uppercase">Herramienta Recomendada</span></div><p className="text-xs text-slate-400 max-w-lg">Ajusta la presión en frío donde quieras con el compresor Xiaomi Portable 2 Pro. Digital y exacto.</p></div>
+                    <a href="https://www.amazon.es/s?k=xiaomi+portable+electric+air+compressor+2" target="_blank" className="bg-orange-600 hover:bg-orange-500 text-white text-sm font-bold px-6 py-3 rounded-xl transition-all shadow-lg whitespace-nowrap">Ver en Amazon ➜</a>
                 </div>
             </div>
         );
       };
 
 
+
+  
+      // --- GUÍA DE ROTACIÓN DE NEUMÁTICOS (V2 - INTERVALO PERSONALIZABLE) ---
+      const TireRotationGuide = () => {
+        const [state, setState] = usePersistentState('tireRotState_v2', {
+            currentKm: 0,
+            lastRotKm: 0,
+            rotationInterval: 10000, // Intervalo por defecto
+            isStaggered: false, 
+            isDirectional: false,
+            treadFront: 6.5,
+            treadRear: 5.5,
+            model: 'Y'
+        });
+
+        // Constantes Técnicas
+        const MAX_DIFF_MM = 1.5; 
+        const MIN_LEGAL = 1.6;
+        const MIN_SAFE = 3.0;
+        const TORQUE_NM = 175; 
+
+        // Cálculos dinámicos
+        const interval = state.rotationInterval || 10000; // Fallback de seguridad
+        const kmSinceLast = state.currentKm - state.lastRotKm;
+        const wearDiff = Math.abs(state.treadFront - state.treadRear);
+        const needsRotationByKm = kmSinceLast >= interval;
+        
+        // Patrones de rotación
+        let patternName = "Cruzado Trasero (Rearward Cross)";
+        let patternDesc = "El patrón estándar para AWD/RWD con medidas iguales.";
+        let arrows = []; 
+
+        if (state.isStaggered) {
+            if (state.isDirectional) {
+                patternName = "Imposible Rotar";
+                patternDesc = "Doble medida + Direccionales: No se pueden cambiar de posición sin desmontar la goma de la llanta.";
+                arrows = []; 
+            } else {
+                patternName = "Lado a Lado (Side-to-Side)";
+                patternDesc = "Solo se pueden intercambiar izquierda con derecha en el mismo eje.";
+                arrows = [
+                    { start: 0, end: 1 }, { start: 1, end: 0 }, 
+                    { start: 2, end: 3 }, { start: 3, end: 2 }  
+                ];
+            }
+        } else {
+            if (state.isDirectional) {
+                patternName = "De Frente a Atrás (Front-to-Back)";
+                patternDesc = "Los neumáticos direccionales deben mantenerse en el mismo lado del coche.";
+                arrows = [
+                    { start: 0, end: 2 }, { start: 2, end: 0 }, 
+                    { start: 1, end: 3 }, { start: 3, end: 1 }  
+                ];
+            } else {
+                patternName = "Cruzado Modificado";
+                patternDesc = "Los traseros pasan delante cruzados. Los delanteros pasan atrás en el mismo lado.";
+                arrows = [
+                    { start: 0, end: 2 }, 
+                    { start: 1, end: 3 }, 
+                    { start: 2, end: 1 }, 
+                    { start: 3, end: 0 }  
+                ];
+            }
+        }
+
+        const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
+        const handleNum = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v) || 0}));
+
+        const adjustTread = (key, delta) => {
+            setState(prev => {
+                const current = parseFloat(prev[key]) || 0;
+                const newVal = Math.max(0, Math.min(15, (current + delta).toFixed(1))); 
+                return { ...prev, [key]: parseFloat(newVal) };
+            });
+        };
+
+        const tirePos = [
+            { x: 30, y: 40, label: "DEL. IZQ" },  
+            { x: 130, y: 40, label: "DEL. DER" }, 
+            { x: 30, y: 200, label: "TRAS. IZQ" },
+            { x: 130, y: 200, label: "TRAS. DER" }
+        ];
+
+        const getArrowPath = (startIdx, endIdx) => {
+            const s = tirePos[startIdx];
+            const e = tirePos[endIdx];
+            const sx = s.x + 20; const sy = s.y + 30;
+            const ex = e.x + 20; const ey = e.y + 30;
+            if (Math.abs(sx - ex) < 10) return `M ${sx} ${sy} L ${ex} ${ey}`; 
+            if (Math.abs(sy - ey) < 10) return `M ${sx} ${sy} L ${ex} ${ey}`; 
+            return `M ${sx} ${sy} Q 100 120 ${ex} ${ey}`; 
+        };
+
+        return (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in">
+                {/* CONFIGURACIÓN Y ESTADO */}
+                <div className="lg:col-span-5 space-y-6">
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
+                        <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
+                            <Icons.Settings /> Configuración Vehículo
+                        </h2>
+                        
+                        <div className="space-y-6">
+                            {/* Toggles */}
+                            <div className="grid grid-cols-1 gap-4">
+                                <div className={`p-4 rounded-xl border cursor-pointer transition-all ${state.isStaggered ? 'bg-purple-900/30 border-purple-500' : 'bg-slate-800 border-slate-700'}`}
+                                     onClick={() => handleChange('isStaggered', !state.isStaggered)}>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="font-bold text-white">¿Doble Medida (Staggered)?</span>
+                                        <div className={`w-10 h-6 rounded-full p-1 transition-colors ${state.isStaggered ? 'bg-purple-500' : 'bg-slate-600'}`}>
+                                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${state.isStaggered ? 'translate-x-4' : ''}`}></div>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-slate-400">Activa si las llantas traseras son más anchas que las delanteras (Ej: Model Y Performance, Model X).</p>
+                                </div>
+
+                                <div className={`p-4 rounded-xl border cursor-pointer transition-all ${state.isDirectional ? 'bg-blue-900/30 border-blue-500' : 'bg-slate-800 border-slate-700'}`}
+                                     onClick={() => handleChange('isDirectional', !state.isDirectional)}>
+                                    <div className="flex justify-between items-center mb-1">
+                                        <span className="font-bold text-white">¿Neumáticos Direccionales?</span>
+                                        <div className={`w-10 h-6 rounded-full p-1 transition-colors ${state.isDirectional ? 'bg-blue-500' : 'bg-slate-600'}`}>
+                                            <div className={`w-4 h-4 bg-white rounded-full transition-transform ${state.isDirectional ? 'translate-x-4' : ''}`}></div>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-slate-400">Busca una flecha en el flanco que diga "ROTATION". Si la tiene, solo pueden girar en un sentido.</p>
+                                </div>
+                            </div>
+
+                            {/* Kilometraje */}
+                            <div className="pt-4 border-t border-slate-800">
+                                <h3 className="text-sm font-bold text-slate-300 uppercase mb-3">Control de Kilómetros</h3>
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 block mb-1">Km Actuales</label>
+                                        <FormattedInput value={state.currentKm} onChange={v => handleNum('currentKm', v)} grouped={true} />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 block mb-1">Km Última Rotación</label>
+                                        <FormattedInput value={state.lastRotKm} onChange={v => handleNum('lastRotKm', v)} grouped={true} />
+                                    </div>
+                                </div>
+                                
+                                {/* NUEVO CAMPO INTERVALO */}
+                                <div className="mb-4">
+                                    <label className="text-xs font-bold text-blue-400 block mb-1 uppercase">Intervalo Deseado</label>
+                                    <FormattedInput value={state.rotationInterval} onChange={v => handleNum('rotationInterval', v)} grouped={true} />
+                                </div>
+
+                                <div className={`mt-4 p-3 rounded-lg border text-center font-bold ${needsRotationByKm ? 'bg-red-900/30 border-red-500 text-red-200' : 'bg-green-900/20 border-green-500/30 text-green-200'}`}>
+                                    {needsRotationByKm 
+                                        ? `⚠️ ¡ROTA YA! Has superado el intervalo de ${formatMoney(interval)} km.` 
+                                        : `✅ Todo bien. Faltan ${formatMoney(interval - kmSinceLast)} km para rotar.`
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* TIPS RÁPIDOS */}
+                    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+                        <h3 className="text-sm font-bold text-slate-300 uppercase mb-3 flex items-center gap-2">
+                             <Icons.Wrench className="w-4 h-4"/> Datos Técnicos
+                        </h3>
+                        <ul className="space-y-3 text-sm text-slate-400 font-medium">
+                            <li className="flex justify-between border-b border-slate-800 pb-2">
+                                <span>Par de apriete (Torque):</span>
+                                <span className="text-white font-bold">{TORQUE_NM} Nm <span className="text-slate-500 font-normal">(129 lb-ft)</span></span>
+                            </li>
+                            <li className="flex justify-between border-b border-slate-800 pb-2">
+                                <span>Llave de vaso:</span>
+                                <span className="text-white font-bold">21 mm</span>
+                            </li>
+                            <li className="flex justify-between">
+                                <span>Límite Legal Profundidad:</span>
+                                <span className="text-red-400 font-bold">{MIN_LEGAL} mm</span>
+                            </li>
+                        </ul>
+                        <div className="mt-4 text-xs bg-blue-900/20 p-3 rounded text-blue-200 border border-blue-500/20">
+                            <strong>Nota:</strong> Si tienes suspensión neumática (Model S/X), activa el "Modo Gato" (Jack Mode) antes de levantar el coche. Usa siempre los "Pucks" (tacos de goma) para no dañar la batería.
+                        </div>
+                    </div>
+                </div>
+
+                {/* VISUALIZADOR Y DESGASTE */}
+                <div className="lg:col-span-7 space-y-6">
+                    
+                    {/* VISUALIZADOR ESQUEMA */}
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 flex flex-col items-center relative overflow-hidden min-h-[400px]">
+                        <div className="absolute top-4 left-6 z-10">
+                            <h3 className="text-lg font-display font-bold text-white mb-1">Esquema de Rotación</h3>
+                            <div className="text-blue-400 font-bold text-sm uppercase tracking-wider">{patternName}</div>
+                            <div className="text-slate-400 text-xs mt-1 max-w-xs leading-relaxed">{patternDesc}</div>
+                        </div>
+
+                        {/* COCHE Y NEUMÁTICOS */}
+                        <div className="relative w-[200px] h-[300px] mt-16 select-none">
+                            {/* Chasis esquemático */}
+                            <div className="absolute inset-x-4 top-0 bottom-0 bg-slate-800 rounded-3xl border border-slate-700 opacity-50"></div>
+                            <div className="absolute top-4 inset-x-8 h-16 bg-slate-700/50 rounded-lg"></div> {/* Parabrisas */}
+                            
+                            {/* Neumáticos */}
+                            {tirePos.map((pos, idx) => (
+                                <div key={idx} className="absolute w-10 h-16 bg-zinc-800 rounded border-2 border-zinc-600 flex items-center justify-center shadow-lg z-20"
+                                     style={{ left: pos.x, top: pos.y }}>
+                                    <div className="w-0.5 h-12 bg-zinc-700/50"></div>
+                                    <div className="absolute -bottom-6 text-[9px] font-bold text-slate-500 whitespace-nowrap w-20 text-center">{pos.label}</div>
+                                </div>
+                            ))}
+
+                            {/* Flechas SVG */}
+                            <svg className="absolute inset-0 w-full h-full z-30 pointer-events-none overflow-visible">
+                                <defs>
+                                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                        <polygon points="0 0, 10 3.5, 0 7" fill="#3b82f6" />
+                                    </marker>
+                                </defs>
+                                {arrows.map((arr, i) => (
+                                    <path 
+                                        key={i} 
+                                        d={getArrowPath(arr.start, arr.end)} 
+                                        stroke="#3b82f6" 
+                                        strokeWidth="3" 
+                                        fill="none" 
+                                        markerEnd="url(#arrowhead)"
+                                        strokeDasharray="5,5"
+                                        className="animate-pulse"
+                                    />
+                                ))}
+                            </svg>
+                        </div>
+                    </div>
+
+                    {/* ANALIZADOR DE DESGASTE CON BOTONES */}
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-display font-bold text-white flex items-center gap-2">
+                                <Icons.Activity /> Análisis de Profundidad
+                            </h3>
+                            <span className="text-xs text-slate-500 font-bold uppercase">Medir surco central</span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                            {/* DELANTERO */}
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 block mb-2 text-center">Eje Delantero (mm)</label>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => adjustTread('treadFront', -0.1)} className="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-bold text-xl active:scale-95 transition-transform">-</button>
+                                    <div className="relative flex-1">
+                                        <input 
+                                            type="number" step="0.1" 
+                                            value={state.treadFront} onChange={e => handleNum('treadFront', e.target.value)}
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-center font-bold text-xl text-white focus:border-blue-500 outline-none h-10"
+                                        />
+                                        <div className={`absolute bottom-0 left-0 h-1 transition-all duration-500 ${state.treadFront < MIN_SAFE ? 'bg-red-500' : 'bg-green-500'}`} style={{width: `${(state.treadFront/8)*100}%`}}></div>
+                                    </div>
+                                    <button onClick={() => adjustTread('treadFront', 0.1)} className="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-bold text-xl active:scale-95 transition-transform">+</button>
+                                </div>
+                            </div>
+                            
+                            {/* TRASERO */}
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 block mb-2 text-center">Eje Trasero (mm)</label>
+                                <div className="flex items-center gap-2">
+                                    <button onClick={() => adjustTread('treadRear', -0.1)} className="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-bold text-xl active:scale-95 transition-transform">-</button>
+                                    <div className="relative flex-1">
+                                        <input 
+                                            type="number" step="0.1" 
+                                            value={state.treadRear} onChange={e => handleNum('treadRear', e.target.value)}
+                                            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-center font-bold text-xl text-white focus:border-blue-500 outline-none h-10"
+                                        />
+                                        <div className={`absolute bottom-0 left-0 h-1 transition-all duration-500 ${state.treadRear < MIN_SAFE ? 'bg-red-500' : 'bg-green-500'}`} style={{width: `${(state.treadRear/8)*100}%`}}></div>
+                                    </div>
+                                    <button onClick={() => adjustTread('treadRear', 0.1)} className="w-10 h-10 bg-slate-700 hover:bg-slate-600 rounded-lg text-white font-bold text-xl active:scale-95 transition-transform">+</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* RESULTADO ANÁLISIS */}
+                        <div className="space-y-3">
+                            <div className="flex justify-between items-center text-sm border-b border-slate-800 pb-2">
+                                <span className="text-slate-400">Diferencia entre ejes:</span>
+                                <span className={`font-bold ${wearDiff >= MAX_DIFF_MM ? 'text-red-400' : 'text-green-400'}`}>{wearDiff.toFixed(1)} mm</span>
+                            </div>
+                            
+                            {wearDiff >= MAX_DIFF_MM ? (
+                                <div className="p-3 bg-red-900/20 border border-red-500/50 rounded-lg flex gap-3 items-start">
+                                    <Icons.AlertTriangle className="w-6 h-6 text-red-500 shrink-0"/>
+                                    <div>
+                                        <div className="text-red-400 font-bold text-sm uppercase">Rotación Necesaria</div>
+                                        <div className="text-red-200 text-xs mt-1">
+                                            La diferencia supera los {MAX_DIFF_MM}mm. Tesla recomienda rotar para igualar el desgaste y mantener la tracción óptima.
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="p-3 bg-green-900/20 border border-green-500/30 rounded-lg flex gap-3 items-start">
+                                    <Icons.CheckCircle className="w-6 h-6 text-green-500 shrink-0"/>
+                                    <div>
+                                        <div className="text-green-400 font-bold text-sm uppercase">Desgaste Equilibrado</div>
+                                        <div className="text-green-200 text-xs mt-1">
+                                            La diferencia es aceptable ({wearDiff.toFixed(1)}mm). Rota solo si has superado el kilometraje de intervalo.
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {(state.treadFront < MIN_SAFE || state.treadRear < MIN_SAFE) && (
+                                <div className="p-3 bg-orange-900/20 border border-orange-500/50 rounded-lg text-center mt-2">
+                                    <div className="text-orange-400 font-bold text-xs uppercase mb-1">¡Advertencia de Seguridad!</div>
+                                    <div className="text-orange-200 text-xs">
+                                        Uno o más neumáticos están por debajo de {MIN_SAFE}mm. Considera cambiarlos pronto (Límite legal {MIN_LEGAL}mm).
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* FOOTER AMAZON - MEDIDOR DIGITAL */}
+                <div className="lg:col-span-12 mt-2 p-6 bg-slate-800 border border-slate-700 rounded-xl flex flex-col items-center gap-4 text-center">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Icons.Search className="w-5 h-5 text-yellow-500" />
+                        <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Herramienta Recomendada</span>
+                    </div>
+                    <p className="text-xs text-slate-400 max-w-2xl">
+                        Para medir con precisión milimétrica, recomiendo usar un medidor digital económico en lugar de la moneda de euro o medidores analógicos imprecisos.
+                    </p>
+                    <a 
+                        href="https://amzn.to/3MlaKKi" 
+                        target="_blank" 
+                        className="bg-yellow-600 hover:bg-yellow-500 text-white text-lg font-bold px-8 py-3 rounded-xl transition-all shadow-lg hover:shadow-yellow-500/20 transform hover:-translate-y-1 flex items-center gap-2"
+                    >
+                        COMPRAR MEDIDOR DIGITAL EN AMAZON
+                    </a>
+                </div>
+            </div>
+        );
+      };
+
+   
+    
 
 
   
