@@ -3580,9 +3580,10 @@ const Icons = {
         );
       };
 
-      // --- LABORATORIO DE NEUMÁTICOS V11 (FIXED LAYOUT & PSI) ---
+
+      // --- LABORATORIO DE NEUMÁTICOS V12 (RUEDA RESTAURADA + PSI + FIXED TITLE) ---
       const TirePressureLab = () => {
-        const [state, setState] = usePersistentState('tireLabV11', {
+        const [state, setState] = usePersistentState('tireLabV12', {
             recPressure: 2.9, // Objetivo (bar)
             startPressure: 2.9, // Inicial (bar)
             refTemp: 20,      // ºC inicial
@@ -3635,28 +3636,28 @@ const Icons = {
         let statusColor = "text-green-400";
         let barFillColor = "bg-green-500";
         let wearText = "DESGASTE UNIFORME";
-        let wearDesc = "La pisada del neumático es plana. Máximo agarre y vida útil óptima.";
+        let wearDesc = "Pisada perfecta. La superficie de contacto es plana, ofreciendo máximo agarre y vida útil óptima.";
         let WearIcon = Icons.CheckCircle;
 
         if (val < p * 0.85) {
             statusColor = "text-red-500"; barFillColor = "bg-red-600";
             wearText = "DESGASTE CRÍTICO (HOMBROS)";
-            wearDesc = "Peligro: La rueda se apoya en los laterales. Se come los bordes y el flanco sufre fatiga estructural.";
+            wearDesc = "PELIGRO: El neumático se apoya en los laterales. Riesgo de reventón por fatiga en flancos y desgaste acelerado en bordes.";
             WearIcon = Icons.AlertTriangle;
         } else if (val < p * 0.96) {
             statusColor = "text-blue-400"; barFillColor = "bg-blue-500";
             wearText = "SUBINFLADO (BORDES)";
-            wearDesc = "Presión insuficiente. Aumenta la superficie de contacto, generando más rozamiento y calor.";
+            wearDesc = "Presión insuficiente. Aumenta la huella de contacto lateral, generando más rozamiento y temperatura.";
             WearIcon = Icons.TrendingUp;
         } else if (val > p * 1.05 && val < p * 1.15) {
             statusColor = "text-blue-400"; barFillColor = "bg-blue-500";
             wearText = "SOBREINFLADO LEVE (CENTRO)";
-            wearDesc = "El neumático empieza a abombarse. Menos rozamiento (eficiente) pero la suspensión se nota más dura.";
+            wearDesc = "El neumático empieza a abombarse. Menos rozamiento (más eficiente) pero suspensión más seca y menor confort.";
             WearIcon = Icons.Activity;
         } else if (val >= p * 1.15) {
             statusColor = "text-red-500"; barFillColor = "bg-red-600";
             wearText = "DESGASTE CRÍTICO (CENTRO)";
-            wearDesc = "Peligro: Exceso de balón. La huella de contacto es muy pequeña, perdiendo frenada y agarre lateral.";
+            wearDesc = "PELIGRO: Exceso de balón. La huella de contacto es mínima (solo el centro), perdiendo frenada y agarre en curva.";
             WearIcon = Icons.AlertTriangle;
         }
 
@@ -3666,10 +3667,10 @@ const Icons = {
         const extraConsumptionKwh = REF_CONSUMPTION * (efficiencyImpactPct / 100);
         const kmDiff = ((REF_CONSUMPTION / (REF_CONSUMPTION + extraConsumptionKwh)) * 100) - 100;
 
-        // Comentarios auxiliares de eficiencia
-        let effComment = "Presión correcta: Equilibrio entre agarre y consumo.";
-        if (kmDiff < -0.5) effComment = "PÉRDIDA: El neumático 'flanea', aumentando la superficie de rozamiento y el calor.";
-        else if (kmDiff > 0.5) effComment = "GANANCIA: Menor huella de contacto reduce el rozamiento (Hyper-miling), pero pierdes confort.";
+        // Comentarios Auxiliares Detallados
+        let effComment = "✅ Presión correcta: Equilibrio ideal entre agarre, confort y consumo.";
+        if (kmDiff < -0.5) effComment = "❌ PÉRDIDA: El neumático 'flanea', aumentando la superficie de rozamiento y generando calor residual.";
+        else if (kmDiff > 0.5) effComment = "⚠️ GANANCIA: Menor huella de contacto reduce el rozamiento (Hyper-miling), pero pierdes confort y agarre.";
 
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v)}));
 
@@ -3788,84 +3789,101 @@ const Icons = {
                     </div>
                 </div>
 
-                {/* 2. RESULTADOS */}
+                {/* 2. RESULTADOS (MANÓMETRO + RUEDA + DATOS) */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                     
-                    {/* MANÓMETRO (VISUALIZACIÓN) */}
-                    <div className="md:col-span-5 lg:col-span-4 bg-slate-900/80 border border-slate-800 rounded-xl p-0 flex flex-col relative overflow-hidden">
+                    {/* VISUALIZADOR 2D + 3D (BARRA + RUEDA) */}
+                    <div className="md:col-span-12 lg:col-span-5 bg-slate-900/80 border border-slate-800 rounded-xl flex flex-col relative overflow-hidden h-[500px]">
                         
-                        {/* TÍTULO SEPARADO DEL GRÁFICO PARA NO TAPAR */}
-                        <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/50 z-20">
+                        {/* TÍTULO SEPARADO (Solución solapamiento) */}
+                        <div className="px-6 py-3 border-b border-slate-800 bg-slate-900/50 z-20 flex justify-between items-center">
                             <h3 className="text-sm font-display font-bold text-slate-300 uppercase flex items-center gap-2">
                                 <Icons.Activity className="w-4 h-4"/> Simulación Visual
                             </h3>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">2D & 3D</span>
                         </div>
 
-                        {/* CONTENEDOR DEL TUBO (Con padding top para seguridad extra) */}
-                        <div className="h-[500px] w-full relative flex justify-center pt-4 pb-4">
+                        {/* ÁREA GRÁFICA (FLEX ROW PARA BARRA Y RUEDA) */}
+                        <div className="flex-1 flex items-end justify-center relative pb-8 pt-4 gap-8">
                             
-                            {/* ESCALA IZQUIERDA */}
-                            <div className="w-14 h-full relative border-r border-slate-500 mr-1 rounded-l-md overflow-hidden">
-                                <div className="absolute inset-0 opacity-40" style={{ background: zoneGradient }}></div>
-                                {ticks.map(tick => {
-                                    const val = parseFloat(tick);
-                                    const isTarget = Math.abs(val - state.recPressure) < 0.05;
-                                    const isThresh = isThreshold(val);
-                                    
-                                    let tickClass = "text-slate-300 font-medium opacity-70";
-                                    let tickSize = "text-[9px]";
-                                    
-                                    if (isTarget) {
-                                        tickClass = "text-yellow-400 font-black opacity-100 scale-110";
-                                        tickSize = "text-[11px]";
-                                    } else if (isThresh) {
-                                        tickClass = "text-white font-bold opacity-100";
-                                        tickSize = "text-[10px]";
-                                    }
-
-                                    return (
-                                        <div key={tick} className="absolute right-0 w-full flex items-center justify-end pr-1 z-10" style={{bottom: `${getPct(tick)}%`}}>
-                                            <span className={`${tickSize} font-mono mr-1 drop-shadow-md ${tickClass}`}>{tick}</span>
-                                            <div className={`h-px ${isTarget ? 'bg-yellow-400 w-4' : isThresh ? 'bg-white w-3' : 'bg-white/30 w-1.5'}`}></div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* TUBO */}
-                            <div className="w-24 h-full bg-slate-900 rounded-r-lg relative overflow-hidden border border-slate-700 shadow-inner">
-                                <div className="absolute inset-0 w-full h-full opacity-20" style={{ background: zoneGradient }}></div>
-                                {/* LINEA TARGET GORDA (4px) */}
-                                <div className="absolute w-full border-t-4 border-dashed border-yellow-400 z-10 opacity-80" style={{bottom: `${getPct(state.recPressure)}%`}}></div>
-                                <div className={`absolute bottom-0 w-full transition-all duration-700 ease-out shadow-[0_0_15px_rgba(0,0,0,0.5)] border-t border-white/50 ${barFillColor}`} style={{height: `${Math.min(100, Math.max(0, getPct(resultPressureBar)))}%`, opacity: 0.95}}>
-                                    <div className="absolute top-0 left-0 w-full h-8 bg-gradient-to-b from-white/30 to-transparent"></div>
+                            {/* 1. BARRA VERTICAL (MANÓMETRO) */}
+                            <div className="w-24 h-full relative flex">
+                                {/* Escala */}
+                                <div className="w-8 h-full relative border-r border-slate-500 mr-1">
+                                    {ticks.map(tick => {
+                                        const val = parseFloat(tick);
+                                        const isTarget = Math.abs(val - state.recPressure) < 0.05;
+                                        const isThresh = isThreshold(val);
+                                        
+                                        return (
+                                            <div key={tick} className="absolute right-0 w-full flex items-center justify-end pr-1" style={{bottom: `${getPct(tick)}%`}}>
+                                                <span className={`text-[9px] font-mono mr-1 ${isTarget ? 'text-yellow-400 font-bold' : isThresh ? 'text-white' : 'text-slate-500'}`}>{tick}</span>
+                                                <div className={`h-px ${isTarget ? 'bg-yellow-400 w-3' : 'bg-slate-600 w-1.5'}`}></div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                {/* Tubo */}
+                                <div className="flex-1 h-full bg-slate-900 rounded-t-lg relative overflow-hidden border border-slate-700 shadow-inner">
+                                    <div className="absolute inset-0 opacity-20" style={{ background: zoneGradient }}></div>
+                                    <div className="absolute w-full border-t-2 border-dashed border-yellow-400 z-10 opacity-80" style={{bottom: `${getPct(state.recPressure)}%`}}></div>
+                                    <div className={`absolute bottom-0 w-full transition-all duration-700 ease-out shadow-[0_0_15px_rgba(0,0,0,0.5)] border-t border-white/50 ${barFillColor}`} style={{height: `${Math.min(100, Math.max(0, getPct(resultPressureBar)))}%`, opacity: 0.95}}>
+                                        <div className="absolute top-0 left-0 w-full h-8 bg-gradient-to-b from-white/30 to-transparent"></div>
+                                    </div>
+                                </div>
+                                {/* Valor flotante */}
+                                <div className="absolute left-full ml-2 z-30 transition-all duration-700 pointer-events-none" style={{bottom: `${getPct(resultPressureBar)}%`, transform: 'translateY(50%)'}}>
+                                    <div className="bg-slate-900/90 border border-slate-500 px-2 py-1 rounded shadow-xl flex flex-col items-start min-w-[70px]">
+                                        <span className={`text-lg font-bold font-mono ${statusColor}`}>{resultPressureBar.toFixed(2)}</span>
+                                        <span className="text-[9px] font-bold text-slate-400">{toPsi(resultPressureBar)} PSI</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            {/* VALOR FLOTANTE CON PSI */}
-                            <div className="absolute left-[calc(50%+40px)] z-30 transition-all duration-700 pointer-events-none" style={{bottom: `${getPct(resultPressureBar)}%`, transform: 'translateY(50%)'}}>
-                                <div className="bg-slate-900 border border-slate-500 px-3 py-1.5 rounded shadow-xl flex flex-col items-start min-w-[100px]">
-                                    <span className={`text-2xl font-bold font-mono ${statusColor}`}>{resultPressureBar.toFixed(2)} <span className="text-xs text-slate-500">bar</span></span>
-                                    <span className="text-xs font-bold text-white bg-slate-800 px-1 rounded">{toPsi(resultPressureBar)} PSI</span>
+                            {/* 2. RUEDA 3D (SIMULACIÓN CSS) */}
+                            <div className="flex flex-col items-center justify-end h-full pb-4">
+                                <div className="relative perspective-[600px] w-40 h-64 flex items-center justify-center">
+                                    {/* Sombra Suelo */}
+                                    <div className="absolute bottom-[-10px] w-32 h-6 bg-black/60 blur-md rounded-[100%] transform rotate-x-60"></div>
+                                    
+                                    {/* Cuerpo Neumático (Cilindro simulado) */}
+                                    <div 
+                                        className="w-28 h-56 bg-gradient-to-r from-slate-800 via-slate-700 to-slate-900 rounded-[2.5rem] border-l border-slate-600 shadow-[10px_0_20px_rgba(0,0,0,0.8)] relative transition-all duration-700 ease-out transform-gpu"
+                                        style={{
+                                            transform: `scale(${0.9 + (resultPressureBar/20)}) rotateY(-15deg)`, // Efecto hinchado sutil
+                                            width: `${100 + (Math.max(0, resultPressureBar - 2) * 8)}px` // Se ensancha al inflar
+                                        }}
+                                    >
+                                        {/* Brillo especular (simula redondez) */}
+                                        <div className="absolute top-0 left-4 w-6 h-full bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-[-5deg] blur-sm"></div>
+                                        
+                                        {/* Dibujo banda rodadura (Textura sutil) */}
+                                        <div className="absolute inset-0 opacity-20 bg-[linear-gradient(0deg,transparent_50%,#000_50%)] bg-[length:100%_8px] rounded-[2.5rem] overflow-hidden"></div>
+                                        
+                                        {/* Eje / Llanta asomando */}
+                                        <div className="absolute top-1/2 -right-4 w-4 h-12 bg-slate-900 -translate-y-1/2 rounded-r-md border-y border-r border-slate-600"></div>
+                                    </div>
                                 </div>
+                                <div className="text-[10px] font-bold text-slate-500 mt-2 uppercase tracking-widest">Simulación Perfil</div>
                             </div>
+
                         </div>
                     </div>
 
                     {/* DATOS + EFICIENCIA */}
-                    <div className="md:col-span-7 lg:col-span-8 flex flex-col gap-4">
+                    <div className="md:col-span-12 lg:col-span-7 flex flex-col gap-4">
                         
                         {/* ESTADO DESGASTE */}
                         <div className={`p-6 rounded-xl border-2 shadow-lg flex flex-col justify-center items-center text-center transition-colors ${statusColor.includes('red') ? 'bg-red-900/20 border-red-500/50' : statusColor.includes('blue') ? 'bg-blue-900/20 border-blue-500/50' : 'bg-green-900/20 border-green-500/50'}`}>
                             <WearIcon className={`w-16 h-16 mb-2 ${statusColor} opacity-90`} />
                             <h3 className={`text-2xl font-black uppercase leading-none mb-2 ${statusColor} drop-shadow-lg`}>{wearText}</h3>
-                            <p className="text-slate-200 text-sm font-medium leading-relaxed max-w-md">{wearDesc}</p>
+                            <p className="text-slate-200 text-sm font-medium leading-relaxed max-w-lg">{wearDesc}</p>
                         </div>
 
                         {/* DATOS NUMÉRICOS CON PSI */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="bg-slate-800/60 border border-slate-700 p-4 rounded-xl text-center flex flex-col justify-center">
-                                <div className="text-xs font-bold text-slate-500 uppercase mb-1">Presión Final</div>
+                                <div className="text-xs font-bold text-slate-500 uppercase mb-1">Presión Real</div>
                                 <div className="text-3xl font-mono font-bold text-white">{resultPressureBar.toFixed(2)} <span className="text-sm text-slate-500">bar</span></div>
                                 <div className="text-xl font-bold text-blue-400 mt-1">{toPsi(resultPressureBar)} PSI</div>
                             </div>
@@ -3876,7 +3894,7 @@ const Icons = {
                             </div>
                         </div>
 
-                        {/* EFICIENCIA CON COMENTARIOS */}
+                        {/* EFICIENCIA CON COMENTARIOS AUXILIARES */}
                         <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-5 mt-auto">
                             <div className="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-2">
                                 <h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2"><Icons.Zap className="w-4 h-4 text-yellow-400"/> Análisis de Eficiencia</h4>
@@ -3900,7 +3918,7 @@ const Icons = {
                             </div>
                             
                             {/* Comentario Auxiliar Restaurado */}
-                            <div className={`text-xs font-bold text-center p-2 rounded border ${kmDiff < -0.1 ? 'bg-red-900/20 border-red-500/30 text-red-200' : kmDiff > 0.1 ? 'bg-green-900/20 border-green-500/30 text-green-200' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
+                            <div className={`text-xs font-bold text-center p-3 rounded border leading-relaxed ${kmDiff < -0.1 ? 'bg-red-900/20 border-red-500/30 text-red-200' : kmDiff > 0.1 ? 'bg-green-900/20 border-green-500/30 text-green-200' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
                                 {effComment}
                             </div>
                         </div>
