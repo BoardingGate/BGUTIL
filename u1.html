@@ -1,4 +1,4 @@
-V
+A
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -1224,7 +1224,8 @@ const Icons = {
         );
       };
 
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICO CON LÍNEAS POR ENCIMA) ---
+
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICO 3D MATRIX) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1241,6 +1242,164 @@ const Icons = {
             dailyKm: { Mon: 75, Tue: 75, Wed: 75, Thu: 75, Fri: 75, Sat: 40, Sun: 40 },
             targets: { Mon: 0, Tue: 0, Wed: 0, Thu: 70, Fri: 0, Sat: 0, Sun: 100 }
         });
+
+        // --- SUB-COMPONENTE: GRÁFICA 3D SEMANAL ---
+        const WeeklyCharge3D = ({ data }) => {
+            const mountRef = useRef(null);
+
+            useEffect(() => {
+                if (!mountRef.current || !window.THREE) return;
+
+                // 1. SETUP
+                const width = mountRef.current.offsetWidth;
+                const height = 300;
+                const scene = new THREE.Scene();
+                scene.background = null; 
+
+                // Cámara isométrica ajustada para ver los 7 días
+                const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 1000);
+                camera.position.set(0, 40, 100); 
+                camera.lookAt(0, 10, 0);
+
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(width, height);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                
+                while (mountRef.current.firstChild) {
+                    mountRef.current.removeChild(mountRef.current.firstChild);
+                }
+                mountRef.current.appendChild(renderer.domElement);
+
+                // 2. LUCES
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+                scene.add(ambientLight);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+                dirLight.position.set(20, 50, 20);
+                scene.add(dirLight);
+                // Luz azulada desde abajo para efecto tecnológico
+                const bottomLight = new THREE.PointLight(0x3b82f6, 0.8);
+                bottomLight.position.set(0, -10, 20);
+                scene.add(bottomLight);
+
+                // 3. GENERACIÓN DE CELDAS
+                const mainGroup = new THREE.Group();
+                scene.add(mainGroup);
+
+                // Configuración de dimensiones
+                const spacing = 12; // Espacio entre cilindros
+                const maxBarHeight = 30; // Altura visual del 100%
+                const radius = 3.5;
+                const startX = - (spacing * 3); // Centrar los 7 días
+
+                data.forEach((dayData, index) => {
+                    const dayGroup = new THREE.Group();
+                    const xPos = startX + (index * spacing);
+                    dayGroup.position.set(xPos, 0, 0);
+
+                    // A. Base (Suelo de la celda)
+                    const baseGeo = new THREE.CylinderGeometry(radius + 0.5, radius + 0.5, 1, 32);
+                    const baseMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.2 });
+                    const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+                    baseMesh.position.y = 0.5;
+                    dayGroup.add(baseMesh);
+
+                    // B. Energía Restante (Sólido - % Final)
+                    const endPct = Math.max(0, dayData.endPct);
+                    const solidHeight = (endPct / 100) * maxBarHeight;
+                    
+                    // Color dinámico
+                    let colorHex = 0x22c55e; // Green
+                    if (endPct < 20) colorHex = 0xeab308; // Yellow
+                    if (endPct < 10) colorHex = 0xef4444; // Red
+
+                    if (solidHeight > 0.1) {
+                        const solidGeo = new THREE.CylinderGeometry(radius, radius, solidHeight, 32);
+                        const solidMat = new THREE.MeshStandardMaterial({ 
+                            color: colorHex, 
+                            emissive: colorHex,
+                            emissiveIntensity: 0.4,
+                            roughness: 0.3 
+                        });
+                        const solidMesh = new THREE.Mesh(solidGeo, solidMat);
+                        solidMesh.position.y = 1 + (solidHeight / 2); // Encima de la base
+                        dayGroup.add(solidMesh);
+                    }
+
+                    // C. Energía Consumida (Cristal - Diferencia Start vs End)
+                    const startPct = Math.max(0, dayData.startPct);
+                    // Solo dibujamos si empezó con más de lo que acabó (consumo normal)
+                    if (startPct > endPct) {
+                        const glassHeight = ((startPct - endPct) / 100) * maxBarHeight;
+                        const glassGeo = new THREE.CylinderGeometry(radius, radius, glassHeight, 32);
+                        const glassMat = new THREE.MeshPhysicalMaterial({ 
+                            color: 0xffffff, 
+                            transparent: true, 
+                            opacity: 0.2, 
+                            roughness: 0.1,
+                            metalness: 0.1,
+                            transmission: 0.5 // Efecto cristal
+                        });
+                        const glassMesh = new THREE.Mesh(glassGeo, glassMat);
+                        // Posición: Encima del bloque sólido
+                        glassMesh.position.y = 1 + solidHeight + (glassHeight / 2);
+                        dayGroup.add(glassMesh);
+                    }
+
+                    // D. Objetivo de Carga (Anillo Holográfico)
+                    const targetPct = dayData.target;
+                    if (targetPct > 0) {
+                        const targetHeight = (targetPct / 100) * maxBarHeight;
+                        const ringGeo = new THREE.TorusGeometry(radius + 0.8, 0.3, 16, 32);
+                        const ringMat = new THREE.MeshBasicMaterial({ color: 0x60a5fa }); // Blue ring
+                        const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+                        ringMesh.rotation.x = Math.PI / 2;
+                        ringMesh.position.y = 1 + targetHeight;
+                        dayGroup.add(ringMesh);
+
+                        // Línea guía vertical muy fina
+                        const guideGeo = new THREE.BoxGeometry(0.1, targetHeight, 0.1);
+                        const guideMat = new THREE.MeshBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.3 });
+                        const guideMesh = new THREE.Mesh(guideGeo, guideMat);
+                        guideMesh.position.y = 1 + (targetHeight / 2);
+                        dayGroup.add(guideMesh);
+                    }
+
+                    mainGroup.add(dayGroup);
+                });
+
+                // 4. ANIMACIÓN
+                let frameId;
+                let time = 0;
+                const animate = () => {
+                    frameId = requestAnimationFrame(animate);
+                    time += 0.01;
+                    
+                    // Oscilación suave de la cámara para efecto 3D
+                    mainGroup.rotation.y = Math.sin(time * 0.5) * 0.1; 
+
+                    renderer.render(scene, camera);
+                };
+                animate();
+
+                // Handle Resize
+                const handleResize = () => {
+                    if (!mountRef.current) return;
+                    const w = mountRef.current.offsetWidth;
+                    camera.aspect = w / height;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(w, height);
+                };
+                window.addEventListener('resize', handleResize);
+
+                return () => {
+                    window.removeEventListener('resize', handleResize);
+                    cancelAnimationFrame(frameId);
+                    if (mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
+                };
+            }, [data]); // Re-render si cambian los datos
+
+            return <div ref={mountRef} className="w-full h-[300px] cursor-grab active:cursor-grabbing" title="Matriz de Energía 3D" />;
+        };
 
         // Estado para la fecha de guardado de la copia manual
         const [savedDate, setSavedDate] = useState(null);
@@ -1308,18 +1467,14 @@ const Icons = {
             return `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
         };
 
-        // Helper robusto para parsear fecha (Híbrido: Europeo y Legacy)
+        // Helper robusto para parsear fecha
         const parseSmartDate = (dateStr) => {
             if (!dateStr) return null;
-            
-            // 1. Intentar formato Europeo estricto (DD-MM-AAAA)
             const parts = dateStr.split(/[-/]/);
             if (parts.length === 3) {
                 const p0 = parseInt(parts[0], 10);
                 const p1 = parseInt(parts[1], 10);
                 const p2 = parseInt(parts[2], 10);
-                
-                // Si el primer número es pequeño (día) y el último es grande (año), es formato europeo
                 if (!isNaN(p0) && !isNaN(p1) && !isNaN(p2)) {
                     if (p2 > 1000) {
                         const date = new Date(p2, p1 - 1, p0);
@@ -1329,30 +1484,20 @@ const Icons = {
                     }
                 }
             }
-
-            // 2. Fallback: Intentar formato estándar ISO (AAAA-MM-DD) por si viene de datos antiguos
             const isoDate = new Date(dateStr);
-            if (!isNaN(isoDate.getTime())) {
-                return isoDate;
-            }
-
+            if (!isNaN(isoDate.getTime())) return isoDate;
             return null;
         };
 
         // Helper para antigüedad
         const getCarAge = () => {
             if (!state.purchaseDate) return null;
-            
             const start = parseSmartDate(state.purchaseDate);
             if (!start) return null;
-            
             const now = new Date();
             const diffTime = Math.abs(now - start);
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-            
-            // Si la fecha es futura o hoy, devolver al menos 1 día para evitar división por cero
             const safeDays = Math.max(1, diffDays);
-
             let years = now.getFullYear() - start.getFullYear();
             let months = now.getMonth() - start.getMonth();
             if (months < 0 || (months === 0 && now.getDate() < start.getDate())) {
@@ -1364,7 +1509,7 @@ const Icons = {
 
         const carAge = getCarAge();
 
-        // --- CÁLCULOS DE LA NUEVA SECCIÓN INFORMATIVA ---
+        // --- CÁLCULOS ---
         const calcAmps = () => {
             if (state.power >= 11) {
                 const amps = (state.power * 1000) / (400 * Math.sqrt(3));
@@ -1390,8 +1535,6 @@ const Icons = {
 
         const ampData = calcAmps();
         const windowStats = getChargeWindowStats();
-        
-        // Cálculos de Mínimos para llegar al 100%
         const minStartPctToFull = Math.max(0, 100 - windowStats.pct);
         const minStartKmToFull = (minStartPctToFull / 100) * (state.battery / state.consumption) * 100;
 
@@ -1475,7 +1618,6 @@ const Icons = {
         const { results, totalTime, totalKmCharged, totalKmDriven, totalKwhCharged, lowestPoint, calibrationOpportunity } = calculateWeek();
         const reserveKm = totalKmCharged - totalKmDriven; 
         
-        // Costes Semanales
         const weeklyNetKwh = totalKwhCharged;
         const weeklyGrossKwh = weeklyNetKwh / (state.chargingEfficiency / 100 || 1);
         const totalCost = weeklyGrossKwh * state.energyPrice;
@@ -1484,7 +1626,7 @@ const Icons = {
 
         // Histórico
         const totalDrivingKwh = (state.currentKm / 100) * state.consumption;
-        const daysOwned = carAge ? carAge.days : 0; // Ahora daysOwned será > 0 si la fecha es válida
+        const daysOwned = carAge ? carAge.days : 0; 
         const totalVampireKwh = daysOwned * state.vampireRate;
         const totalNetKwh = totalDrivingKwh + totalVampireKwh;
         const efficiencyFactor = state.chargingEfficiency / 100 || 1;
@@ -1545,7 +1687,6 @@ const Icons = {
             { r: "0 al 70%", c: 5000 }, { r: "10 al 70%", c: 5500 }, { r: "20 al 70%", c: 6000 },
         ];
 
-        // Estilos específicos para el slider dual (inyectados localmente)
         const sliderStyle = `
             .range-slider-input { pointer-events: none; -webkit-appearance: none; z-index: 10; }
             .range-slider-input::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; position: relative; z-index: 20; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
@@ -1554,7 +1695,6 @@ const Icons = {
             #slider-dual-target::-webkit-slider-thumb { border-color: #22c55e; }
         `;
 
-        // Handlers para el Slider Dual
         const handleDualSliderChange = (day, key, value) => {
             const val = parseInt(value);
             setState(prev => {
@@ -1578,7 +1718,6 @@ const Icons = {
                     </h2>
                     
                     <div className="flex flex-col gap-6">
-                        {/* Fila 1: 4 Columnas */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             <div><label className="text-sm font-bold text-slate-400 block mb-2">Capacidad (kWh)</label><FormattedInput value={state.battery} onChange={v => handleNumChange('battery', v)} /></div>
                             <div><label className="text-sm font-bold text-slate-400 block mb-2">Consumo (kWh/100)</label><FormattedInput decimals={1} value={state.consumption} onChange={v => handleNumChange('consumption', v)} /></div>
@@ -1586,7 +1725,6 @@ const Icons = {
                             <div><label className="text-sm font-bold text-slate-400 block mb-2">Precio Energía (€/kWh)</label><FormattedInput decimals={3} value={state.energyPrice} onChange={v => handleNumChange('energyPrice', v)} /></div>
                         </div>
 
-                        {/* Fila 2: 4 Columnas */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                             <div><label className="text-sm font-bold text-purple-400 block mb-2">Vampiro (kWh/día)</label><FormattedInput decimals={1} value={state.vampireRate} onChange={v => handleNumChange('vampireRate', v)} /></div>
                             <div><label className="text-sm font-bold text-red-400 block mb-2">Eficiencia Carga (%)</label><FormattedInput decimals={1} value={state.chargingEfficiency} onChange={v => handleNumChange('chargingEfficiency', v)} /></div>
@@ -1604,7 +1742,6 @@ const Icons = {
                             </div>
                         </div>
 
-                        {/* NUEVA SECCIÓN INFORMATIVA DE CARGA */}
                         <div className="w-full bg-blue-900/20 border border-blue-500/30 rounded-xl p-4 mt-2">
                             <h3 className="text-sm font-bold text-blue-300 uppercase tracking-widest mb-3 border-b border-blue-500/20 pb-2 flex items-center gap-2">
                                 <Icons.Zap className="w-4 h-4"/> Rendimiento y Capacidad de Carga (00:00 - {state.chargeEndTime})
@@ -1637,7 +1774,6 @@ const Icons = {
                                 </div>
                             </div>
                             
-                            {/* COMENTARIO AÑADIDO AL PIE DE LA TARJETA */}
                             <div className="mt-4 pt-3 border-t border-blue-500/20 text-[11px] font-bold text-blue-200 leading-tight">
                                 (*) Se sugiere la hora de inicio de carga de tal forma que termine momentos antes de su utilización. No es recomendable cargar al 100% si no va a utilizar el coche. Un truco si no va a usarlo es activar el Centinela para descargar un poco la batería.
                             </div>
@@ -1645,7 +1781,7 @@ const Icons = {
                     </div>
                 </div>
 
-                {/* Weekly Grid Compacto (FUENTES MÁS GRANDES Y BARRA DUAL) */}
+                {/* Weekly Grid Compacto */}
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
                     <div className="overflow-x-auto">
                         <table className="w-full text-base">
@@ -1664,11 +1800,8 @@ const Icons = {
                                     const endKm = (row.endPct / 100) * (state.battery / state.consumption) * 100;
                                     const isNegative = row.endPct < 0;
                                     const isWeekend = row.day === 'Sat' || row.day === 'Sun';
-                                    
-                                    // CORRECCIÓN: Calcular consumo total (conducción + vampiro) para mostrar
                                     const totalDailyKwh = ((state.dailyKm[row.day] / 100) * state.consumption) + state.vampireRate;
                                     const totalDailyPct = (totalDailyKwh / state.battery) * 100;
-
                                     const isCharging = row.chargeTime > 0;
                                     const startTimeStr = isCharging ? calculateStartTime(state.chargeEndTime, row.chargeTime) : "";
 
@@ -1692,9 +1825,7 @@ const Icons = {
 
                                             <td className="px-3 py-1 align-middle">
                                                 <div className="flex flex-col w-full gap-1">
-                                                    {/* Fila Texto */}
                                                     <div className="flex justify-between items-end w-full">
-                                                        {/* Izquierda: Inicio (LILA) */}
                                                         <div className="text-left flex flex-col items-start">
                                                             <div className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">INICIO</div>
                                                             <div className="flex items-baseline gap-1.5">
@@ -1702,7 +1833,6 @@ const Icons = {
                                                                 <span className="text-sm text-slate-400 font-bold">({formatDecimal(startKm, 0)} km)</span>
                                                             </div>
                                                         </div>
-                                                        {/* Derecha: Fin (VERDE) */}
                                                         <div className="text-right flex flex-col items-end">
                                                             <div className="text-[10px] text-slate-400 font-bold uppercase mb-0.5">FIN</div>
                                                             <div className="flex items-baseline gap-1.5">
@@ -1713,14 +1843,11 @@ const Icons = {
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    {/* Fila Barra de Progreso Dual (Grosor 7px, Lila + Verde) */}
                                                     <div className="w-full bg-slate-700 h-[7px] rounded-full overflow-hidden shadow-inner mt-0.5 relative">
-                                                        {/* Capa 1: Inicio (Lila tenue) */}
                                                         <div 
                                                             className="absolute top-0 left-0 h-full bg-purple-500/50"
                                                             style={{ width: `${Math.max(0, Math.min(100, row.startPct))}%` }}
                                                         ></div>
-                                                        {/* Capa 2: Fin (Verde sólido) */}
                                                         <div 
                                                             className="absolute top-0 left-0 h-full bg-green-500 transition-all duration-500 z-10"
                                                             style={{ width: `${Math.max(0, Math.min(100, row.endPct))}%` }}
@@ -1766,91 +1893,27 @@ const Icons = {
                     </div>
                 </div>
 
-                {/* GRAPH PANEL + SIDE CARDS (CORREGIDO: ALINEACIÓN Y Y TAMAÑOS) */}
+                {/* GRAPH PANEL + SIDE CARDS */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
-                    {/* Gráfica Compacta - AHORA SUAVIZADA */}
+                    {/* Gráfica 3D (SUSTITUYE A LA ANTERIOR 2D) */}
                     <div className="lg:col-span-8 bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-                        <h4 className="text-sm font-bold text-slate-300 uppercase mb-2 flex items-center gap-2">
-                            <Icons.Activity className="w-4 h-4" /> Evolución de Carga Diaria (Inicio vs Fin)
+                        <h4 className="text-sm font-bold text-slate-300 uppercase mb-4 flex items-center gap-2">
+                            <Icons.Activity className="w-4 h-4" /> Evolución de Carga Diaria (Matriz 3D)
                         </h4>
                         
-                        <div className="mt-4">
-                            <div className="flex h-64">
-                                {/* Y-Axis Labels (Left) - GRADUADO EN 10% */}
-                                <div className="w-12 flex flex-col-reverse justify-between text-[10px] text-slate-500 font-bold py-0 h-full pr-2 text-right">
-                                    {[...Array(11)].map((_, i) => <span key={i}>{i * 10}%</span>)}
-                                </div>
-
-                                {/* Chart Area (Smooth Bars) */}
-                                <div className="relative flex-1 border-l border-b border-slate-700 h-full">
-                                    {/* Grid Lines - 11 Líneas para 0, 10, ... 100% Z-20 PARA ESTAR ARRIBA */}
-                                    <div className="absolute inset-0 flex flex-col-reverse justify-between pointer-events-none z-20">
-                                        {[...Array(11)].map((_, i) => <div key={i} className="w-full border-t border-white/10 border-dashed"></div>)}
+                        {/* Contenedor Visual 3D */}
+                        <div className="rounded-xl overflow-hidden bg-gradient-to-b from-slate-900/0 via-slate-900/50 to-slate-900/0 border border-white/5 relative">
+                            <WeeklyCharge3D data={results} />
+                            
+                            {/* Etiquetas Días (HTML Overlay) */}
+                            <div className="absolute bottom-2 w-full flex justify-between px-12 pointer-events-none">
+                                {results.map((row, i) => (
+                                    <div key={i} className="flex-1 text-center">
+                                        <span className={`text-sm font-bold ${['Sat','Sun'].includes(row.day) ? 'text-orange-400' : 'text-slate-400'}`}>
+                                            {dayInitials[row.day]}
+                                        </span>
                                     </div>
-
-                                    {/* Sliced Bars for Smooth Effect Z-10 PARA ESTAR ABAJO */}
-                                    <div className="absolute inset-0 flex items-end z-10">
-                                        {results.map((row, i) => {
-                                            const isLast = i === results.length - 1;
-                                            
-                                            // Dividimos cada día en 20 slices
-                                            return (
-                                                <div key={i} className="flex-1 h-full flex items-end gap-0">
-                                                    {Array.from({ length: 20 }).map((_, sliceIdx) => {
-                                                        const t = sliceIdx / 19; // 0 to 1
-                                                        // Interpolar altura entre startPct y endPct
-                                                        const sliceHeight = row.startPct + (row.endPct - row.startPct) * t;
-                                                        
-                                                        return (
-                                                            <div 
-                                                                key={sliceIdx}
-                                                                className="flex-1 transition-all hover:brightness-110"
-                                                                style={{
-                                                                    height: `${Math.max(0, sliceHeight)}%`,
-                                                                    // Mantenemos el gradiente visual para que el color coincida con la altura absoluta
-                                                                    backgroundImage: 'linear-gradient(to top, #022c22 0%, #22c55e 100%)', 
-                                                                    backgroundSize: '100% 256px', 
-                                                                    backgroundRepeat: 'no-repeat',
-                                                                    backgroundPosition: 'bottom'
-                                                                }}
-                                                            ></div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* X-Axis Labels (Bottom - SEPARADO para alineación) - FUENTES REDUCIDAS */}
-                            <div className="flex w-full pt-3 h-20 pl-12">
-                                {results.map((row, i) => {
-                                    const isCharging = row.chargeTime > 0;
-                                    const targetPct = row.target;
-                                    const totalRangeAtTarget = (targetPct / 100) * (state.battery / state.consumption) * 100;
-
-                                    return (
-                                        <div key={i} className="flex-1 flex flex-col items-center justify-start">
-                                            {/* DÍA: TAMAÑO LG (antes XL) */}
-                                            <span className={`text-lg font-bold ${['Sat','Sun'].includes(row.day) ? 'text-orange-400' : 'text-slate-400'}`}>
-                                                {dayInitials[row.day]}
-                                            </span>
-                                            {isCharging && (
-                                                <div className="flex flex-col items-center mt-1">
-                                                    {/* PORCENTAJE: TAMAÑO LG (antes XL) */}
-                                                    <span className="text-lg font-bold text-blue-300 leading-none mb-1">
-                                                        {targetPct}%
-                                                    </span>
-                                                    {/* KM: TAMAÑO BASE (antes XL) */}
-                                                    <span className="text-base font-bold text-slate-500 leading-none">
-                                                        {formatDecimal(totalRangeAtTarget, 0)} km
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
+                                ))}
                             </div>
                         </div>
                     </div>
@@ -1883,7 +1946,7 @@ const Icons = {
                     </div>
                 </div>
 
-                {/* Bottom Stats Cards (Filas inferiores) */}
+                {/* Bottom Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
                     <div className="bg-slate-900/80 border border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-center">
                         <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Balance Km</div>
@@ -1923,7 +1986,7 @@ const Icons = {
                     </div>
                 </div>
 
-                {/* BMS Calibration Card (FUENTES GRANDES) */}
+                {/* BMS Calibration Card */}
                 <div className="mt-6 bg-slate-800/30 border border-yellow-500/20 rounded-xl p-6 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-4 opacity-10"><Icons.Settings className="w-24 h-24 text-yellow-500" /></div>
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
@@ -1932,7 +1995,6 @@ const Icons = {
                         </h3>
                         <div className="flex items-center gap-2 bg-slate-900/50 p-2 rounded-lg border border-slate-700">
                             <label className="text-xs font-bold text-slate-400 uppercase">FECHA ÚLTIMA CARGA PROFUNDA:</label>
-                            {/* MODIFICACIÓN: TYPE TEXT PARA PERMITIR ENTRADA DIRECTA EN TESLA */}
                             <input 
                                 type="text" 
                                 placeholder="DD-MM-AAAA"
@@ -1972,14 +2034,13 @@ const Icons = {
                     <div className="mt-4 p-4 bg-blue-900/20 border border-blue-500/20 rounded-lg text-sm font-bold text-blue-200 leading-relaxed">(*) Tesla recomienda cargar al 100% (LFP) una vez a la semana para mantener calibrada la batería y cada cierto tiempo (de forma casual o programada), por ejemplo cada 6 meses, hacerle una carga profunda desde lo más abajo que puedas hasta el 100%.</div>
                 </div>
 
-                {/* Ciclos de Carga Section (FUENTES GRANDES) */}
+                {/* Ciclos de Carga Section */}
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                     <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
                         <Icons.Activity /> Estimación de ciclos de carga
                     </h2>
                     
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        {/* Panel de Datos */}
                         <div className="space-y-6">
                             <div>
                                 <label className="text-sm font-bold text-slate-400 block mb-2">KILOMETRAJE ACTUAL</label>
@@ -1988,7 +2049,6 @@ const Icons = {
                             <div>
                                 <label className="text-sm font-bold text-slate-400 block mb-2">FECHA DE COMPRA</label>
                                 <div className="flex items-center gap-4">
-                                    {/* MODIFICACIÓN: TYPE TEXT PARA PERMITIR ENTRADA DIRECTA EN TESLA */}
                                     <input 
                                         type="text"
                                         placeholder="DD-MM-AAAA" 
@@ -2001,7 +2061,6 @@ const Icons = {
                                 </div>
                             </div>
 
-                            {/* GRID DE 3 TARJETAS */}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
                                     <div className="text-xs font-bold text-slate-400 uppercase mb-2">Consumo Conducción</div>
@@ -2039,7 +2098,6 @@ const Icons = {
                             </div>
                         </div>
 
-                        {/* Columna Derecha: Vida Útil + Tabla (FUENTES GRANDES, PADDING COMPACTO) */}
                         <div className="space-y-6">
                             <div className="bg-slate-800/30 p-6 rounded-xl border border-green-900/30">
                                 <div className="flex justify-between items-end mb-4">
@@ -2112,7 +2170,7 @@ const Icons = {
                     </div>
                 </div>
 
-                {/* BOTONES DE SNAPSHOT / COPIA DE SEGURIDAD (FUERA DE LA GRID SUPERIOR) */}
+                {/* BOTONES DE SNAPSHOT */}
                 <div className="flex flex-col md:flex-row gap-6 justify-center items-center p-6 bg-slate-900/50 rounded-xl border border-slate-700/50 mt-4">
                     <div className="flex flex-col items-center gap-2 w-full md:w-auto">
                         <button 
@@ -2147,7 +2205,9 @@ const Icons = {
             </div>
         );
       };
- 
+
+
+    
       
 
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
