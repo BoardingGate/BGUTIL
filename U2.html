@@ -3,518 +3,409 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Partículas Interactivo</title>
+    <title>Partículas 3D + Control Gestual</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap');
-
-        body {
-            margin: 0;
-            overflow: hidden;
-            background-color: #050505;
-            font-family: 'Inter', sans-serif;
-            color: white;
-        }
-
-        #canvas-container {
-            width: 100vw;
-            height: 100vh;
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: sans-serif; }
+        
+        /* Contenedor UI */
+        #ui-container {
             position: absolute;
-            top: 0;
-            left: 0;
-            z-index: 1;
-        }
-
-        /* UI Overlay */
-        #ui-panel {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 280px;
-            background: rgba(20, 20, 25, 0.7);
-            backdrop-filter: blur(15px);
-            -webkit-backdrop-filter: blur(15px);
-            padding: 20px;
-            border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            z-index: 10;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            transition: transform 0.3s ease;
-        }
-
-        h2 {
-            margin: 0 0 15px 0;
-            font-size: 1.2rem;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-            background: linear-gradient(90deg, #fff, #aaa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .control-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 0.85rem;
-            color: #ccc;
-        }
-
-        /* Botones de formas */
-        .shape-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-
-        button {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            color: white;
-            padding: 10px;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-size: 0.8rem;
-        }
-
-        button:hover {
-            background: rgba(255, 255, 255, 0.2);
-            transform: translateY(-2px);
-        }
-
-        button.active {
-            background: #4f46e5;
-            border-color: #4f46e5;
-            box-shadow: 0 0 15px rgba(79, 70, 229, 0.4);
-        }
-
-        /* Selector de color */
-        input[type="color"] {
-            -webkit-appearance: none;
-            border: none;
-            width: 100%;
-            height: 40px;
-            border-radius: 8px;
-            cursor: pointer;
-            background: none;
-        }
-        input[type="color"]::-webkit-color-swatch-wrapper {
-            padding: 0;
-        }
-        input[type="color"]::-webkit-color-swatch {
-            border: none;
-            border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.2);
-        }
-
-        /* Feedback visual de la cámara */
-        #webcam-preview {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            width: 160px;
-            height: 120px;
+            top: 10px;
+            right: 10px;
+            width: 260px;
+            background: rgba(30, 30, 30, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 15px;
             border-radius: 12px;
-            object-fit: cover;
-            transform: scaleX(-1); /* Espejo */
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            z-index: 10;
-            opacity: 0.6;
-            transition: opacity 0.3s;
-        }
-        #webcam-preview:hover {
-            opacity: 1;
+            border: 1px solid #444;
+            color: white;
+            z-index: 100;
         }
 
-        .status {
-            font-size: 0.75rem;
-            margin-top: 10px;
-            color: #888;
-            text-align: center;
+        h3 { margin: 0 0 10px 0; font-size: 16px; color: #4f46e5; text-transform: uppercase; }
+
+        .control-row { margin-bottom: 12px; }
+        label { display: block; font-size: 12px; color: #aaa; margin-bottom: 5px; }
+
+        /* Botones */
+        .grid-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        button {
+            background: #333; border: 1px solid #555; color: white;
+            padding: 8px; border-radius: 6px; cursor: pointer; font-size: 12px;
+            transition: 0.2s;
         }
-        .status span {
-            color: #4f46e5;
-            font-weight: bold;
+        button:hover { background: #444; }
+        button.active { background: #4f46e5; border-color: #6366f1; }
+
+        /* Input Color */
+        input[type="color"] { width: 100%; height: 35px; border: none; cursor: pointer; }
+
+        /* Mensajes de error / carga */
+        #loading-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: black; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; color: white; z-index: 200;
+        }
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid #333;
+            border-top: 4px solid #4f46e5; border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 15px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Video oculto pero necesario para la logica */
+        #input-video { display: none; } 
+        
+        /* Pequeño preview de cámara */
+        #cam-preview {
+            position: absolute; bottom: 10px; left: 10px; width: 120px;
+            border-radius: 8px; opacity: 0.5; z-index: 90; transform: scaleX(-1);
         }
     </style>
+
+    <!-- Mapa de importación para asegurar versiones compatibles -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    
+    <!-- Librerías de MediaPipe (scripts normales) -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
+    <!-- Pantalla de Carga -->
+    <div id="loading-screen">
+        <div class="spinner"></div>
+        <div id="loading-text">Cargando motor gráfico...</div>
+    </div>
+
     <!-- UI -->
-    <div id="ui-panel">
-        <h2>Control de Partículas</h2>
+    <div id="ui-container">
+        <h3>Control de Partículas</h3>
         
-        <div class="control-group">
-            <label>Color de Partículas</label>
-            <input type="color" id="colorPicker" value="#00ffff">
+        <div class="control-row">
+            <label>Color</label>
+            <input type="color" id="color-picker" value="#00aaff">
         </div>
 
-        <div class="control-group">
-            <label>Seleccionar Forma</label>
-            <div class="shape-grid">
-                <button onclick="setShape('sphere')" class="active" id="btn-sphere">Esfera</button>
-                <button onclick="setShape('heart')" id="btn-heart">Corazón</button>
-                <button onclick="setShape('saturn')" id="btn-saturn">Saturno</button>
-                <button onclick="setShape('spiral')" id="btn-spiral">Espiral DNA</button>
-                <button onclick="setShape('fireworks')" id="btn-fireworks">Fuegos Art.</button>
-                <button onclick="setShape('buddha')" id="btn-buddha">Estatua (Geo)</button>
+        <div class="control-row">
+            <label>Formas</label>
+            <div class="grid-buttons">
+                <button onclick="changeShape('sphere')" class="active" id="btn-sphere">Esfera</button>
+                <button onclick="changeShape('heart')" id="btn-heart">Corazón</button>
+                <button onclick="changeShape('saturn')" id="btn-saturn">Saturno</button>
+                <button onclick="changeShape('buddha')" id="btn-buddha">Estatua</button>
+                <button onclick="changeShape('fireworks')" id="btn-fireworks">Explosión</button>
             </div>
         </div>
-
-        <div class="status" id="hand-status">
-            Estado: Buscando manos...
-        </div>
-        <div class="status" style="margin-top:5px; font-size: 0.7rem;">
-            Abre la mano para expandir.<br>Cierra el puño para comprimir.
+        
+        <div class="control-row">
+            <label id="hand-status">Esperando cámara...</label>
         </div>
     </div>
 
-    <!-- Webcam feed (hidden from main view but used for logic) -->
-    <video id="webcam-preview" playsinline></video>
+    <!-- Video Element -->
+    <video id="input-video" playsinline></video>
+    <canvas id="cam-preview"></canvas>
 
-    <!-- Canvas para Three.js -->
-    <div id="canvas-container"></div>
-
-    <!-- Scripts: Three.js y MediaPipe -->
     <script type="module">
-        import * as THREE from 'https://cdn.skypack.dev/three@0.136.0';
-        import { OrbitControls } from 'https://cdn.skypack.dev/three@0.136.0/examples/jsm/controls/OrbitControls.js';
-        import { Hands } from 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js';
-        import { Camera } from 'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1632432244/camera_utils.js';
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // --- Configuración Global ---
-        const PARTICLE_COUNT = 15000;
-        const PARTICLE_SIZE = 0.05;
-        let currentShape = 'sphere';
-        let handTension = 0; // 0 = Abierta (Relajada), 1 = Puño (Tensión)
-        let time = 0;
+        // --- 1. Verificación de Seguridad ---
+        if (window.location.protocol === 'file:') {
+            alert("⚠️ ERROR: Estás abriendo este archivo directamente.\n\nPor seguridad del navegador, la cámara NO funcionará.\n\nDebes usar un servidor local (ej: VS Code Live Server).");
+            document.getElementById('loading-text').innerText = "Error: Abre con servidor local (http://localhost)";
+            throw new Error("File protocol detected");
+        }
 
-        // --- Escena Three.js ---
-        const container = document.getElementById('canvas-container');
+        // --- 2. Configuración Three.js ---
         const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050505);
         scene.fog = new THREE.FogExp2(0x050505, 0.02);
 
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
-        camera.position.z = 8;
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.z = 10;
         camera.position.y = 2;
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(window.devicePixelRatio);
-        container.appendChild(renderer.domElement);
+        document.body.appendChild(renderer.domElement);
 
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.autoRotate = true;
         controls.autoRotateSpeed = 1.0;
 
-        // --- Sistema de Partículas ---
+        // --- 3. Sistema de Partículas ---
+        const PARTICLE_COUNT = 12000;
         const geometry = new THREE.BufferGeometry();
         const positions = new Float32Array(PARTICLE_COUNT * 3);
-        const targetPositions = new Float32Array(PARTICLE_COUNT * 3); // A donde quieren ir
-        const colors = new Float32Array(PARTICLE_COUNT * 3);
+        const targetPositions = new Float32Array(PARTICLE_COUNT * 3);
         
-        // Inicializar posiciones aleatorias
-        for (let i = 0; i < PARTICLE_COUNT * 3; i++) {
-            positions[i] = (Math.random() - 0.5) * 10;
-            targetPositions[i] = positions[i];
-            colors[i] = 1;
+        // Inicializar en esfera
+        for(let i=0; i<PARTICLE_COUNT; i++) {
+            const u = Math.random();
+            const v = Math.random();
+            const theta = 2 * Math.PI * u;
+            const phi = Math.acos(2 * v - 1);
+            const r = 4;
+            
+            const x = r * Math.sin(phi) * Math.cos(theta);
+            const y = r * Math.sin(phi) * Math.sin(theta);
+            const z = r * Math.cos(phi);
+
+            positions[i*3] = x; positions[i*3+1] = y; positions[i*3+2] = z;
+            targetPositions[i*3] = x; targetPositions[i*3+1] = y; targetPositions[i*3+2] = z;
         }
 
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 
-        // Shader Material para mejor look
         const material = new THREE.PointsMaterial({
-            size: PARTICLE_SIZE,
-            color: 0x00ffff,
+            color: 0x00aaff,
+            size: 0.08,
             transparent: true,
             opacity: 0.8,
-            blending: THREE.AdditiveBlending,
-            depthWrite: false
+            blending: THREE.AdditiveBlending
         });
 
         const particles = new THREE.Points(geometry, material);
         scene.add(particles);
 
-        // --- Generadores de Formas ---
-        function getPointOnSphere(i) {
-            const phi = Math.acos(-1 + (2 * i) / PARTICLE_COUNT);
-            const theta = Math.sqrt(PARTICLE_COUNT * Math.PI) * phi;
-            const r = 3;
-            return {
-                x: r * Math.cos(theta) * Math.sin(phi),
-                y: r * Math.sin(theta) * Math.sin(phi),
-                z: r * Math.cos(phi)
-            };
-        }
+        // --- 4. Funciones de Matemáticas de Formas ---
+        function getShapePosition(type, i) {
+            const idx = i;
+            const total = PARTICLE_COUNT;
+            
+            // Distribución esférica base (Fibonacci sphere algorithm para distribución uniforme)
+            const phi = Math.acos(1 - 2 * (idx + 0.5) / total);
+            const theta = Math.PI * (1 + Math.sqrt(5)) * idx; 
 
-        function getPointOnHeart(i) {
-            // Formula paramétrica del corazón
-            const t = (i / PARTICLE_COUNT) * Math.PI * 2;
-            const phi = Math.acos(-1 + (2 * i) / PARTICLE_COUNT); // Distribución esférica base
-            // Adaptación de fórmula 3D
-            const x = 16 * Math.pow(Math.sin(phi), 3) * Math.cos(t);
-            const y = 13 * Math.cos(phi) - 5 * Math.cos(2*phi) - 2 * Math.cos(3*phi) - Math.cos(4*phi);
-            const z = 16 * Math.pow(Math.sin(phi), 3) * Math.sin(t);
-            return { x: x * 0.15, y: y * 0.15 + 1, z: z * 0.15 };
-        }
-
-        function getPointOnSaturn(i) {
-            const ratio = 0.7; // 70% planeta, 30% anillos
-            if (i < PARTICLE_COUNT * ratio) {
-                // Esfera
-                const idx = i;
-                const total = PARTICLE_COUNT * ratio;
-                const phi = Math.acos(-1 + (2 * idx) / total);
-                const theta = Math.sqrt(total * Math.PI) * phi;
-                const r = 2;
+            if (type === 'sphere') {
+                const r = 4;
                 return {
                     x: r * Math.cos(theta) * Math.sin(phi),
                     y: r * Math.sin(theta) * Math.sin(phi),
                     z: r * Math.cos(phi)
                 };
-            } else {
-                // Anillo
-                const idx = i - PARTICLE_COUNT * ratio;
-                const angle = (idx / (PARTICLE_COUNT * (1-ratio))) * Math.PI * 2 * 10; // *10 para densidad
-                const r = 3 + Math.random() * 1.5;
-                return {
-                    x: r * Math.cos(angle),
-                    y: (Math.random() - 0.5) * 0.1,
-                    z: r * Math.sin(angle)
-                };
             }
-        }
-
-        function getPointOnSpiral(i) {
-            const t = i / PARTICLE_COUNT * 20 * Math.PI;
-            const x = Math.cos(t) * (1 + t * 0.02);
-            const z = Math.sin(t) * (1 + t * 0.02);
-            const y = (i / PARTICLE_COUNT) * 8 - 4;
-            return { x: x, y: y, z: z };
-        }
-        
-        function getPointOnBuddha(i) {
-            // Aproximación matemática de una figura sentada (dos esferas achatadas + base)
-            const t = i / PARTICLE_COUNT;
-            if(t < 0.4) {
-                // Base / Piernas (Toroide parcial)
-                const u = t / 0.4 * Math.PI * 2 * 10;
-                const v = Math.random() * Math.PI * 2;
-                const R = 2; const r = 0.8;
-                return {
-                    x: (R + r * Math.cos(v)) * Math.cos(u) * 0.8,
-                    y: r * Math.sin(v) - 2,
-                    z: (R + r * Math.cos(v)) * Math.sin(u) * 0.8
+            if (type === 'heart') {
+                // Ecuación paramétrica de corazón 3D
+                const t = theta; 
+                const p = phi * 2; // Estirar rango
+                const x = 16 * Math.pow(Math.sin(p), 3) * Math.cos(t);
+                const y = 13 * Math.cos(p) - 5 * Math.cos(2*p) - 2 * Math.cos(3*p) - Math.cos(4*p);
+                const z = 16 * Math.pow(Math.sin(p), 3) * Math.sin(t);
+                return { x: x*0.2, y: y*0.2 + 2, z: z*0.2 };
+            }
+            if (type === 'saturn') {
+                if (i < total * 0.7) { // Planeta
+                    const r = 2.5;
+                    return {
+                        x: r * Math.cos(theta) * Math.sin(phi),
+                        y: r * Math.sin(theta) * Math.sin(phi),
+                        z: r * Math.cos(phi)
+                    };
+                } else { // Anillos
+                    const angle = (i / (total * 0.3)) * Math.PI * 2 * 5;
+                    const r = 3.5 + Math.random() * 2;
+                    return { x: r * Math.cos(angle), y: (Math.random()-0.5)*0.2, z: r * Math.sin(angle) };
                 }
-            } else if (t < 0.8) {
-                // Cuerpo
-                const p = getPointOnSphere(i);
-                return {x: p.x * 0.7, y: p.y * 0.8, z: p.z * 0.7};
-            } else {
-                // Cabeza
-                const p = getPointOnSphere(i);
-                return {x: p.x * 0.4, y: p.y * 0.4 + 2, z: p.z * 0.4};
             }
+            if (type === 'buddha') {
+                 // Forma abstracta "sentada" (dos elipsoides)
+                const t = i / total;
+                if(t < 0.5) { // Base
+                     const r = 3; 
+                     return { x: r * Math.cos(theta)*Math.sin(phi), y: (r * Math.sin(theta)*Math.sin(phi) * 0.3) - 2, z: r * Math.cos(phi) };
+                } else { // Torso/Cabeza
+                     const r = 1.5; 
+                     return { x: r * Math.cos(theta)*Math.sin(phi), y: (r * Math.sin(theta)*Math.sin(phi)) + 1, z: r * Math.cos(phi) };
+                }
+            }
+            if (type === 'fireworks') {
+                // Retornar posición aleatoria muy lejana
+                 return { x: (Math.random()-0.5)*30, y: (Math.random()-0.5)*30, z: (Math.random()-0.5)*30 };
+            }
+            return {x:0, y:0, z:0};
         }
 
-        function getPointOnFireworks(i) {
-            // Solo dispersión
-            return getPointOnSphere(i);
-        }
-
-        // --- Lógica de transición de formas ---
-        function updateTargetShape(shapeType) {
-            currentShape = shapeType;
-            
-            // Actualizar botones UI
+        let currentShape = 'sphere';
+        window.changeShape = (shape) => {
+            currentShape = shape;
+            // UI Update
             document.querySelectorAll('button').forEach(b => b.classList.remove('active'));
-            const btnId = `btn-${shapeType}`;
-            const btn = document.getElementById(btnId);
-            if(btn) btn.classList.add('active');
+            document.getElementById(`btn-${shape}`).classList.add('active');
 
-            const pArray = geometry.attributes.position.array;
-
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                let p;
-                switch (shapeType) {
-                    case 'heart': p = getPointOnHeart(i); break;
-                    case 'saturn': p = getPointOnSaturn(i); break;
-                    case 'spiral': p = getPointOnSpiral(i); break;
-                    case 'buddha': p = getPointOnBuddha(i); break;
-                    case 'fireworks': p = getPointOnSphere(i); break; // Base sphere
-                    default: p = getPointOnSphere(i); break;
-                }
-                
-                targetPositions[i * 3] = p.x;
-                targetPositions[i * 3 + 1] = p.y;
-                targetPositions[i * 3 + 2] = p.z;
+            // Calcular nuevos targets
+            for(let i=0; i<PARTICLE_COUNT; i++) {
+                const pos = getShapePosition(shape, i);
+                targetPositions[i*3] = pos.x;
+                targetPositions[i*3+1] = pos.y;
+                targetPositions[i*3+2] = pos.z;
             }
-        }
-        
-        // Exponer función al contexto global para los botones HTML
-        window.setShape = updateTargetShape;
-        updateTargetShape('sphere'); // Inicio
+        };
 
-        // --- Color Picker ---
-        const colorPicker = document.getElementById('colorPicker');
-        colorPicker.addEventListener('input', (e) => {
+        document.getElementById('color-picker').addEventListener('input', (e) => {
             material.color.set(e.target.value);
         });
 
-        // --- MediaPipe Hands Logic ---
-        const videoElement = document.getElementById('webcam-preview');
-        const statusElement = document.getElementById('hand-status');
+        // --- 5. MediaPipe Hands y Webcam ---
+        const videoElement = document.getElementById('input-video');
+        const previewCanvas = document.getElementById('cam-preview');
+        const ctxPreview = previewCanvas.getContext('2d');
+        const statusLabel = document.getElementById('hand-status');
+        
+        let handTension = 0; // 0 = Abierta, 1 = Cerrada
 
         function onResults(results) {
+            // Dibujar preview pequeño
+            ctxPreview.save();
+            ctxPreview.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            ctxPreview.drawImage(results.image, 0, 0, previewCanvas.width, previewCanvas.height);
+            if (results.multiHandLandmarks) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(ctxPreview, landmarks, HAND_CONNECTIONS, {color: '#00FF00', lineWidth: 2});
+                }
+            }
+            ctxPreview.restore();
+
+            // Logica
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                const landmarks = results.multiHandLandmarks[0];
+                const lm = results.multiHandLandmarks[0];
                 
-                // Calcular tensión (distancia entre punta dedo índice y muñeca)
-                // Indice 0 = Muñeca, Indice 8 = Punta Índice, 12 = Punta Corazón, etc.
-                const wrist = landmarks[0];
-                const indexTip = landmarks[8];
-                const thumbTip = landmarks[4];
-                const middleTip = landmarks[12];
-
-                // Distancia euclidiana simple aproximada
-                const d = Math.sqrt(
-                    Math.pow(indexTip.x - wrist.x, 2) + 
-                    Math.pow(indexTip.y - wrist.y, 2)
-                );
-
-                // Normalización aproximada: 
-                // Mano abierta d ~ 0.3 a 0.5
-                // Puño cerrado d ~ 0.1 a 0.2
-                // Queremos handTension 1 (puño) a 0 (abierta)
+                // Medir distancia entre Muñeca (0) y Punta Indice (8) y Punta Pulgar (4)
+                // Un puño cerrado tiene las puntas cerca de la muñeca (relativamente)
+                // O mejor: Distancia entre punta indice (8) y base indice (5)
                 
-                const minOpen = 0.15;
-                const maxOpen = 0.4;
-                let tension = 1 - ((d - minOpen) / (maxOpen - minOpen));
-                tension = Math.max(0, Math.min(1, tension)); // Clamp 0-1
+                // Distancia Indice (8) a Palma (0)
+                const d_index = Math.sqrt(Math.pow(lm[8].x - lm[0].x, 2) + Math.pow(lm[8].y - lm[0].y, 2));
+                
+                // Calibración aproximada
+                // Mano abierta d ~ 0.3 o más
+                // Puño d ~ 0.15 o menos
+                
+                // Invertimos: Queremos que Puño sea 1 y Abierta 0
+                let t = 1 - ((d_index - 0.15) / (0.4 - 0.15));
+                t = Math.max(0, Math.min(1, t)); // Clampear entre 0 y 1
 
-                // Suavizado (Lerp)
-                handTension += (tension - handTension) * 0.1;
-
-                statusElement.innerHTML = `Mano detectada. <br>Tensión: <span>${(handTension * 100).toFixed(0)}%</span>`;
+                // Interpolación suave
+                handTension += (t - handTension) * 0.1;
+                
+                statusLabel.innerText = `Tensión Mano: ${Math.round(handTension * 100)}%`;
+                statusLabel.style.color = handTension > 0.8 ? '#ff4444' : '#00ff00';
             } else {
-                // Si no hay mano, relajar tensión
+                statusLabel.innerText = "Mano no detectada";
+                statusLabel.style.color = "#aaa";
+                // Relajar tensión
                 handTension += (0 - handTension) * 0.05;
-                statusElement.innerHTML = "Estado: Buscando manos...";
             }
         }
 
-        const hands = new Hands({locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${file}`;
-        }});
+        // Inicialización asíncrona segura
+        async function startApp() {
+            // 1. Mostrar escena 3D básica inmediatamente
+            document.getElementById('loading-text').innerText = "Cargando IA de manos...";
+            
+            try {
+                const hands = new Hands({locateFile: (file) => {
+                    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                }});
+                
+                hands.setOptions({
+                    maxNumHands: 1,
+                    modelComplexity: 1,
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
+                
+                hands.onResults(onResults);
 
-        hands.setOptions({
-            maxNumHands: 1,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
-        });
+                const cameraUtils = new Camera(videoElement, {
+                    onFrame: async () => {
+                        await hands.send({image: videoElement});
+                    },
+                    width: 320,
+                    height: 240
+                });
+                
+                await cameraUtils.start();
+                document.getElementById('loading-screen').style.display = 'none'; // Ocultar carga
+                
+            } catch (err) {
+                console.error(err);
+                document.getElementById('loading-text').innerText = "Error accediendo a cámara. Revisa permisos.";
+                // Aun si falla la cámara, dejamos correr Three.js
+                setTimeout(() => { document.getElementById('loading-screen').style.display = 'none'; }, 2000);
+            }
+        }
 
-        hands.onResults(onResults);
-
-        const cameraFeed = new Camera(videoElement, {
-            onFrame: async () => {
-                await hands.send({image: videoElement});
-            },
-            width: 320,
-            height: 240
-        });
-        cameraFeed.start();
-
-        // --- Bucle de Animación ---
+        // --- 6. Loop de Animación Principal ---
         function animate() {
             requestAnimationFrame(animate);
-            time += 0.01;
             controls.update();
 
-            const positions = geometry.attributes.position.array;
+            const p = geometry.attributes.position.array;
+            
+            // Factor de interacción:
+            // Si hay tensión (puño), comprimir hacia el centro.
+            // Si no, forma normal.
+            const scale = 1 - (handTension * 0.6); // Se reduce hasta 40% del tamaño
+            const vibration = handTension * 0.05;
 
-            // Factor de expansión basado en la mano
-            // Si handTension es 1 (puño), scaleFactor es pequeño (compresión)
-            // Si handTension es 0 (abierta), scaleFactor es 1 (normal)
-            
-            // Efecto inverso: Cerrar mano = Energía concentrada (Tiembla, se encoge)
-            // Abrir mano = Expansión
-            
-            const explosionFactor = currentShape === 'fireworks' ? (Math.sin(time) + 1.5) : 1;
-            const baseScale = 1 - (handTension * 0.7); // Se encoge al 30% si cierras puño
-            
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                const ix = i * 3;
-                const iy = i * 3 + 1;
-                const iz = i * 3 + 2;
-
-                // Interpolación lineal hacia la forma objetivo (Morphing)
-                // Velocidad de morphing
-                const lerpSpeed = 0.05;
+            for(let i=0; i<PARTICLE_COUNT; i++) {
+                const ix = i*3; const iy = i*3+1; const iz = i*3+2;
                 
-                let tx = targetPositions[ix];
-                let ty = targetPositions[iy];
-                let tz = targetPositions[iz];
+                // 1. Mover hacia target (forma)
+                const tx = targetPositions[ix];
+                const ty = targetPositions[iy];
+                const tz = targetPositions[iz];
 
-                // Modificadores especiales
-                if (currentShape === 'fireworks') {
-                    // Si es fireworks, añadimos movimiento hacia afuera
-                    tx *= explosionFactor;
-                    ty *= explosionFactor;
-                    tz *= explosionFactor;
+                // Interpolación hacia la forma deseada (Lerp)
+                p[ix] += (tx - p[ix]) * 0.05;
+                p[iy] += (ty - p[iy]) * 0.05;
+                p[iz] += (tz - p[iz]) * 0.05;
+
+                // 2. Aplicar efecto de Mano (Escala desde el centro)
+                // Truco: No modificamos 'p' permanentemente por la escala, 
+                // sino que calculamos el punto visual. 
+                // Pero como ThreeJS usa buffer, necesitamos un truco visual.
+                // Modificaremos el target dinámicamente en el siguiente frame? No.
+                // Aplicamos una fuerza hacia el centro en el array actual.
+                
+                if (handTension > 0.01) {
+                    p[ix] = p[ix] * (1 - handTension * 0.02) + (Math.random()-0.5)*vibration;
+                    p[iy] = p[iy] * (1 - handTension * 0.02) + (Math.random()-0.5)*vibration;
+                    p[iz] = p[iz] * (1 - handTension * 0.02) + (Math.random()-0.5)*vibration;
+                } else {
+                    // Fuerza de restauración suave si se encogió demasiado
+                    // (Ya manejado por el Lerp hacia targetPositions arriba)
                 }
-
-                // Aplicar movimiento hacia la forma target
-                positions[ix] += (tx - positions[ix]) * lerpSpeed;
-                positions[iy] += (ty - positions[iy]) * lerpSpeed;
-                positions[iz] += (tz - positions[iz]) * lerpSpeed;
-
-                // INTERACCIÓN CON MANO:
-                // Aplicamos la escala desde el centro (0,0,0)
-                // Usamos una variable temporal para renderizado, no guardamos en array para no perder la forma
-                // Pero como estamos modificando el buffer directamente, debemos aplicar la logica inversa o usar un shader.
-                // Para simplificar en CPU: 
-                // Calculamos la posición visual final
-                
-                const noise = handTension * 0.1 * (Math.random() - 0.5); // Temblor por tensión
-
-                // Mover hacia el centro si hay tensión
-                const currentX = positions[ix];
-                const currentY = positions[iy];
-                const currentZ = positions[iz];
-
-                // Renderizamos la posición modificada visualmente en este frame
-                // Nota: BufferGeometry guarda estado. 
-                // Estrategia: Guardar forma "ideal" en target, y en cada frame mover `positions` hacia `target * escala`
-                
-                const targetXScaled = tx * baseScale + noise;
-                const targetYScaled = ty * baseScale + noise;
-                const targetZScaled = tz * baseScale + noise;
-
-                // Sobrescribimos el lerp anterior para incluir la escala de la mano dinámicamente
-                positions[ix] += (targetXScaled - positions[ix]) * 0.1; 
-                positions[iy] += (targetYScaled - positions[iy]) * 0.1;
-                positions[iz] += (targetZScaled - positions[iz]) * 0.1;
             }
 
             geometry.attributes.position.needsUpdate = true;
             renderer.render(scene, camera);
         }
 
-        // Manejo de redimensionado
+        // Resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        animate();
-
+        // Iniciar todo
+        animate(); // Empezar loop gráfico ya
+        startApp(); // Iniciar carga de IA
     </script>
 </body>
 </html>
