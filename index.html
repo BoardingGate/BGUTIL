@@ -4987,60 +4987,198 @@ const Icons = {
       };
 
 
-      // --- COMPONENTE: CALCULADORA DE LLANTAS, PERFIL Y EFICIENCIA ---
+      // --- COMPONENTE: CALCULADORA DE LLANTAS, PERFIL Y EFICIENCIA (3D AJUSTADO) ---
       const TireCalculator = () => {
-        // Datos base (Configuración por defecto: Model 3 Highland RWD - 18")
+        // Datos base
         const [config, setConfig] = usePersistentState('tireConfigV2', {
-            baseRange: 554,   // WLTP Oficial con 18"
-            batteryKwh: 60,   // Capacidad útil aprox
+            baseRange: 554,   
+            batteryKwh: 60,   
             priceKwh: 0.09,
             annualKm: 20000
         });
 
-        // Estado de las dos configuraciones (A = Origen, B = Destino)
-        // Añadimos ancho (width) y perfil (profile)
+        // Estado de las configuraciones
         const [setupA, setSetupA] = usePersistentState('tireSetupA_V2', { size: 18, width: 235, profile: 45, hasCaps: true });
         const [setupB, setSetupB] = usePersistentState('tireSetupB_V2', { size: 19, width: 235, profile: 40, hasCaps: false });
 
-        // PRESETS: Medidas habituales en Tesla
+        // --- SUB-COMPONENTE: ESCENA 3D DE LA RUEDA ---
+        const Wheel3DScene = ({ data }) => {
+            const mountRef = useRef(null);
+            
+            useEffect(() => {
+                if (!mountRef.current || !window.THREE) return;
+
+                // 1. SETUP
+                const width = mountRef.current.offsetWidth;
+                const height = 220; 
+                const scene = new THREE.Scene();
+                scene.background = null; 
+
+                const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+                
+                // CAMBIO PRINCIPAL: Alejamos la cámara (de 60 a 130) para que la rueda se vea más pequeña
+                // y con menos distorsión, permitiendo apreciar mejor el perfil.
+                camera.position.set(0, 0, 130); 
+
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(width, height);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                
+                while (mountRef.current.firstChild) {
+                    mountRef.current.removeChild(mountRef.current.firstChild);
+                }
+                mountRef.current.appendChild(renderer.domElement);
+
+                // 2. LUCES
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+                scene.add(ambientLight);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+                dirLight.position.set(10, 10, 20);
+                scene.add(dirLight);
+                const rimLight = new THREE.PointLight(0x3b82f6, 0.5);
+                rimLight.position.set(-10, -10, 10);
+                scene.add(rimLight);
+
+                // 3. GENERACIÓN PROCEDURAL DE LA RUEDA
+                const wheelGroup = new THREE.Group();
+                scene.add(wheelGroup);
+
+                // Conversiones para escala visual (1 unidad = 1 cm aprox en visualización)
+                const rimRadius = (data.size * 2.54) / 2;
+                const tireWidth = data.width / 10;
+                const sidewallHeight = (data.width * (data.profile / 100)) / 10;
+                const totalRadius = rimRadius + sidewallHeight;
+
+                // A. NEUMÁTICO (Tire)
+                const tireGeo = new THREE.CylinderGeometry(totalRadius, totalRadius, tireWidth, 64);
+                const tireMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x1f2937, 
+                    roughness: 0.9, 
+                    metalness: 0.1 
+                });
+                const tireMesh = new THREE.Mesh(tireGeo, tireMat);
+                tireMesh.rotation.x = Math.PI / 2; 
+                wheelGroup.add(tireMesh);
+
+                // Banda de rodadura visual
+                const treadGeo = new THREE.TorusGeometry(totalRadius, 0.2, 16, 100);
+                const treadMat = new THREE.MeshBasicMaterial({ color: 0x111827 });
+                const tread1 = new THREE.Mesh(treadGeo, treadMat);
+                const tread2 = new THREE.Mesh(treadGeo, treadMat);
+                tread1.position.z = tireWidth / 4;
+                tread2.position.z = -tireWidth / 4;
+                wheelGroup.add(tread1);
+                wheelGroup.add(tread2);
+
+                // B. LLANTA (Rim)
+                const rimGeo = new THREE.CylinderGeometry(rimRadius, rimRadius, tireWidth * 0.9, 64); 
+                const rimMat = new THREE.MeshStandardMaterial({ 
+                    color: data.hasCaps ? 0x2d3748 : 0xc0c0c0, 
+                    roughness: 0.4, 
+                    metalness: 0.8 
+                });
+                const rimMesh = new THREE.Mesh(rimGeo, rimMat);
+                rimMesh.rotation.x = Math.PI / 2;
+                wheelGroup.add(rimMesh);
+
+                // C. DETALLES (Radios o Tapacubos)
+                if (data.hasCaps) {
+                    // Tapacubos Aero
+                    const capGeo = new THREE.CylinderGeometry(rimRadius * 0.95, rimRadius * 0.98, 1, 32);
+                    const capMat = new THREE.MeshStandardMaterial({ color: 0x1a202c, roughness: 0.5, metalness: 0.5 });
+                    const cap = new THREE.Mesh(capGeo, capMat);
+                    cap.rotation.x = Math.PI / 2;
+                    cap.position.z = (tireWidth / 2) + 0.1; 
+                    wheelGroup.add(cap);
+                    
+                    const centerGeo = new THREE.CylinderGeometry(2, 2, 1.2, 32);
+                    const centerCap = new THREE.Mesh(centerGeo, new THREE.MeshStandardMaterial({color: 0x999999}));
+                    centerCap.rotation.x = Math.PI / 2;
+                    centerCap.position.z = (tireWidth / 2) + 0.2;
+                    wheelGroup.add(centerCap);
+
+                } else {
+                    // Radios (Spokes)
+                    const numSpokes = 10;
+                    const spokeGeo = new THREE.BoxGeometry(2, rimRadius * 0.8, 1);
+                    const spokeMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.2 });
+                    
+                    for (let i = 0; i < numSpokes; i++) {
+                        const spoke = new THREE.Mesh(spokeGeo, spokeMat);
+                        const angle = (i / numSpokes) * Math.PI * 2;
+                        spoke.position.x = Math.cos(angle) * (rimRadius / 2);
+                        spoke.position.y = Math.sin(angle) * (rimRadius / 2);
+                        spoke.position.z = (tireWidth / 2) - 0.5; 
+                        spoke.rotation.z = angle - (Math.PI / 2);
+                        spoke.rotation.x = 0.2; 
+                        wheelGroup.add(spoke);
+                    }
+                    
+                    const centerGeo = new THREE.CylinderGeometry(2.5, 2.5, 1, 32);
+                    const centerCap = new THREE.Mesh(centerGeo, new THREE.MeshStandardMaterial({color: 0x111827}));
+                    centerCap.rotation.x = Math.PI / 2;
+                    centerCap.position.z = (tireWidth / 2) - 0.5;
+                    wheelGroup.add(centerCap);
+                }
+
+                // 4. ANIMACIÓN
+                let frameId;
+                const animate = () => {
+                    frameId = requestAnimationFrame(animate);
+                    
+                    wheelGroup.rotation.y = Math.sin(Date.now() * 0.001) * 0.5; 
+                    wheelGroup.rotation.x += 0.01; 
+
+                    renderer.render(scene, camera);
+                };
+                animate();
+
+                // Resize
+                const handleResize = () => {
+                    if (!mountRef.current) return;
+                    const w = mountRef.current.offsetWidth;
+                    camera.aspect = w / height;
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(w, height);
+                };
+                window.addEventListener('resize', handleResize);
+
+                return () => {
+                    window.removeEventListener('resize', handleResize);
+                    cancelAnimationFrame(frameId);
+                    if (mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
+                };
+            }, [data]); 
+
+            return <div ref={mountRef} className="w-full h-[220px] cursor-grab active:cursor-grabbing" title="Modelo 3D" />;
+        };
+
+
         const presets = [
             { label: "M3 18\" Aero", s: 18, w: 235, p: 45, caps: true },
             { label: "M3 19\" Nova", s: 19, w: 235, p: 40, caps: false },
-            { label: "M3 20\" Perf", s: 20, w: 235, p: 35, caps: false }, // Uberturbine
+            { label: "M3 20\" Perf", s: 20, w: 235, p: 35, caps: false }, 
             { label: "MY 19\" Gemini", s: 19, w: 255, p: 45, caps: true },
             { label: "MY 20\" Induc", s: 20, w: 255, p: 40, caps: false },
-            { label: "MY 21\" Uber", s: 21, w: 275, p: 35, caps: false }, // Trasera Performance
-            { label: "MS 21\" Arach", s: 21, w: 295, p: 30, caps: false }, // Trasera Plaid
+            { label: "MY 21\" Uber", s: 21, w: 275, p: 35, caps: false }, 
+            { label: "MS 21\" Arach", s: 21, w: 295, p: 30, caps: false }, 
         ];
 
         const handleConfig = (k, v) => setConfig(prev => ({...prev, [k]: parseFloat(v) || 0}));
 
-        // FÍSICA: Cálculo de penalizaciones
         const calculateStats = (setup) => {
             let penalty = 0;
-
-            // 1. Penalización por LLANTA (Peso rotacional + Inercia) vs 18"
             const rimPenalties = { 18: 0, 19: 0.05, 20: 0.09, 21: 0.12 };
             penalty += rimPenalties[setup.size] || 0;
-
-            // 2. Penalización por ANCHO (Rozamiento + Aerodinámica frontal)
-            // Referencia base: 235mm. Por cada 10mm extra, ~1.5% consumo extra
             const widthDiff = Math.max(0, setup.width - 235);
             const widthPenalty = (widthDiff / 10) * 0.015; 
             penalty += widthPenalty;
-
-            // 3. Penalización por TAPACUBOS (Aerodinámica lateral)
-            // Si la llanta permite tapacubos y se quitan, penaliza.
-            // Asumimos que 21" no suele llevar tapacubos eficientes tipo Aero.
             if (!setup.hasCaps) penalty += 0.04;
 
             const efficiencyFactor = 1 - penalty;
             const realRange = config.baseRange * efficiencyFactor;
-            const consumption = config.batteryKwh / (realRange / 100); // kWh/100km
+            const consumption = config.batteryKwh / (realRange / 100); 
             const annualCost = (consumption * config.annualKm / 100) * config.priceKwh;
-
-            // Cálculo diámetro total (para velocímetro)
-            // Diámetro = (Ancho * Perfil/100 * 2) + (Llanta * 25.4)
             const diameterMm = (setup.width * (setup.profile / 100) * 2) + (setup.size * 25.4);
 
             return { realRange, consumption, annualCost, penalty, diameterMm };
@@ -5052,29 +5190,20 @@ const Icons = {
         const diffKm = statsB.realRange - statsA.realRange;
         const diffCost = statsB.annualCost - statsA.annualCost;
         const diffPct = ((statsB.realRange - statsA.realRange) / statsA.realRange) * 100;
-        
-        // Error de velocímetro
         const diameterDiffPct = ((statsB.diameterMm - statsA.diameterMm) / statsA.diameterMm) * 100;
-        const speedReading = 120 + (120 * (diameterDiffPct/100)); // A 120 de marcador
+        const speedReading = 120 + (120 * (diameterDiffPct/100)); 
 
-        // Sub-componente Selector
         const WheelSelector = ({ title, state, setState, stats }) => (
             <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-700">
                 <h4 className="text-sm font-bold text-slate-300 uppercase mb-3 text-center border-b border-slate-700 pb-2">{title}</h4>
                 
-                {/* Visualizador Rueda */}
-                <div className="flex justify-center mb-4 relative">
-                    <div className={`rounded-full border-4 border-zinc-700 bg-zinc-800 flex items-center justify-center shadow-2xl transition-all duration-500
-                        ${state.size === 18 ? 'w-20 h-20' : state.size === 19 ? 'w-24 h-24' : state.size === 20 ? 'w-28 h-28' : 'w-32 h-32'}
-                    `}>
-                        <div className={`w-full h-full rounded-full flex items-center justify-center opacity-80 ${state.hasCaps ? 'bg-zinc-600' : 'bg-zinc-900'}`}>
-                            <span className="font-display font-bold text-white text-lg">{state.size}"</span>
-                        </div>
-                        {/* Perfil del neumático (Grosor visual) */}
-                        <div className="absolute inset-[-6px] rounded-full border-[6px] border-black/60 z-[-1]"></div>
-                    </div>
-                    <div className="absolute bottom-0 bg-black/60 px-2 rounded text-[10px] text-white font-mono">
-                        {state.width}/{state.profile} R{state.size}
+                {/* Visualizador Rueda 3D */}
+                <div className="flex justify-center mb-4 relative bg-gradient-to-b from-slate-800/20 to-slate-800/0 rounded-xl border border-slate-700/30 shadow-inner">
+                    <Wheel3DScene data={state} />
+                    
+                    {/* Etiqueta flotante */}
+                    <div className="absolute bottom-2 bg-black/60 px-2 py-1 rounded text-[10px] text-white font-mono border border-white/10 pointer-events-none">
+                        {state.width}/{state.profile} R{state.size} {state.hasCaps ? '(Caps)' : '(Alloy)'}
                     </div>
                 </div>
 
