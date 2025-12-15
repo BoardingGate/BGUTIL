@@ -793,7 +793,6 @@ const Icons = {
             const history = [];
             
             // Tasa Efectiva Anual (EAR) basada en la frecuencia de capitalización
-            // Fórmula: (1 + r/n)^n - 1
             const r = compState.rate / 100;
             const n = compState.compoundsPerYear;
             const effectiveAnnualRate = Math.pow(1 + (r/n), n) - 1;
@@ -1102,13 +1101,13 @@ const Icons = {
                     </div>
                 </div>
 
-                <div className="mt-6 p-4 bg-slate-900/80 border border-slate-700 rounded-xl text-sm font-bold text-slate-400 text-center">
+                {/* --- FOOTER REFERIDO TESSIE (CORREGIDO: OCUPA 12 COLUMNAS) --- */}
+                <div className="lg:col-span-12 mt-6 p-4 bg-slate-900/80 border border-slate-700 rounded-xl text-sm font-bold text-slate-400 text-center">
                     <p>(*) La mejor app del mercado para controlar y gestionar tu Tesla, según mi experiencia es Tessie. Referido: <a href="https://share.tessie.com/JDukqlINZMb" target="_blank" className="text-purple-400 font-bold underline hover:text-purple-300">https://share.tessie.com/JDukqlINZMb</a></p>
                 </div>
             </div>
         );
-      };
-
+      };  
         
         
       
@@ -5390,3 +5389,4 @@ const Icons = {
     </script>
 </body>
 </html>
+
