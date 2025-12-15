@@ -2184,341 +2184,207 @@ const Icons = {
       };
 
 
-      // --- CURVA DE CARGA (MODIFICADO: CON 3D + GRÁFICA) ---
-      const ChargeCurveCalculator = () => {
-        const [state, setState] = usePersistentState('curveState', { 
-            batType: 'LFP', 
-            capacity: 60, 
-            startPct: 10, 
-            endPct: 80, 
-            costPerKwh: 0.45, 
-            chargerPower: 150, 
-            optimizationTime: 20,
-            consumption: 15.0, 
-            targetRange: 300
-        });
+      // --- NUEVO COMPONENTE: ESCENA 3D BATERÍA (V2 - NÚCLEO DE ENERGÍA) ---
+      const Battery3DScene = ({ startPct, endPct, currentPower, maxPower }) => {
+        const mountRef = useRef(null);
 
-        // CURVAS REALISTAS 2024
-        const curvePoints = {
-            LFP: [{p:0, v:170}, {p:10, v:168}, {p:20, v:155}, {p:30, v:135}, {p:45, v:110}, {p:55, v:85}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}],
-            NCA: [{p:0, v:200}, {p:5, v:250}, {p:15, v:250}, {p:25, v:210}, {p:40, v:150}, {p:60, v:100}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}]
-        };
+        useEffect(() => {
+            if (!mountRef.current || !window.THREE) return;
 
-        const powerPresets = [3.3, 7.4, 11, 22, 50, 60, 100, 150, 170, 200, 250, 300, 400, 800];
-
-        const getBatteryLimitAtSoC = (soc, type, chargerPowerInput) => {
-            const safeType = curvePoints[type] ? type : 'LFP';
-            const points = curvePoints[safeType];
-
-            const baseRef = safeType === 'NCA' ? 250 : 170; 
-            const techScaler = Math.max(baseRef, chargerPowerInput) / baseRef; 
-            const scaleFactor = Math.max(1, techScaler);
-
-            const p2Index = points.findIndex(pt => pt.p >= soc);
-            if (p2Index === -1) return points[points.length-1].v * scaleFactor; 
-            if (p2Index === 0) return points[0].v * scaleFactor;
-
-            const p1 = points[p2Index - 1];
-            const p2 = points[p2Index];
-            const range = p2.p - p1.p;
-            const dist = soc - p1.p;
-            const ratio = dist / range;
-            const factor = p1.v + (ratio * (p2.v - p1.v));
-
-            return factor * scaleFactor;
-        };
-
-        const calculateMetrics = (start, end) => {
-            let minutes = 0;
-            const kwhPerPercent = state.capacity / 100;
-            const safeStart = Math.min(start, end - 1);
-            const safeEnd = Math.max(end, start + 1);
-
-            for (let i = safeStart; i < safeEnd; i++) {
-                const batteryLimit = getBatteryLimitAtSoC(i, state.batType, state.chargerPower);
-                const realPower = Math.min(state.chargerPower, batteryLimit);
-                if (realPower > 0) {
-                    minutes += (kwhPerPercent / realPower) * 60;
-                }
-            }
+            // 1. SETUP ESCENA
+            const width = mountRef.current.offsetWidth;
+            const height = 300;
+            const scene = new THREE.Scene();
             
-            const totalEnergy = (safeEnd - safeStart) * kwhPerPercent;
-            const rangeAdded = state.consumption > 0 ? (totalEnergy / state.consumption) * 100 : 0;
-            const totalRange = state.consumption > 0 ? ((state.capacity * (safeEnd/100)) / state.consumption) * 100 : 0;
-
-            return { minutes, rangeAdded, totalRange };
-        };
-
-        const handleChartChange = (key, value) => {
-            const val = parseInt(value);
-            const newStart = key === 'startPct' ? Math.min(val, state.endPct - 1) : state.startPct;
-            const newEnd = key === 'endPct' ? Math.max(val, state.startPct + 1) : state.endPct;
-            const metrics = calculateMetrics(newStart, newEnd);
-            setState(prev => ({ ...prev, startPct: newStart, endPct: newEnd, optimizationTime: Math.round(metrics.minutes), targetRange: Math.round(metrics.totalRange) }));
-        };
-
-        const handleTimeOptimization = (minutes) => {
-            const idealStart = 10; 
-            let accumMinutes = 0;
-            let foundEnd = idealStart;
-            const kwhPerPercent = state.capacity / 100;
-            for(let i = idealStart; i < 100; i++) {
-                const limit = getBatteryLimitAtSoC(i, state.batType, state.chargerPower);
-                const realPower = Math.min(state.chargerPower, limit);
-                if(realPower > 0) {
-                    const minPerPct = (kwhPerPercent / realPower) * 60;
-                    if (accumMinutes + minPerPct > minutes) break;
-                    accumMinutes += minPerPct;
-                    foundEnd = i + 1;
-                }
+            // Cámara ajustada para ver mejor el volumen
+            const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+            camera.position.set(0, 10, 25);
+            camera.lookAt(0, 0, 0);
+            
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            
+            // Limpiar contenedor
+            while (mountRef.current.firstChild) {
+                mountRef.current.removeChild(mountRef.current.firstChild);
             }
-            const finalEnd = Math.min(100, foundEnd);
-            const metrics = calculateMetrics(idealStart, finalEnd);
-            setState(prev => ({ ...prev, startPct: idealStart, endPct: finalEnd, optimizationTime: minutes, targetRange: Math.round(metrics.totalRange) }));
-        };
+            mountRef.current.appendChild(renderer.domElement);
 
-        const handleRangeOptimization = (km) => {
-            let targetPct = (km * state.consumption) / state.capacity;
-            targetPct = Math.ceil(targetPct);
-            const safeEnd = Math.max(state.startPct + 1, Math.min(100, targetPct));
-            const metrics = calculateMetrics(state.startPct, safeEnd);
-            setState(prev => ({ ...prev, endPct: safeEnd, targetRange: km, optimizationTime: Math.round(metrics.minutes) }));
-        };
+            // 2. OBJETOS
+            const group = new THREE.Group();
+            scene.add(group);
 
-        const sliderStyle = `
-            .range-slider-input { pointer-events: none; -webkit-appearance: none; z-index: 10; }
-            .range-slider-input::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 28px; height: 28px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; position: relative; z-index: 20; box-shadow: 0 2px 6px rgba(0,0,0,0.5); }
-            .range-slider-input::-moz-range-thumb { pointer-events: auto; width: 28px; height: 28px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; position: relative; z-index: 20; }
-            #slider-start::-webkit-slider-thumb { border-color: #eab308; } 
-            #slider-end::-webkit-slider-thumb { border-color: #22c55e; }
-        `;
+            // A. TAPAS METÁLICAS (Para que parezca una pila real)
+            const capGeo = new THREE.CylinderGeometry(4.2, 4.2, 0.5, 32);
+            const capMat = new THREE.MeshStandardMaterial({ 
+                color: 0x475569, // Gris pizarra
+                roughness: 0.3,
+                metalness: 0.8 
+            });
+            const topCap = new THREE.Mesh(capGeo, capMat);
+            topCap.position.y = 6.25;
+            const botCap = new THREE.Mesh(capGeo, capMat);
+            botCap.position.y = -6.25;
+            group.add(topCap);
+            group.add(botCap);
+            
+            // Polo positivo (botón arriba)
+            const nodeGeo = new THREE.CylinderGeometry(1.5, 1.5, 0.5, 32);
+            const node = new THREE.Mesh(nodeGeo, capMat);
+            node.position.y = 6.6;
+            group.add(node);
 
-        const metrics = calculateMetrics(state.startPct, state.endPct);
-        const totalCost = ((state.endPct - state.startPct) / 100 * state.capacity) * state.costPerKwh;
-        const maxPossibleRange = state.consumption > 0 ? (state.capacity / state.consumption) * 100 : 0;
-        const peakGraphHeight = Math.max(state.chargerPower, 250); 
-        const gridLines = [];
-        for(let p = 20; p < peakGraphHeight; p += 20) { gridLines.push(p); }
-        const chartBars = [];
-        for (let i = 0; i <= 100; i++) {
-            const batteryLimit = getBatteryLimitAtSoC(i, state.batType, state.chargerPower);
-            const realPower = Math.min(state.chargerPower, batteryLimit);
-            const active = i >= state.startPct && i < state.endPct;
-            chartBars.push({ pct: i, power: realPower, active });
-        }
+            // B. ESTRUCTURA DE ALAMBRE (El contenedor del 100%)
+            // Esto permite ver el volumen total aunque esté vacía
+            const cageGeo = new THREE.CylinderGeometry(4, 4, 12, 16, 4, true);
+            const cageMat = new THREE.MeshBasicMaterial({ 
+                color: 0x334155, 
+                wireframe: true,
+                transparent: true,
+                opacity: 0.3
+            });
+            const cage = new THREE.Mesh(cageGeo, cageMat);
+            group.add(cage);
 
-        // CÁLCULO DE POTENCIA ACTUAL EN EL PUNTO FINAL (Para el 3D)
-        const powerAtEnd = Math.min(state.chargerPower, getBatteryLimitAtSoC(state.endPct, state.batType, state.chargerPower));
+            // C. NÚCLEO DE ENERGÍA (El líquido que se llena)
+            const coreGeo = new THREE.CylinderGeometry(3.6, 3.6, 12, 32);
+            coreGeo.translate(0, -6, 0); // Pivote arriba para escalar desde abajo corregido:
+            // Ajuste de pivote: queremos que crezca desde Y=-6 hacia arriba.
+            // Movemos la geometría para que su base esté en 0, luego el mesh en -6
+            coreGeo.translate(0, 6, 0); 
+            
+            const coreMat = new THREE.MeshBasicMaterial({ 
+                color: 0x22c55e, // Verde base
+                transparent: true,
+                opacity: 0.9
+            });
+            const core = new THREE.Mesh(coreGeo, coreMat);
+            core.position.y = -6; 
+            core.scale.y = 0.01; // Empieza casi vacía
+            group.add(core);
 
-        const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
-        const setLFP = () => setState(prev => ({...prev, batType: 'LFP', capacity: 60}));
-        const setNCA = () => setState(prev => ({...prev, batType: 'NCA', capacity: 75}));
+            // D. ANILLOS DE FLUJO (Partículas orbitando)
+            const ringCount = 60;
+            const ringGeo = new THREE.BufferGeometry();
+            const ringPos = new Float32Array(ringCount * 3);
+            const ringAng = new Float32Array(ringCount); // Para guardar ángulo actual
+            const ringRad = new Float32Array(ringCount); // Radio variable
+            const ringSpd = new Float32Array(ringCount); // Velocidad individual
 
-        return (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                <style>{sliderStyle}</style>
-                <div className="lg:col-span-4 space-y-6">
-                     
-                     {/* NUEVA VISUALIZACIÓN 3D AQUÍ */}
-                     <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden relative shadow-lg">
-                        <div className="absolute top-4 left-4 z-10 bg-black/40 px-3 py-1 rounded backdrop-blur">
-                            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                                <Icons.Zap className="w-3 h-3 text-cyan-400" /> Flujo de Carga (Simulación)
-                            </h4>
-                        </div>
-                        {/* El componente 3D */}
-                        <Battery3DScene 
-                            startPct={state.startPct} 
-                            endPct={state.endPct} 
-                            currentPower={powerAtEnd} 
-                            maxPower={state.chargerPower} 
-                        />
-                        <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase">Potencia en el {state.endPct}%</div>
-                            <div className={`text-2xl font-mono font-bold ${powerAtEnd < 40 ? 'text-red-400' : 'text-cyan-400'}`}>
-                                {Math.round(powerAtEnd)} kW
-                            </div>
-                        </div>
-                     </div>
+            for(let i=0; i<ringCount; i++) {
+                ringAng[i] = Math.random() * Math.PI * 2;
+                ringRad[i] = 4.5 + Math.random() * 1.5; // Orbitan por fuera
+                ringSpd[i] = 0.02 + Math.random() * 0.05;
+                
+                // Altura aleatoria a lo largo de la batería
+                const y = (Math.random() - 0.5) * 12;
+                
+                ringPos[i*3] = Math.cos(ringAng[i]) * ringRad[i];
+                ringPos[i*3+1] = y;
+                ringPos[i*3+2] = Math.sin(ringAng[i]) * ringRad[i];
+            }
+            ringGeo.setAttribute('position', new THREE.BufferAttribute(ringPos, 3));
+            
+            const ringMat = new THREE.PointsMaterial({
+                color: 0x60a5fa, // Azul eléctrico
+                size: 0.2,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending
+            });
+            const particles = new THREE.Points(ringGeo, ringMat);
+            group.add(particles);
 
-                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 shadow-xl">
-                        <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Icons.Activity /> Parámetros</h2>
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-2 gap-3">
-                                <button onClick={setLFP} className={`p-4 rounded-lg border font-bold transition-all text-sm ${state.batType === 'LFP' ? 'bg-green-600 border-green-500 text-white shadow-[0_0_15px_rgba(22,163,74,0.4)]' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>LFP </button>
-                                <button onClick={setNCA} className={`p-4 rounded-lg border font-bold transition-all text-sm ${state.batType === 'NCA' ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.4)]' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>NCA/NMC </button>
-                            </div>
-                            
-                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.capacity} onChange={v => handleChange('capacity', v)} /></div>
-                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo Medio (kWh/100km)</label><FormattedInput value={state.consumption} decimals={1} onChange={v => handleChange('consumption', v)} /></div>
-                            
-                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Coste (€/kWh)</label><FormattedInput decimals={2} value={state.costPerKwh} onChange={v => handleChange('costPerKwh', v)} /></div>
-                        </div>
-                    </div>
-                </div>
+            // LUCES
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+            dirLight.position.set(5, 5, 10);
+            scene.add(dirLight);
+            const ambLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambLight);
 
-                <div className="lg:col-span-8 space-y-6">
-                    {/* Tarjeta Gráfica */}
-                    <div className="h-auto bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col relative shadow-2xl overflow-hidden">
-                         
-                         {/* CAJA DE ESTADÍSTICAS */}
-                         <div className="flex justify-center gap-8 mb-4 bg-slate-800/40 rounded-xl p-4 border border-slate-700/50 backdrop-blur-sm z-20 relative">
-                             <div className="text-center">
-                                 <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">+KM</div>
-                                 <div className="text-3xl font-bold text-green-400">+{Math.round(metrics.rangeAdded)}</div>
-                             </div>
-                             <div className="w-px bg-slate-600 h-10 self-center"></div>
-                             <div className="text-center">
-                                 <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">TOTAL</div>
-                                 <div className="text-3xl font-bold text-white">{Math.round(metrics.totalRange)} <span className="text-sm text-slate-500 font-normal">km</span></div>
-                             </div>
-                             <div className="w-px bg-slate-600 h-10 self-center"></div>
-                             <div className="text-center">
-                                 <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">TIEMPO</div>
-                                 <div className="text-3xl font-bold text-white">{formatTime(metrics.minutes)}</div>
-                             </div>
-                             <div className="w-px bg-slate-600 h-10 self-center"></div>
-                             <div className="text-center">
-                                 <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">COSTE</div>
-                                 <div className="text-3xl font-bold text-blue-400">{formatDecimal(totalCost)}€</div>
-                             </div>
-                         </div>
+            // 3. ANIMACIÓN LOOP
+            let frameId;
+            let time = 0;
 
-                         {/* LÍNEA DE ETIQUETAS */}
-                         <div className="flex items-center justify-center gap-4 mb-2 z-20 relative">
-                             <div className="text-yellow-500 font-display font-bold text-xl px-2">INICIO {state.startPct}%</div>
-                             <div className="text-slate-500 text-lg">➜</div>
-                             <div className="text-white font-bold text-lg bg-white/10 px-3 py-1 rounded border border-white/20">+{state.endPct - state.startPct}%</div>
-                             <div className="text-slate-500 text-lg">➜</div>
-                             <div className="text-green-500 font-display font-bold text-xl px-2">FIN {state.endPct}%</div>
-                         </div>
-                         
-                         {/* GRÁFICA (Altura fija para mantener proporción) */}
-                         <div className="h-[300px] flex gap-2 relative pt-2 pb-2 border-b border-slate-700">
-                             <div className="w-8 flex flex-col justify-end relative h-full">
-                                {gridLines.map(p => (
-                                    <div key={p} className="absolute w-full text-right" style={{bottom: `${(p / peakGraphHeight) * 100}%`, transform: 'translateY(50%)'}}>
-                                        <span className="text-[10px] font-bold text-slate-400">{p}</span>
-                                    </div>
-                                ))}
-                             </div>
+            const animate = () => {
+                frameId = requestAnimationFrame(animate);
+                time += 0.01;
 
-                             <div className="flex-1 flex items-end gap-[1px] relative h-full">
-                                <div className="absolute inset-0 flex flex-col justify-end pointer-events-none z-0">
-                                    {gridLines.map(p => (
-                                        <div key={p} className="absolute w-full border-t border-slate-700/50" style={{bottom: `${(p / peakGraphHeight) * 100}%`}}></div>
-                                    ))}
-                                </div>
+                // Datos dinámicos
+                const data = mountRef.current.userData || { endPct: 0, powerRatio: 0 };
 
-                                {chartBars.map((bar) => (
-                                    <div key={bar.pct} className="flex-1 flex flex-col justify-end group relative h-full z-10">
-                                        <div 
-                                            className={`w-full rounded-t-sm transition-all duration-300 ${bar.active ? 'bg-gradient-to-t from-blue-600 to-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.3)]' : 'bg-slate-800'}`} 
-                                            style={{height: `${(bar.power / peakGraphHeight) * 100}%`}}
-                                        ></div>
-                                    </div>
-                                ))}
-                                
-                                <div className="absolute top-0 bottom-0 w-0.5 border-l-2 border-dashed border-yellow-500 transition-all duration-75 pointer-events-none z-20" style={{left: `${state.startPct}%`}}></div>
-                                <div className="absolute top-0 bottom-0 w-0.5 border-l-2 border-dashed border-green-500 transition-all duration-75 pointer-events-none z-20" style={{left: `${state.endPct}%`}}></div>
-                            </div>
-                         </div>
+                // 1. Escalar Núcleo (Nivel de carga)
+                const targetScale = Math.max(0.01, data.endPct / 100);
+                // Lerp suave
+                core.scale.y += (targetScale - core.scale.y) * 0.05;
 
-                         {/* SLIDER RANGO */}
-                         <div className="relative h-14 mt-6 select-none ml-10">
-                             <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-4 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
-                                 <div className="absolute top-0 bottom-0 bg-gradient-to-r from-yellow-500 via-blue-500 to-green-500 opacity-80" style={{left: `${state.startPct}%`, right: `${100-state.endPct}%`}}></div>
-                             </div>
-                             
-                             <input 
-                                id="slider-start"
-                                type="range" min="0" max="99" 
-                                value={state.startPct} 
-                                onChange={e => handleChartChange('startPct', e.target.value)} 
-                                className="range-slider-input absolute inset-0 w-full opacity-0 sm:opacity-100 bg-transparent" 
-                             />
-                             <input 
-                                id="slider-end"
-                                type="range" min="1" max="100" 
-                                value={state.endPct} 
-                                onChange={e => handleChartChange('endPct', e.target.value)} 
-                                className="range-slider-input absolute inset-0 w-full bg-transparent" 
-                             />
-                             
-                             <div className="flex justify-between text-xs text-slate-400 font-bold mt-10 font-mono px-1">
-                                <span>0%</span>
-                                <span>20%</span>
-                                <span>40%</span>
-                                <span>60%</span>
-                                <span>80%</span>
-                                <span>100%</span>
-                             </div>
-                         </div>
+                // 2. Color del Núcleo (Semáforo)
+                // Rojo bajo, Amarillo medio, Verde alto, Azul 100%
+                const pct = core.scale.y;
+                let col = new THREE.Color();
+                if (pct < 0.2) col.setHex(0xef4444); // Rojo
+                else if (pct < 0.6) col.setHex(0xeab308); // Amarillo
+                else if (pct < 0.95) col.setHex(0x22c55e); // Verde
+                else col.setHex(0x3b82f6); // Azul tope
 
-                         {/* NUEVA SECCIÓN DE POTENCIA DEL CARGADOR */}
-                         <div className="mt-8 pt-6 border-t border-slate-700/50">
-                            <div className="flex justify-between mb-2">
-                                <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Potencia Cargador</label>
-                                <span className="text-lg font-bold text-blue-400 font-mono">{state.chargerPower} kW</span>
-                            </div>
-                            <input 
-                                type="range" 
-                                min="1" max="800" step="0.1" 
-                                value={state.chargerPower} 
-                                onChange={e => handleChange('chargerPower', parseFloat(e.target.value))} 
-                                className="w-full h-4 bg-slate-700 rounded-lg cursor-pointer accent-blue-500" 
-                            />
-                            
-                            {/* BOTONERA RÁPIDA DE POTENCIA */}
-                            <div className="flex flex-wrap gap-2 mt-4 justify-between">
-                                {powerPresets.map(p => (
-                                    <button 
-                                        key={p} 
-                                        onClick={() => handleChange('chargerPower', p)}
-                                        className={`px-3 py-1.5 text-xs font-bold rounded border transition-colors ${state.chargerPower === p ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
-                                    >
-                                        {p}
-                                    </button>
-                                ))}
-                            </div>
-                         </div>
+                core.material.color.lerp(col, 0.1);
 
-                    </div>
+                // 3. Partículas (Velocidad según potencia)
+                // Si la potencia cae (curva final), las partículas frenan
+                const globalSpeed = 0.5 + (data.powerRatio * 2.0); 
+                
+                const positions = particles.geometry.attributes.position.array;
+                for(let i=0; i<ringCount; i++) {
+                    // Actualizar ángulo
+                    ringAng[i] += ringSpd[i] * globalSpeed;
+                    
+                    // Movimiento vertical oscilante suave
+                    const yBase = positions[i*3+1];
+                    // Orbitar
+                    positions[i*3] = Math.cos(ringAng[i]) * ringRad[i];
+                    positions[i*3+2] = Math.sin(ringAng[i]) * ringRad[i];
+                }
+                particles.geometry.attributes.position.needsUpdate = true;
 
-                    {/* OPTIMIZADORES */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* Slider Tiempo */}
-                        <div className="bg-purple-900/20 p-6 rounded-xl border border-purple-500/30 shadow-lg">
-                            <div className="flex justify-between mb-4">
-                                <label className="text-base text-purple-300 font-bold flex items-center gap-2"><Icons.Clock className="w-5 h-5"/> Optimizar Tiempo</label>
-                                <span className="text-base font-bold text-white bg-purple-500/20 px-3 py-1 rounded">{state.optimizationTime} min</span>
-                            </div>
-                            <input type="range" min="1" max="120" step="1" 
-                                value={state.optimizationTime} 
-                                onChange={e => handleTimeOptimization(parseInt(e.target.value))} 
-                                className="w-full h-4 bg-slate-700 rounded-lg cursor-pointer accent-purple-500" />
-                            <div className="text-sm font-bold text-slate-400 mt-2 italic">Desliza para ver la mejor carga posible en este tiempo.</div>
-                        </div>
+                // Rotación leve del grupo para dar 3D
+                group.rotation.y = Math.sin(time * 0.5) * 0.2;
+                group.rotation.x = 0.1;
 
-                        {/* Slider Autonomía */}
-                        <div className="bg-cyan-900/20 p-6 rounded-xl border border-cyan-500/30 shadow-lg">
-                            <div className="flex justify-between mb-4">
-                                <label className="text-base text-cyan-300 font-bold flex items-center gap-2"><Icons.TrendingUp className="w-5 h-5"/> Autonomía Deseada</label>
-                                <span className="text-base font-bold text-white bg-cyan-500/20 px-3 py-1 rounded">{Math.round(state.targetRange)} km</span>
-                            </div>
-                            <input type="range" min="50" max={maxPossibleRange} step="5" 
-                                value={Math.min(Math.max(50, state.targetRange), maxPossibleRange)} 
-                                onChange={e => handleRangeOptimization(parseInt(e.target.value))} 
-                                className="w-full h-4 bg-slate-700 rounded-lg cursor-pointer accent-cyan-500" />
-                            <div className="text-sm font-bold text-slate-400 mt-2 italic">Ajusta el % final para tener estos km totales.</div>
-                        </div>
-                    </div>
+                renderer.render(scene, camera);
+            };
+            animate();
 
-                </div>
-            </div>
-        );
+            // Resize
+            const handleResize = () => {
+                if (!mountRef.current) return;
+                const w = mountRef.current.offsetWidth;
+                camera.aspect = w / height;
+                camera.updateProjectionMatrix();
+                renderer.setSize(w, height);
+            };
+            window.addEventListener('resize', handleResize);
+
+            return () => {
+                window.removeEventListener('resize', handleResize);
+                cancelAnimationFrame(frameId);
+                if (mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
+            };
+        }, []);
+
+        // Actualización de props sin re-render completo
+        useEffect(() => {
+            if (mountRef.current) {
+                // powerRatio: 1 = velocidad máxima, 0 = parado
+                const powerRatio = maxPower > 0 ? currentPower / maxPower : 0;
+                mountRef.current.userData = { endPct, powerRatio };
+            }
+        }, [endPct, currentPower, maxPower]);
+
+        return <div ref={mountRef} className="w-full h-[300px] cursor-pointer" title="Visualización Núcleo Energía" />;
       };
- 
+
+        
      
       // --- EQUIVALENCE CALCULATOR (LETRAS MÁS GRANDES) ---
       const EquivalenceCalculator = () => {
