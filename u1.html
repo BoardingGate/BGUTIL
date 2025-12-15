@@ -3581,139 +3581,234 @@ const Icons = {
       };
 
 
-      // --- SUB-COMPONENTE: ESCENA 3D (VERSIÓN LIMPIA - USA THREE GLOBAL) ---
+      // --- SUB-COMPONENTE: ESCENA 3D DEL NEUMÁTICO (FIXED: CENTRADO Y RESIZE) ---
       const Tire3DScene = ({ currentBar, targetBar }) => {
         const mountRef = useRef(null);
 
         useEffect(() => {
-            // Setup Básico
-            const width = mountRef.current.clientWidth;
-            const height = 400; 
-            const scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x111827); // Fondo Slate-900
-
-            const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-            camera.position.set(0, 0, 40);
-
-            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(width, height);
-            renderer.setPixelRatio(window.devicePixelRatio);
-            mountRef.current.appendChild(renderer.domElement);
-
-            // Luces
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambientLight);
-            const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-            dirLight.position.set(10, 10, 10);
-            scene.add(dirLight);
-            const blueLight = new THREE.PointLight(0x3b82f6, 2, 50); 
-            blueLight.position.set(-10, -10, 10);
-            scene.add(blueLight);
-
-            // Grupo Principal
-            const group = new THREE.Group();
-
-            // Neumático
-            const tireGeo = new THREE.TorusGeometry(10, 3.5, 30, 60);
-            const tireMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.7, metalness: 0.1 });
-            const tire = new THREE.Mesh(tireGeo, tireMat);
-            group.add(tire);
-
-            // Indicadores de Desgaste (Hombros y Centro)
-            const treadMat = new THREE.MeshBasicMaterial({ color: 0x22c55e });
-            const leftShoulder = new THREE.Mesh(new THREE.TorusGeometry(10, 0.2, 16, 60), treadMat.clone());
-            leftShoulder.position.z = 2.5;
-            group.add(leftShoulder);
-
-            const rightShoulder = new THREE.Mesh(new THREE.TorusGeometry(10, 0.2, 16, 60), treadMat.clone());
-            rightShoulder.position.z = -2.5;
-            group.add(rightShoulder);
-
-            const centerStrip = new THREE.Mesh(new THREE.TorusGeometry(13.2, 0.1, 16, 60), treadMat.clone());
-            group.add(centerStrip);
-
-            // Llanta
-            const rimGeo = new THREE.CylinderGeometry(7, 7, 4, 32);
-            const rimMat = new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.3, metalness: 0.8 });
-            const rim = new THREE.Mesh(rimGeo, rimMat);
-            rim.rotation.x = Math.PI / 2;
-            const spokeGeo = new THREE.BoxGeometry(12, 1, 0.5);
-            const spoke1 = new THREE.Mesh(spokeGeo, rimMat);
-            const spoke2 = new THREE.Mesh(spokeGeo, rimMat);
-            spoke2.rotation.z = Math.PI / 2;
-            rim.add(spoke1); rim.add(spoke2);
-            group.add(rim);
-            
-            scene.add(group);
-
-            // Referencia para el loop
-            mountRef.current.group3d = group;
-            mountRef.current.tireMesh = tire;
-            mountRef.current.mats = { l: leftShoulder.material, r: rightShoulder.material, c: centerStrip.material, centerObj: centerStrip };
-
-            // Animación
+            // Variables para cleanup
             let frameId;
-            const animate = () => {
-                frameId = requestAnimationFrame(animate);
+            let renderer;
+            let scene, camera, group, tire, leftShoulder, rightShoulder, centerStrip;
+
+            const initScene = () => {
+                if (!mountRef.current) return;
+
+                // 1. Setup Básico
+                // Usamos offsetWidth para obtener el ancho real del contenedor padre
+                const width = mountRef.current.offsetWidth;
+                const height = 400; 
                 
-                group.rotation.y += 0.02; // Rodar
-                group.rotation.x = 0.2;   // Inclinar
+                scene = new THREE.Scene();
+                scene.background = null; // Transparente para fundirse con el fondo del div
 
-                // Leer datos actuales
-                const data = mountRef.current.userData || { current: 2.9, target: 2.9 };
-                const ratio = data.current / data.target;
+                camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+                camera.position.set(0, 0, 35); // Acercamos un poco la cámara
+                camera.lookAt(0, 0, 0); // FORZAMOS A MIRAR AL CENTRO
 
-                // Deformación Física
-                const deform = Math.max(0.7, Math.min(1.1, ratio));
-                if (ratio < 0.95) { 
-                    tire.scale.y = deform;
-                    tire.scale.x = 1 + (1 - deform) * 0.2;
-                } else {
-                    tire.scale.set(1, 1, 1);
+                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(width, height);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                
+                // Limpieza previa
+                while (mountRef.current.firstChild) {
+                    mountRef.current.removeChild(mountRef.current.firstChild);
                 }
+                mountRef.current.appendChild(renderer.domElement);
 
-                // Colores Semáforo
-                const cSafe = new THREE.Color(0x22c55e); 
-                const cWarn = new THREE.Color(0xeab308); 
-                const cDanger = new THREE.Color(0xef4444); 
-                const { l, r, c, centerObj } = mountRef.current.mats;
+                // 2. Luces (Mejoradas para resaltar volumen)
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+                scene.add(ambientLight);
+                
+                const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+                dirLight.position.set(10, 20, 20);
+                scene.add(dirLight);
+                
+                const rimLight = new THREE.PointLight(0x3b82f6, 3, 50); // Luz azul trasera
+                rimLight.position.set(-15, 10, -10);
+                scene.add(rimLight);
 
-                if (ratio < 0.85) { 
-                    l.color.lerp(cDanger, 0.1); r.color.lerp(cDanger, 0.1); c.color.lerp(cSafe, 0.1); centerObj.visible = false;
-                } else if (ratio < 0.96) { 
-                    l.color.lerp(cWarn, 0.1); r.color.lerp(cWarn, 0.1); c.color.lerp(cSafe, 0.1); centerObj.visible = true;
-                } else if (ratio > 1.15) { 
-                    l.color.lerp(cSafe, 0.1); r.color.lerp(cSafe, 0.1); c.color.lerp(cDanger, 0.1); centerObj.visible = true;
-                    centerObj.scale.set(1.05, 1.05, 1.05);
-                } else { 
-                    l.color.lerp(cSafe, 0.1); r.color.lerp(cSafe, 0.1); c.color.lerp(cSafe, 0.1); centerObj.visible = false;
-                    centerObj.scale.set(1, 1, 1);
-                }
+                // 3. Objetos
+                group = new THREE.Group();
 
-                renderer.render(scene, camera);
+                // Goma Base
+                const tireGeo = new THREE.TorusGeometry(10, 3.5, 40, 80); // Más polígonos para suavidad
+                const tireMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x1f2937, 
+                    roughness: 0.6, 
+                    metalness: 0.2 
+                });
+                tire = new THREE.Mesh(tireGeo, tireMat);
+                group.add(tire);
+
+                // Bandas de desgaste
+                const treadMat = new THREE.MeshBasicMaterial({ color: 0x22c55e }); 
+                
+                leftShoulder = new THREE.Mesh(new THREE.TorusGeometry(10, 0.25, 16, 80), treadMat.clone());
+                leftShoulder.position.z = 2.8; // Ajustado al borde
+                group.add(leftShoulder);
+
+                rightShoulder = new THREE.Mesh(new THREE.TorusGeometry(10, 0.25, 16, 80), treadMat.clone());
+                rightShoulder.position.z = -2.8;
+                group.add(rightShoulder);
+
+                centerStrip = new THREE.Mesh(new THREE.TorusGeometry(13.3, 0.15, 16, 80), treadMat.clone());
+                group.add(centerStrip);
+
+                // Llanta (Simplificada estilo Tesla Aero)
+                const rimGeo = new THREE.CylinderGeometry(7.2, 7.2, 4, 64);
+                const rimMat = new THREE.MeshStandardMaterial({ color: 0x374151, roughness: 0.4, metalness: 0.7 });
+                const rim = new THREE.Mesh(rimGeo, rimMat);
+                rim.rotation.x = Math.PI / 2;
+                
+                // Tapa central
+                const capGeo = new THREE.CylinderGeometry(2, 2, 4.2, 32);
+                const cap = new THREE.Mesh(capGeo, new THREE.MeshStandardMaterial({ color: 0x111827 }));
+                cap.rotation.x = Math.PI / 2;
+                group.add(cap);
+
+                // Radios
+                const spokeGeo = new THREE.BoxGeometry(13, 2, 0.5);
+                const spoke1 = new THREE.Mesh(spokeGeo, rimMat);
+                const spoke2 = new THREE.Mesh(spokeGeo, rimMat);
+                spoke2.rotation.z = Math.PI / 2;
+                rim.add(spoke1); rim.add(spoke2);
+
+                group.add(rim);
+                scene.add(group);
+
+                // Referencias para update
+                mountRef.current.group3d = group;
+                mountRef.current.mats = { l: leftShoulder.material, r: rightShoulder.material, c: centerStrip.material, centerObj: centerStrip };
+
+                // 4. Loop Animación
+                const animate = () => {
+                    frameId = requestAnimationFrame(animate);
+                    
+                    if(group) {
+                        group.rotation.y -= 0.03; // Girar hacia adelante
+                        group.rotation.x = 0.3;   // Inclinar para ver banda de rodadura
+
+                        // Lógica Visual
+                        const data = mountRef.current.userData || { current: 2.9, target: 2.9 };
+                        const ratio = data.current / data.target;
+
+                        // Deformación
+                        const deform = Math.max(0.75, Math.min(1.08, ratio));
+                        if (ratio < 0.96) { 
+                            tire.scale.y = deform;
+                            // Ensanchamiento lateral al aplastarse
+                            tire.scale.x = 1 + (1 - deform) * 0.15; 
+                        } else {
+                            tire.scale.set(1, 1, 1);
+                        }
+
+                        // Colores Semáforo
+                        const cSafe = new THREE.Color(0x22c55e); 
+                        const cWarn = new THREE.Color(0xeab308); 
+                        const cDanger = new THREE.Color(0xef4444); 
+                        const { l, r, c, centerObj } = mountRef.current.mats;
+
+                        if (ratio < 0.85) { // Muy baja
+                            l.color.lerp(cDanger, 0.1); r.color.lerp(cDanger, 0.1); c.color.lerp(cSafe, 0.1); centerObj.visible = false;
+                        } else if (ratio < 0.96) { // Baja
+                            l.color.lerp(cWarn, 0.1); r.color.lerp(cWarn, 0.1); c.color.lerp(cSafe, 0.1); centerObj.visible = true;
+                        } else if (ratio > 1.15) { // Muy alta
+                            l.color.lerp(cSafe, 0.1); r.color.lerp(cSafe, 0.1); c.color.lerp(cDanger, 0.1); centerObj.visible = true;
+                            centerObj.scale.set(1.05, 1.05, 1.05);
+                        } else { // OK
+                            l.color.lerp(cSafe, 0.1); r.color.lerp(cSafe, 0.1); c.color.lerp(cSafe, 0.1); centerObj.visible = false;
+                            centerObj.scale.set(1, 1, 1);
+                        }
+                    }
+                    renderer.render(scene, camera);
+                };
+                animate();
             };
-            animate();
 
-            // Cleanup
+            // Init
+            if (window.THREE) { initScene(); } 
+            else { /* Fallback si no carga global, aunque ya lo tienes */ }
+
+            // RESIZE LISTENER (CRÍTICO PARA QUE NO SE CORTE)
+            const handleResize = () => {
+                if (!mountRef.current || !camera || !renderer) return;
+                const newWidth = mountRef.current.offsetWidth;
+                const newHeight = 400; // Mantener altura fija
+                camera.aspect = newWidth / newHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(newWidth, newHeight);
+            };
+            window.addEventListener('resize', handleResize);
+
             return () => {
+                window.removeEventListener('resize', handleResize);
                 cancelAnimationFrame(frameId);
-                if(mountRef.current) mountRef.current.removeChild(renderer.domElement);
-                tireGeo.dispose(); tireMat.dispose(); rimGeo.dispose(); treadMat.dispose();
+                if(mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
             };
-        }, []);
+        }, []); 
 
-        // Actualizar datos en tiempo real
         useEffect(() => {
-            if (mountRef.current) {
-                mountRef.current.userData = { current: currentBar, target: targetBar };
-            }
+            if (mountRef.current) mountRef.current.userData = { current: currentBar, target: targetBar };
         }, [currentBar, targetBar]);
 
-        return <div ref={mountRef} className="w-full h-[400px] rounded-xl overflow-hidden cursor-move touch-none" />;
+        return <div ref={mountRef} className="w-full h-[400px] cursor-grab active:cursor-grabbing touch-none" />;
+      };
+
+      // --- SUB-COMPONENTE: ESCALA 2D (RECUPERADO) ---
+      const Manometer2D = ({ currentBar, targetBar }) => {
+          const minScale = 1.8;
+          const maxScale = 3.8;
+          const getPct = (v) => ((v - minScale) / (maxScale - minScale)) * 100;
+          const ticks = [];
+          for (let i = minScale; i <= maxScale + 0.01; i += 0.2) ticks.push(i.toFixed(1));
+
+          // Gradiente de zonas
+          const p = targetBar;
+          const zoneGradient = `linear-gradient(to top, 
+            #ef4444 0%, #ef4444 ${getPct(p * 0.85)}%, 
+            #3b82f6 ${getPct(p * 0.85)}%, #3b82f6 ${getPct(p * 0.95)}%, 
+            #22c55e ${getPct(p * 0.95)}%, #22c55e ${getPct(p * 1.05)}%, 
+            #3b82f6 ${getPct(p * 1.05)}%, #3b82f6 ${getPct(p * 1.15)}%, 
+            #ef4444 ${getPct(p * 1.15)}%, #ef4444 100%)`;
+
+          let barColor = "bg-green-500";
+          if (currentBar < p * 0.85 || currentBar > p * 1.15) barColor = "bg-red-600";
+          else if (currentBar < p * 0.96 || currentBar > p * 1.05) barColor = "bg-blue-500";
+
+          return (
+            <div className="h-[400px] w-full flex items-center justify-center p-4">
+                <div className="h-full w-24 relative flex">
+                    {/* Escala */}
+                    <div className="w-10 h-full relative border-r border-slate-600 mr-1">
+                        {ticks.map(tick => {
+                            const val = parseFloat(tick);
+                            const isTarget = Math.abs(val - targetBar) < 0.09;
+                            return (
+                                <div key={tick} className="absolute right-0 w-full flex items-center justify-end pr-1" style={{bottom: `${getPct(val)}%`, transform: 'translateY(50%)'}}>
+                                    <span className={`font-mono text-[10px] mr-1 ${isTarget ? 'text-yellow-400 font-bold' : 'text-slate-500'}`}>{tick}</span>
+                                    <div className={`h-px ${isTarget ? 'bg-yellow-400 w-3' : 'bg-slate-600 w-1.5'}`}></div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    {/* Tubo */}
+                    <div className="flex-1 h-full bg-slate-800 rounded-t-lg rounded-b-lg relative overflow-hidden border border-slate-700 shadow-inner">
+                        <div className="absolute inset-0 opacity-20" style={{ background: zoneGradient }}></div>
+                        {/* Línea Objetivo */}
+                        <div className="absolute w-full border-t-2 border-dashed border-yellow-400 z-10 opacity-80" style={{bottom: `${getPct(targetBar)}%`}}></div>
+                        {/* Barra Fluido */}
+                        <div className={`absolute bottom-0 w-full transition-all duration-700 ease-out shadow-[0_0_15px_rgba(0,0,0,0.5)] border-t border-white/30 ${barColor}`} style={{height: `${Math.min(100, Math.max(0, getPct(currentBar)))}%`}}>
+                            <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-b from-white/40 to-transparent"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+          );
       };
 
 
-      // --- LABORATORIO DE NEUMÁTICOS V10 (COMPONENTE PRINCIPAL CON 3D) ---
+      // --- LABORATORIO DE NEUMÁTICOS V10 (COMBINADO) ---
       const TirePressureLab = () => {
         const [state, setState] = usePersistentState('tireLabV10', {
             recPressure: 2.9, startPressure: 2.9, refTemp: 20, targetTemp: 5, highwayMode: false, gasType: 'air'
@@ -3752,10 +3847,10 @@ const Icons = {
         let wearText = "DESGASTE UNIFORME";
         let WearIcon = Icons.CheckCircle;
 
-        if (val < p * 0.85) { statusColor = "text-red-500"; wearText = "DESGASTE CRÍTICO (HOMBROS)"; WearIcon = Icons.AlertTriangle; } 
-        else if (val < p * 0.96) { statusColor = "text-blue-400"; wearText = "BAJA PRESIÓN (BORDES)"; WearIcon = Icons.TrendingUp; } 
-        else if (val > p * 1.05 && val < p * 1.15) { statusColor = "text-blue-400"; wearText = "ALTA PRESIÓN (CENTRO)"; WearIcon = Icons.Activity; } 
-        else if (val >= p * 1.15) { statusColor = "text-red-500"; wearText = "SOBREPRESIÓN CRÍTICA"; WearIcon = Icons.AlertTriangle; }
+        if (val < p * 0.85) { statusColor = "text-red-500"; wearText = "CRÍTICO (HOMBROS)"; WearIcon = Icons.AlertTriangle; } 
+        else if (val < p * 0.96) { statusColor = "text-blue-400"; wearText = "BAJA (BORDES)"; WearIcon = Icons.TrendingUp; } 
+        else if (val > p * 1.05 && val < p * 1.15) { statusColor = "text-blue-400"; wearText = "ALTA (CENTRO)"; WearIcon = Icons.Activity; } 
+        else if (val >= p * 1.15) { statusColor = "text-red-500"; wearText = "SOBREPRESIÓN"; WearIcon = Icons.AlertTriangle; }
 
         // EFICIENCIA
         const pressureDiffPct = (resultPressureBar - state.recPressure) / state.recPressure;
@@ -3775,9 +3870,9 @@ const Icons = {
 
         return (
             <div className="space-y-6 animate-fade-in">
-                {/* 1. CONFIGURACIÓN */}
+                {/* 1. CONFIGURACIÓN (TOP) */}
                 <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-lg">
-                    <h2 className="text-lg font-display font-bold text-white mb-4 flex items-center gap-2 border-b border-slate-800 pb-2"><Icons.Settings className="w-5 h-5 text-slate-400" /> Laboratorio de Presión 3D</h2>
+                    <h2 className="text-lg font-display font-bold text-white mb-4 flex items-center gap-2 border-b border-slate-800 pb-2"><Icons.Settings className="w-5 h-5 text-slate-400" /> Laboratorio de Presión</h2>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 flex flex-col justify-center">
                             <label className="text-xs font-bold text-yellow-500 uppercase block mb-3">Referencia (Puerta)</label>
@@ -3802,31 +3897,61 @@ const Icons = {
                     </div>
                 </div>
 
-                {/* 2. VISUALIZADOR 3D + DATOS */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    <div className="md:col-span-6 lg:col-span-5 bg-slate-900 border border-slate-800 rounded-xl overflow-hidden relative shadow-2xl">
-                        <div className="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur px-3 py-1 rounded border border-slate-700"><div className="text-xs font-bold text-slate-400 uppercase">Simulación Visual</div></div>
-                        <Tire3DScene currentBar={resultPressureBar} targetBar={state.recPressure} />
-                        <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4 px-4 pointer-events-none">
-                            <div className="bg-slate-900/90 border border-slate-600 px-4 py-2 rounded-xl text-center shadow-xl backdrop-blur-md"><div className="text-[10px] font-bold text-slate-400 uppercase">PRESIÓN REAL</div><div className={`text-2xl font-mono font-bold ${statusColor}`}>{resultPressureBar.toFixed(2)} bar</div><div className="text-xs font-bold text-white">{toPsi(resultPressureBar)} PSI</div></div>
-                            <div className="bg-slate-900/90 border border-slate-600 px-4 py-2 rounded-xl text-center shadow-xl backdrop-blur-md"><div className="text-[10px] font-bold text-slate-400 uppercase">TEMP GAS</div><div className="text-2xl font-mono font-bold text-orange-300">{effectiveTargetTemp.toFixed(0)}°C</div></div>
+                {/* 2. VISUALIZADOR COMBINADO (CENTRO) */}
+                <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden relative shadow-2xl">
+                    <div className="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur px-3 py-1 rounded border border-slate-700"><div className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2"><Icons.Activity className="w-4 h-4"/> Simulación Visual (2D + 3D)</div></div>
+                    
+                    {/* LAYOUT COMBINADO: 2 COLUMNAS */}
+                    <div className="grid grid-cols-12 h-full">
+                        {/* 2D: Manómetro */}
+                        <div className="col-span-3 md:col-span-2 border-r border-slate-800 bg-slate-900/50">
+                            <Manometer2D currentBar={resultPressureBar} targetBar={state.recPressure} />
                         </div>
-                    </div>
-                    <div className="md:col-span-6 lg:col-span-7 flex flex-col gap-4">
-                        <div className={`flex-1 p-6 rounded-xl border-2 shadow-lg flex flex-col justify-center items-center text-center transition-colors ${statusColor.includes('red') ? 'bg-red-900/20 border-red-500/50' : statusColor.includes('blue') ? 'bg-blue-900/20 border-blue-500/50' : 'bg-green-900/20 border-green-500/50'}`}>
-                            <WearIcon className={`w-16 h-16 mb-4 ${statusColor}`} />
-                            <h3 className={`text-2xl md:text-3xl font-black uppercase leading-tight mb-2 ${statusColor}`}>{wearText}</h3>
-                            <p className="text-slate-300 text-sm md:text-base font-medium max-w-md">{val < p * 0.96 ? "El neumático se aplasta. Los hombros soportan todo el peso y se calientan en exceso." : val > p * 1.05 ? "El neumático se abomba. La zona central se desgasta prematuramente." : "La pisada es plana y uniforme. Máxima adherencia y vida útil."}</p>
-                        </div>
-                        <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-5">
-                            <div className="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-2"><h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2"><Icons.Zap className="w-4 h-4 text-yellow-400"/> Impacto en Autonomía</h4></div>
-                            <div className="grid grid-cols-2 gap-4 text-center">
-                                <div><div className="text-xs text-slate-500 font-bold uppercase mb-1">Rango (100km)</div><div className={`text-2xl font-mono font-bold ${kmDiff < -0.1 ? 'text-red-400' : kmDiff > 0.1 ? 'text-green-400' : 'text-white'}`}>{kmDiff > 0 ? '+' : ''}{kmDiff.toFixed(1)} <span className="text-sm text-slate-500">km</span></div></div>
-                                <div><div className="text-xs text-slate-500 font-bold uppercase mb-1">Consumo Extra</div><div className={`text-2xl font-mono font-bold ${extraConsumptionKwh > 0.01 ? 'text-red-400' : extraConsumptionKwh < -0.01 ? 'text-green-400' : 'text-white'}`}>{extraConsumptionKwh > 0 ? '+' : ''}{extraConsumptionKwh.toFixed(2)} <span className="text-sm text-slate-500">kWh</span></div></div>
+                        
+                        {/* 3D: Rueda Centrada */}
+                        <div className="col-span-9 md:col-span-10 relative">
+                            <Tire3DScene currentBar={resultPressureBar} targetBar={state.recPressure} />
+                            
+                            {/* Datos Flotantes sobre el 3D */}
+                            <div className="absolute bottom-4 right-4 flex gap-4 pointer-events-none">
+                                <div className="bg-slate-900/90 border border-slate-600 px-4 py-2 rounded-xl text-center shadow-xl backdrop-blur-md">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase">PRESIÓN REAL</div>
+                                    <div className={`text-2xl font-mono font-bold ${statusColor}`}>{resultPressureBar.toFixed(2)} bar</div>
+                                    <div className="text-xs font-bold text-white">{toPsi(resultPressureBar)} PSI</div>
+                                </div>
+                                <div className="bg-slate-900/90 border border-slate-600 px-4 py-2 rounded-xl text-center shadow-xl backdrop-blur-md hidden sm:block">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase">TEMP GAS</div>
+                                    <div className="text-2xl font-mono font-bold text-orange-300">{effectiveTargetTemp.toFixed(0)}°C</div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                {/* 3. PANELES DE DIAGNÓSTICO (ABAJO) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Desgaste */}
+                    <div className={`p-6 rounded-xl border-2 shadow-lg flex flex-col justify-center items-center text-center transition-colors ${statusColor.includes('red') ? 'bg-red-900/20 border-red-500/50' : statusColor.includes('blue') ? 'bg-blue-900/20 border-blue-500/50' : 'bg-green-900/20 border-green-500/50'}`}>
+                        <WearIcon className={`w-12 h-12 mb-2 ${statusColor}`} />
+                        <h3 className={`text-2xl font-black uppercase leading-tight mb-2 ${statusColor}`}>{wearText}</h3>
+                        <p className="text-slate-300 text-sm font-medium">
+                            {val < p * 0.96 ? "Neumático aplastado. Riesgo de reventón y desgaste rápido en hombros." : 
+                             val > p * 1.05 ? "Neumático abombado. Desgaste central y menor superficie de frenada." : 
+                             "Pisada óptima. Máxima adherencia y vida útil."}
+                        </p>
+                    </div>
+
+                    {/* Eficiencia */}
+                    <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-6 flex flex-col justify-center">
+                        <div className="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-2"><h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2"><Icons.Zap className="w-4 h-4 text-yellow-400"/> Impacto en Autonomía</h4></div>
+                        <div className="grid grid-cols-2 gap-4 text-center">
+                            <div><div className="text-xs text-slate-500 font-bold uppercase mb-1">Rango (100km)</div><div className={`text-2xl font-mono font-bold ${kmDiff < -0.1 ? 'text-red-400' : kmDiff > 0.1 ? 'text-green-400' : 'text-white'}`}>{kmDiff > 0 ? '+' : ''}{kmDiff.toFixed(1)} <span className="text-sm text-slate-500">km</span></div></div>
+                            <div><div className="text-xs text-slate-500 font-bold uppercase mb-1">Consumo Extra</div><div className={`text-2xl font-mono font-bold ${extraConsumptionKwh > 0.01 ? 'text-red-400' : extraConsumptionKwh < -0.01 ? 'text-green-400' : 'text-white'}`}>{extraConsumptionKwh > 0 ? '+' : ''}{extraConsumptionKwh.toFixed(2)} <span className="text-sm text-slate-500">kWh</span></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* FOOTER AMAZON */}
                 <div className="mt-2 p-4 bg-slate-800 border border-slate-700 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="text-left"><div className="flex items-center gap-2 mb-1"><Icons.Zap className="w-5 h-5 text-orange-500" /><span className="text-sm font-bold text-slate-300 uppercase">Herramienta Recomendada</span></div><p className="text-xs text-slate-400 max-w-lg">Ajusta la presión en frío donde quieras con el compresor Xiaomi Portable 2 Pro. Digital y exacto.</p></div>
                     <a href="https://www.amazon.es/s?k=xiaomi+portable+electric+air+compressor+2" target="_blank" className="bg-orange-600 hover:bg-orange-500 text-white text-sm font-bold px-6 py-3 rounded-xl transition-all shadow-lg whitespace-nowrap">Ver en Amazon ➜</a>
@@ -3834,7 +3959,7 @@ const Icons = {
             </div>
         );
       };
-        
+
 
 
   
