@@ -1225,8 +1225,7 @@ const Icons = {
       };
 
         
-    
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (CORREGIDO: CARAGE + GRÁFICO ALINEADO) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICO 3D MATRIX CORREGIDO FINAL) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1259,9 +1258,9 @@ const Icons = {
 
                 // Cámara isométrica
                 const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
-                const camDist = 120;
-                camera.position.set(0, 30, camDist); 
-                camera.lookAt(0, 12, 0);
+                const camDist = 130; // Un poco más lejos para acomodar la altura extra
+                camera.position.set(0, 35, camDist); 
+                camera.lookAt(0, 15, 0); // Mirar un poco más arriba (centro de las barras nuevas)
 
                 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
                 renderer.setSize(width, height);
@@ -1295,10 +1294,11 @@ const Icons = {
                 const mainGroup = new THREE.Group();
                 scene.add(mainGroup);
 
-                const maxBarHeight = 35; // Altura del 100%
+                // CONFIGURACIÓN DE DIMENSIONES (AUMENTADA ALTURA)
+                const maxBarHeight = 55; // Aumentado de 35 a 55 para estirar la gráfica
                 const radius = spacing * 0.25;
 
-                // A. RETICULADO (GRID) HORIZONTAL (0 a 100)
+                // A. RETICULADO (GRID) HORIZONTAL
                 const gridGroup = new THREE.Group();
                 const gridMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
                 
@@ -1469,7 +1469,7 @@ const Icons = {
             return `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
         };
 
-        // --- HELPERS RECUPERADOS (ESENCIALES PARA EVITAR ReferenceError) ---
+        // --- HELPERS PARA HISTÓRICO ---
         const parseSmartDate = (dateStr) => {
             if (!dateStr) return null;
             const parts = dateStr.split(/[-/]/);
@@ -1508,7 +1508,7 @@ const Icons = {
             return { text: `${years} años y ${months} meses`, days: safeDays };
         };
 
-        const carAge = getCarAge(); // Definido ANTES de usarse en Histórico
+        const carAge = getCarAge(); 
 
         // --- CÁLCULOS PRINCIPALES ---
         const calcAmps = () => state.power >= 11 ? { val: (state.power * 1000) / (400 * Math.sqrt(3)), phase: 'Trifásica (400V)'} : { val: (state.power * 1000) / 230, phase: 'Monofásica (230V)'};
@@ -1807,8 +1807,8 @@ const Icons = {
                         
                         <div className="rounded-xl overflow-hidden bg-gradient-to-b from-slate-900/0 via-slate-900/50 to-slate-900/0 border border-white/5 relative h-[320px]">
                             
-                            {/* EJE Y (CORREGIDO: ALINEACIÓN MANUAL ABSOLUTA PARA COINCIDIR CON WEBGL) */}
-                            <div className="absolute top-[45px] bottom-[40px] left-2 w-8 flex flex-col justify-between text-[9px] text-slate-500 font-bold text-right z-10 select-none">
+                            {/* EJE Y (CORREGIDO: ALINEACIÓN VERTICAL AJUSTADA AL PIXEL) */}
+                            <div className="absolute top-[30px] bottom-[60px] left-2 w-8 flex flex-col justify-between text-[9px] text-slate-500 font-bold text-right z-10 select-none">
                                 {[100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0].map(val => (
                                     <div key={val} className="h-0 flex items-center justify-end">
                                         <span>{val}%</span>
@@ -2129,7 +2129,8 @@ const Icons = {
             </div>
         );
       };
- 
+
+      
       
 
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
