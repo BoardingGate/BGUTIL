@@ -1224,9 +1224,8 @@ const Icons = {
         );
       };
 
-        
-   
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICO 3D FINAL - ALINEACIÓN 20%) ---
+
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (VISIBILIDAD MEJORADA + ALINEACIÓN FINA) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1257,12 +1256,11 @@ const Icons = {
                 const scene = new THREE.Scene();
                 scene.background = null; 
 
-                // CONFIGURACIÓN DE ALTURA PARA ALINEACIÓN
+                // CONFIGURACIÓN DE ALTURA
                 const maxBarHeight = 50; 
                 const centerY = maxBarHeight / 2;
 
-                // Cámara: Posición Y centrada exactamente en la mitad de la altura de las barras
-                // Esto elimina la distorsión vertical y hace que las líneas sean paralelas visualmente
+                // Cámara centrada en Y=25 para evitar perspectiva vertical
                 const camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 1000);
                 const camDist = 160; 
                 camera.position.set(0, centerY, camDist); 
@@ -1277,7 +1275,7 @@ const Icons = {
                 }
                 mountRef.current.appendChild(renderer.domElement);
 
-                // 2. CÁLCULO DE ALINEACIÓN HORIZONTAL
+                // 2. ALINEACIÓN HORIZONTAL
                 const vFOV = THREE.MathUtils.degToRad(camera.fov); 
                 const visibleHeight = 2 * Math.tan(vFOV / 2) * camDist;
                 const visibleWidth = visibleHeight * camera.aspect;
@@ -1306,7 +1304,7 @@ const Icons = {
                 const gridGroup = new THREE.Group();
                 const gridMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
                 
-                // 0, 20, 40, 60, 80, 100 (6 líneas)
+                // 0, 20, 40, 60, 80, 100
                 for(let i=0; i<=5; i++) {
                     const pct = i * 20;
                     const y = (pct / 100) * maxBarHeight;
@@ -1326,7 +1324,7 @@ const Icons = {
                     const xPos = startX + (index * spacing);
                     dayGroup.position.set(xPos, 0, 0);
 
-                    // Base (Suelo) en Y=0
+                    // Base (Suelo)
                     const baseGeo = new THREE.CylinderGeometry(radius + 0.5, radius + 0.5, 0.5, 32);
                     const baseMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.2 });
                     const baseMesh = new THREE.Mesh(baseGeo, baseMat);
@@ -1354,18 +1352,18 @@ const Icons = {
                         dayGroup.add(solidMesh);
                     }
 
-                    // Energía Consumida (Cristal)
+                    // Energía Consumida (Cristal - AHORA MÁS VISIBLE)
                     const startPct = Math.max(0, dayData.startPct);
                     if (startPct > endPct) {
                         const glassHeight = ((startPct - endPct) / 100) * maxBarHeight;
                         const glassGeo = new THREE.CylinderGeometry(radius, radius, glassHeight, 32);
                         const glassMat = new THREE.MeshPhysicalMaterial({ 
-                            color: 0xffffff, 
+                            color: 0x94a3b8, // Gris azulado en lugar de blanco
                             transparent: true, 
-                            opacity: 0.15, 
-                            roughness: 0.1,
-                            metalness: 0.1,
-                            transmission: 0.6 
+                            opacity: 0.4, // Aumentado de 0.15 a 0.4
+                            roughness: 0.2,
+                            metalness: 0.2,
+                            transmission: 0.1 // Menos transparente para que se vea más "sólido"
                         });
                         const glassMesh = new THREE.Mesh(glassGeo, glassMat);
                         glassMesh.position.y = solidHeight + (glassHeight / 2);
@@ -1813,8 +1811,8 @@ const Icons = {
                         
                         <div className="rounded-xl overflow-hidden bg-gradient-to-b from-slate-900/0 via-slate-900/50 to-slate-900/0 border border-white/5 relative h-[300px]">
                             
-                            {/* EJE Y (ALINEACIÓN EXACTA 20%) - TOP: 40px, BOTTOM: 55px */}
-                            <div className="absolute top-[40px] bottom-[55px] left-2 w-8 flex flex-col justify-between text-[9px] text-slate-500 font-bold text-right z-10 select-none">
+                            {/* EJE Y (ALINEACIÓN EXACTA 20%) - TOP: 35px, BOTTOM: 68px (CORREGIDO PARA 0% Y 100%) */}
+                            <div className="absolute top-[35px] bottom-[68px] left-2 w-8 flex flex-col justify-between text-[9px] text-slate-500 font-bold text-right z-10 select-none">
                                 <span>100%</span>
                                 <span>80%</span>
                                 <span>60%</span>
@@ -2136,8 +2134,8 @@ const Icons = {
             </div>
         );
       };
-    
-      
+     
+   
       
 
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
