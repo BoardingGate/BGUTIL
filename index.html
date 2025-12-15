@@ -15,6 +15,9 @@
     <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    
     <style>
       body { font-family: 'Inter', sans-serif; background-color: #0a0a0a; color: #e5e5e5; -webkit-tap-highlight-color: transparent; }
       .font-display { font-family: 'Orbitron', sans-serif; }
@@ -3578,335 +3581,425 @@ const Icons = {
       };
 
 
-        
+      // --- SUB-COMPONENTE: ESCENA 3D DEL NEUMÁTICO (FIXED: CENTRADO Y RESIZE) ---
+      const Tire3DScene = ({ currentBar, targetBar }) => {
+        const mountRef = useRef(null);
+
+        useEffect(() => {
+            // Variables para cleanup
+            let frameId;
+            let renderer;
+            let scene, camera, group, tire, leftShoulder, rightShoulder, centerStrip;
+
+            const initScene = () => {
+                if (!mountRef.current) return;
+
+                // 1. Setup Básico
+                // Usamos offsetWidth para obtener el ancho real del contenedor padre
+                const width = mountRef.current.offsetWidth;
+                const height = 400; 
+                
+                scene = new THREE.Scene();
+                scene.background = null; // Transparente para fundirse con el fondo del div
+
+                camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+                camera.position.set(0, 0, 35); // Acercamos un poco la cámara
+                camera.lookAt(0, 0, 0); // FORZAMOS A MIRAR AL CENTRO
+
+                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(width, height);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                
+                // Limpieza previa
+                while (mountRef.current.firstChild) {
+                    mountRef.current.removeChild(mountRef.current.firstChild);
+                }
+                mountRef.current.appendChild(renderer.domElement);
+
+                // 2. Luces (Mejoradas para resaltar volumen)
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+                scene.add(ambientLight);
+                
+                const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+                dirLight.position.set(10, 20, 20);
+                scene.add(dirLight);
+                
+                const rimLight = new THREE.PointLight(0x3b82f6, 3, 50); // Luz azul trasera
+                rimLight.position.set(-15, 10, -10);
+                scene.add(rimLight);
+
+                // 3. Objetos
+                group = new THREE.Group();
+
+                // Goma Base
+                const tireGeo = new THREE.TorusGeometry(10, 3.5, 40, 80); // Más polígonos para suavidad
+                const tireMat = new THREE.MeshStandardMaterial({ 
+                    color: 0x1f2937, 
+                    roughness: 0.6, 
+                    metalness: 0.2 
+                });
+                tire = new THREE.Mesh(tireGeo, tireMat);
+                group.add(tire);
+
+                // Bandas de desgaste
+                const treadMat = new THREE.MeshBasicMaterial({ color: 0x22c55e }); 
+                
+                leftShoulder = new THREE.Mesh(new THREE.TorusGeometry(10, 0.25, 16, 80), treadMat.clone());
+                leftShoulder.position.z = 2.8; // Ajustado al borde
+                group.add(leftShoulder);
+
+                rightShoulder = new THREE.Mesh(new THREE.TorusGeometry(10, 0.25, 16, 80), treadMat.clone());
+                rightShoulder.position.z = -2.8;
+                group.add(rightShoulder);
+
+                centerStrip = new THREE.Mesh(new THREE.TorusGeometry(13.3, 0.15, 16, 80), treadMat.clone());
+                group.add(centerStrip);
+
+                // Llanta (Simplificada estilo Tesla Aero)
+                const rimGeo = new THREE.CylinderGeometry(7.2, 7.2, 4, 64);
+                const rimMat = new THREE.MeshStandardMaterial({ color: 0x374151, roughness: 0.4, metalness: 0.7 });
+                const rim = new THREE.Mesh(rimGeo, rimMat);
+                rim.rotation.x = Math.PI / 2;
+                
+                // Tapa central
+                const capGeo = new THREE.CylinderGeometry(2, 2, 4.2, 32);
+                const cap = new THREE.Mesh(capGeo, new THREE.MeshStandardMaterial({ color: 0x111827 }));
+                cap.rotation.x = Math.PI / 2;
+                group.add(cap);
+
+                // Radios
+                const spokeGeo = new THREE.BoxGeometry(13, 2, 0.5);
+                const spoke1 = new THREE.Mesh(spokeGeo, rimMat);
+                const spoke2 = new THREE.Mesh(spokeGeo, rimMat);
+                spoke2.rotation.z = Math.PI / 2;
+                rim.add(spoke1); rim.add(spoke2);
+
+                group.add(rim);
+                scene.add(group);
+
+                // Referencias para update
+                mountRef.current.group3d = group;
+                mountRef.current.mats = { l: leftShoulder.material, r: rightShoulder.material, c: centerStrip.material, centerObj: centerStrip };
+
+                // 4. Loop Animación
+                const animate = () => {
+                    frameId = requestAnimationFrame(animate);
+                    
+                    if(group) {
+                        group.rotation.y -= 0.03; // Girar hacia adelante
+                        group.rotation.x = 0.3;   // Inclinar para ver banda de rodadura
+
+                        // Lógica Visual
+                        const data = mountRef.current.userData || { current: 2.9, target: 2.9 };
+                        const ratio = data.current / data.target;
+
+                        // Deformación
+                        const deform = Math.max(0.75, Math.min(1.08, ratio));
+                        if (ratio < 0.96) { 
+                            tire.scale.y = deform;
+                            // Ensanchamiento lateral al aplastarse
+                            tire.scale.x = 1 + (1 - deform) * 0.15; 
+                        } else {
+                            tire.scale.set(1, 1, 1);
+                        }
+
+                        // Colores Semáforo
+                        const cSafe = new THREE.Color(0x22c55e); 
+                        const cWarn = new THREE.Color(0xeab308); 
+                        const cDanger = new THREE.Color(0xef4444); 
+                        const { l, r, c, centerObj } = mountRef.current.mats;
+
+                        if (ratio < 0.85) { // Muy baja
+                            l.color.lerp(cDanger, 0.1); r.color.lerp(cDanger, 0.1); c.color.lerp(cSafe, 0.1); centerObj.visible = false;
+                        } else if (ratio < 0.96) { // Baja
+                            l.color.lerp(cWarn, 0.1); r.color.lerp(cWarn, 0.1); c.color.lerp(cSafe, 0.1); centerObj.visible = true;
+                        } else if (ratio > 1.15) { // Muy alta
+                            l.color.lerp(cSafe, 0.1); r.color.lerp(cSafe, 0.1); c.color.lerp(cDanger, 0.1); centerObj.visible = true;
+                            centerObj.scale.set(1.05, 1.05, 1.05);
+                        } else { // OK
+                            l.color.lerp(cSafe, 0.1); r.color.lerp(cSafe, 0.1); c.color.lerp(cSafe, 0.1); centerObj.visible = false;
+                            centerObj.scale.set(1, 1, 1);
+                        }
+                    }
+                    renderer.render(scene, camera);
+                };
+                animate();
+            };
+
+            // Init
+            if (window.THREE) { initScene(); } 
+            else { /* Fallback si no carga global, aunque ya lo tienes */ }
+
+            // RESIZE LISTENER (CRÍTICO PARA QUE NO SE CORTE)
+            const handleResize = () => {
+                if (!mountRef.current || !camera || !renderer) return;
+                const newWidth = mountRef.current.offsetWidth;
+                const newHeight = 400; // Mantener altura fija
+                camera.aspect = newWidth / newHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(newWidth, newHeight);
+            };
+            window.addEventListener('resize', handleResize);
+
+            return () => {
+                window.removeEventListener('resize', handleResize);
+                cancelAnimationFrame(frameId);
+                if(mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
+            };
+        }, []); 
+
+        useEffect(() => {
+            if (mountRef.current) mountRef.current.userData = { current: currentBar, target: targetBar };
+        }, [currentBar, targetBar]);
+
+        return <div ref={mountRef} className="w-full h-[400px] cursor-grab active:cursor-grabbing touch-none" />;
+      };
+
+      // --- SUB-COMPONENTE: ESCALA 2D (RECUPERADO) ---
+      const Manometer2D = ({ currentBar, targetBar }) => {
+          const minScale = 1.8;
+          const maxScale = 3.8;
+          const getPct = (v) => ((v - minScale) / (maxScale - minScale)) * 100;
+          const ticks = [];
+          for (let i = minScale; i <= maxScale + 0.01; i += 0.2) ticks.push(i.toFixed(1));
+
+          // Gradiente de zonas
+          const p = targetBar;
+          const zoneGradient = `linear-gradient(to top, 
+            #ef4444 0%, #ef4444 ${getPct(p * 0.85)}%, 
+            #3b82f6 ${getPct(p * 0.85)}%, #3b82f6 ${getPct(p * 0.95)}%, 
+            #22c55e ${getPct(p * 0.95)}%, #22c55e ${getPct(p * 1.05)}%, 
+            #3b82f6 ${getPct(p * 1.05)}%, #3b82f6 ${getPct(p * 1.15)}%, 
+            #ef4444 ${getPct(p * 1.15)}%, #ef4444 100%)`;
+
+          let barColor = "bg-green-500";
+          if (currentBar < p * 0.85 || currentBar > p * 1.15) barColor = "bg-red-600";
+          else if (currentBar < p * 0.96 || currentBar > p * 1.05) barColor = "bg-blue-500";
+
+          return (
+            <div className="h-[400px] w-full flex items-center justify-center p-4">
+                <div className="h-full w-24 relative flex">
+                    {/* Escala */}
+                    <div className="w-10 h-full relative border-r border-slate-600 mr-1">
+                        {ticks.map(tick => {
+                            const val = parseFloat(tick);
+                            const isTarget = Math.abs(val - targetBar) < 0.09;
+                            return (
+                                <div key={tick} className="absolute right-0 w-full flex items-center justify-end pr-1" style={{bottom: `${getPct(val)}%`, transform: 'translateY(50%)'}}>
+                                    <span className={`font-mono text-[10px] mr-1 ${isTarget ? 'text-yellow-400 font-bold' : 'text-slate-500'}`}>{tick}</span>
+                                    <div className={`h-px ${isTarget ? 'bg-yellow-400 w-3' : 'bg-slate-600 w-1.5'}`}></div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    {/* Tubo */}
+                    <div className="flex-1 h-full bg-slate-800 rounded-t-lg rounded-b-lg relative overflow-hidden border border-slate-700 shadow-inner">
+                        <div className="absolute inset-0 opacity-20" style={{ background: zoneGradient }}></div>
+                        {/* Línea Objetivo */}
+                        <div className="absolute w-full border-t-2 border-dashed border-yellow-400 z-10 opacity-80" style={{bottom: `${getPct(targetBar)}%`}}></div>
+                        {/* Barra Fluido */}
+                        <div className={`absolute bottom-0 w-full transition-all duration-700 ease-out shadow-[0_0_15px_rgba(0,0,0,0.5)] border-t border-white/30 ${barColor}`} style={{height: `${Math.min(100, Math.max(0, getPct(currentBar)))}%`}}>
+                            <div className="absolute top-0 left-0 w-full h-4 bg-gradient-to-b from-white/40 to-transparent"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+          );
+      };
 
 
-// --- LABORATORIO DE NEUMÁTICOS V10 (CON COMPRESOR XIAOMI) ---
+      // --- LABORATORIO DE NEUMÁTICOS V10 (MEJORADO) ---
       const TirePressureLab = () => {
         const [state, setState] = usePersistentState('tireLabV10', {
-            recPressure: 2.9, // Objetivo (bar)
-            startPressure: 2.9, // Inicial (bar)
-            refTemp: 20,      // ºC inicial
-            targetTemp: 5,    // ºC destino
-            highwayMode: false,
-            gasType: 'air'    // 'air' | 'nitro'
+            recPressure: 2.9, startPressure: 2.9, refTemp: 20, targetTemp: 5, highwayMode: false, gasType: 'air'
         });
 
-        // Constantes
         const BAR_TO_PSI = 14.5038;
         const HIGHWAY_TEMP_ADD = 25; 
         const REF_CONSUMPTION = 14.5; 
 
-        // Helper para mostrar PSI
+        // Helper para mostrar PSI sin decimales
         const toPsi = (bar) => (bar * BAR_TO_PSI).toFixed(0);
 
-        // Helper para botones de ajuste fino
         const adjust = (key, delta, min, max) => {
             setState(prev => {
                 const newVal = parseFloat((prev[key] + delta).toFixed(1));
-                if (newVal >= min && newVal <= max) {
-                    return { ...prev, [key]: newVal };
-                }
+                if (newVal >= min && newVal <= max) return { ...prev, [key]: newVal };
                 return prev;
             });
         };
 
-        // 1. CÁLCULOS FÍSICOS
+        const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v)}));
+
+        // FÍSICA
         const t1Kelvin = state.refTemp + 273.15;
         const effectiveTargetTemp = state.targetTemp + (state.highwayMode ? HIGHWAY_TEMP_ADD : 0);
         const t2Kelvin = effectiveTargetTemp + 273.15;
-        
-        // Presión Base (Gay-Lussac)
         let resultPressureBar = state.startPressure * (t2Kelvin / t1Kelvin);
 
-        // Corrección por Humedad (Aire vs Nitrógeno)
-        let gasText = "Gas inerte y seco. Presión muy estable ante cambios térmicos.";
-        if (state.gasType === 'air') {
-            gasText = "Contiene humedad. El vapor de agua se expande más con el calor (presión variable).";
-            if (effectiveTargetTemp > state.refTemp) {
-                const humidityExpansion = (effectiveTargetTemp - state.refTemp) * 0.002; 
-                resultPressureBar += humidityExpansion;
-            }
+        if (state.gasType === 'air' && effectiveTargetTemp > state.refTemp) {
+            // El aire tiene humedad, expande más que el N2 puro
+            resultPressureBar += (effectiveTargetTemp - state.refTemp) * 0.002; 
         }
         
-        // 2. LÓGICA DE ESTADO
+        // ESTADO
         const p = state.recPressure;
         const val = resultPressureBar;
-        
         let statusColor = "text-green-400";
-        let barFillColor = "bg-green-500";
         let wearText = "DESGASTE UNIFORME";
-        let wearDesc = "Pisada perfecta. Máximo agarre y vida útil.";
         let WearIcon = Icons.CheckCircle;
 
-        if (val < p * 0.85) {
-            statusColor = "text-red-500"; barFillColor = "bg-red-600";
-            wearText = "DESGASTE CRÍTICO EN HOMBROS";
-            wearDesc = "Peligro. La goma se come los bordes rápidamente.";
-            WearIcon = Icons.AlertTriangle;
-        } else if (val < p * 0.96) {
-            statusColor = "text-blue-400"; barFillColor = "bg-blue-500";
-            wearText = "DESGASTE EN BORDES";
-            wearDesc = "Presión baja. Aumenta temperatura y consumo.";
-            WearIcon = Icons.TrendingUp;
-        } else if (val > p * 1.05 && val < p * 1.15) {
-            statusColor = "text-blue-400"; barFillColor = "bg-blue-500";
-            wearText = "DESGASTE CENTRAL LEVE";
-            wearDesc = "Algo alta. Eficiente pero menos cómoda.";
-            WearIcon = Icons.Activity;
-        } else if (val >= p * 1.15) {
-            statusColor = "text-red-500"; barFillColor = "bg-red-600";
-            wearText = "DESGASTE CRÍTICO CENTRAL";
-            wearDesc = "Exceso de presión. Pérdida grave de adherencia.";
-            WearIcon = Icons.AlertTriangle;
-        }
+        if (val < p * 0.85) { statusColor = "text-red-500"; wearText = "CRÍTICO (HOMBROS)"; WearIcon = Icons.AlertTriangle; } 
+        else if (val < p * 0.96) { statusColor = "text-blue-400"; wearText = "BAJA (BORDES)"; WearIcon = Icons.TrendingUp; } 
+        else if (val > p * 1.05 && val < p * 1.15) { statusColor = "text-blue-400"; wearText = "ALTA (CENTRO)"; WearIcon = Icons.Activity; } 
+        else if (val >= p * 1.15) { statusColor = "text-red-500"; wearText = "SOBREPRESIÓN"; WearIcon = Icons.AlertTriangle; }
 
-        // 3. CÁLCULO DE EFICIENCIA
+        // EFICIENCIA
         const pressureDiffPct = (resultPressureBar - state.recPressure) / state.recPressure;
-        let efficiencyImpactPct = pressureDiffPct * 100 * -0.3; 
-        const extraConsumptionKwh = REF_CONSUMPTION * (efficiencyImpactPct / 100);
+        // Aproximación empírica: -10% presión ~ +3% consumo (resistencia a rodadura)
+        const extraConsumptionKwh = REF_CONSUMPTION * (pressureDiffPct * 100 * -0.3 / 100);
         const kmDiff = ((REF_CONSUMPTION / (REF_CONSUMPTION + extraConsumptionKwh)) * 100) - 100;
 
-        const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v)}));
-
-        // Escala Gráfica
-        const minScale = 1.8;
-        const maxScale = 3.8;
-        const getPct = (v) => ((v - minScale) / (maxScale - minScale)) * 100;
-        const ticks = [];
-        for (let i = minScale; i <= maxScale + 0.01; i += 0.1) ticks.push(i.toFixed(1));
-
-        // Gradiente Fijo
-        const zoneGradient = `linear-gradient(to top, 
-            #ef4444 0%, 
-            #ef4444 ${getPct(p * 0.85)}%, 
-            #3b82f6 ${getPct(p * 0.85)}%, 
-            #3b82f6 ${getPct(p * 0.95)}%, 
-            #22c55e ${getPct(p * 0.95)}%, 
-            #22c55e ${getPct(p * 1.05)}%, 
-            #3b82f6 ${getPct(p * 1.05)}%, 
-            #3b82f6 ${getPct(p * 1.15)}%, 
-            #ef4444 ${getPct(p * 1.15)}%, 
-            #ef4444 100%)`;
-
-        // Helper para detectar umbrales (para pintarlos de blanco)
-        const isThreshold = (v) => {
-            const thresholds = [p*0.85, p*0.96, p*1.05, p*1.15];
-            return thresholds.some(t => Math.abs(v - t) < 0.06);
-        };
-
-        // COMPONENTE HELPER PARA SLIDER CON BOTONES
-        const PrecisionSlider = ({ label, value, min, max, step, onChangeKey, unit, colorClass = "text-white", extraText = "" }) => (
+        // Slider reutilizable con soporte PSI opcional
+        const PrecisionSlider = ({ label, value, min, max, step, onChangeKey, unit, colorClass = "text-white", showPsi = false }) => (
             <div>
                 <div className="flex justify-between mb-1 text-xs font-bold text-slate-300">
                     <span>{label}</span>
-                    <span className={colorClass}>{value} {unit} {extraText}</span>
+                    <span className={colorClass}>
+                        {value} {unit} {showPsi && <span className="text-slate-500 font-normal">({toPsi(value)} PSI)</span>}
+                    </span>
                 </div>
                 <div className="flex items-center gap-3">
                     <button onClick={() => adjust(onChangeKey, -step, min, max)} className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-white font-bold text-lg select-none">-</button>
-                    <input 
-                        type="range" min={min} max={max} step={step} 
-                        value={value} 
-                        onChange={(e) => handleChange(onChangeKey, e.target.value)} 
-                        className="flex-1 h-2 bg-slate-700 rounded-lg cursor-pointer accent-blue-500"
-                    />
+                    <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => handleChange(onChangeKey, e.target.value)} className="flex-1 h-2 bg-slate-700 rounded-lg cursor-pointer accent-blue-500"/>
                     <button onClick={() => adjust(onChangeKey, step, min, max)} className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-white font-bold text-lg select-none">+</button>
                 </div>
             </div>
         );
 
         return (
-            <div className="space-y-6 animate-fade-in">
-                
-                {/* 1. CONFIGURACIÓN */}
+            <div className="space-y-6 animate-fade-in pb-10">
+                {/* 1. CONFIGURACIÓN (TOP) */}
                 <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-lg">
-                    <h2 className="text-lg font-display font-bold text-white mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
-                        <Icons.Settings className="w-5 h-5 text-slate-400" /> Parámetros de Inflado
-                    </h2>
-                    
+                    <h2 className="text-lg font-display font-bold text-white mb-4 flex items-center gap-2 border-b border-slate-800 pb-2"><Icons.Settings className="w-5 h-5 text-slate-400" /> Laboratorio de Presión</h2>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* OBJETIVO */}
+                        
+                        {/* COLUMNA 1: REFERENCIA */}
                         <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 flex flex-col justify-center">
-                            <label className="text-xs font-bold text-yellow-500 uppercase block mb-3">1. Referencia Fabricante (Puerta)</label>
+                            <label className="text-xs font-bold text-yellow-500 uppercase block mb-3">Referencia (Etiqueta Puerta)</label>
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-3xl font-mono font-bold text-white">
-                                    {state.recPressure} <span className="text-sm text-slate-500">bar</span>
-                                    <span className="text-lg text-slate-400 font-normal ml-2">({toPsi(state.recPressure)} PSI)</span>
-                                </span>
+                                <span className="text-3xl font-mono font-bold text-white">{state.recPressure} <span className="text-sm text-slate-500">bar</span></span>
+                                <span className="text-xl font-mono font-bold text-slate-400">{toPsi(state.recPressure)} <span className="text-xs text-slate-500">PSI</span></span>
                             </div>
-                            {/* Slider Objetivo con Botones */}
                             <div className="flex items-center gap-3">
                                 <button onClick={() => adjust('recPressure', -0.1, 2.2, 3.4)} className="w-8 h-8 bg-slate-700 hover:bg-slate-600 rounded text-yellow-500 font-bold">-</button>
-                                <input type="range" min="2.2" max="3.4" step="0.1" value={state.recPressure} onChange={e => handleChange('recPressure', e.target.value)} className="flex-1 h-3 bg-slate-700 rounded-lg accent-yellow-500 cursor-pointer slider-thumb"/>
+                                <input type="range" min="2.2" max="3.4" step="0.1" value={state.recPressure} onChange={e => handleChange('recPressure', e.target.value)} className="flex-1 h-3 bg-slate-700 rounded-lg accent-yellow-500 cursor-pointer"/>
                                 <button onClick={() => adjust('recPressure', 0.1, 2.2, 3.4)} className="w-8 h-8 bg-slate-700 hover:bg-slate-600 rounded text-yellow-500 font-bold">+</button>
                             </div>
                         </div>
 
-                        {/* INICIO */}
+                        {/* COLUMNA 2: INFLADO INICIAL */}
                         <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
-                            <label className="text-xs font-bold text-blue-400 uppercase block border-b border-slate-700 pb-1">2. Inflado Inicial (Garaje)</label>
+                            <label className="text-xs font-bold text-blue-400 uppercase block border-b border-slate-700 pb-1">Inflado Inicial</label>
                             
-                            {/* Selector Gas */}
                             <div>
-                                <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-600 mb-1">
-                                    <button onClick={() => setState(p => ({...p, gasType: 'air'}))} className={`flex-1 py-2 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'air' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>☁️ Aire Común</button>
-                                    <button onClick={() => setState(p => ({...p, gasType: 'nitro'}))} className={`flex-1 py-2 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'nitro' ? 'bg-green-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>💧 Nitrógeno (N2)</button>
+                                <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-600 mb-2">
+                                    <button onClick={() => setState(p => ({...p, gasType: 'air'}))} className={`flex-1 py-2 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'air' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Aire</button>
+                                    <button onClick={() => setState(p => ({...p, gasType: 'nitro'}))} className={`flex-1 py-2 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'nitro' ? 'bg-green-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Nitrógeno</button>
                                 </div>
-                                <div className="text-[9px] text-slate-400 text-center italic px-1 h-6 flex items-center justify-center">{gasText}</div>
+                                <p className="text-[10px] text-slate-500 italic leading-tight">
+                                    {state.gasType === 'air' 
+                                        ? "El aire normal contiene humedad que se expande más con el calor." 
+                                        : "El nitrógeno es un gas seco y más estable a cambios de temperatura."}
+                                </p>
                             </div>
 
-                            <PrecisionSlider label="Presión Puesta" value={state.startPressure} min={2.0} max={3.6} step={0.1} onChangeKey="startPressure" unit="bar" extraText={`(${toPsi(state.startPressure)} PSI)`} />
+                            <PrecisionSlider label="Presión Puesta" value={state.startPressure} min={1.5} max={4.0} step={0.1} onChangeKey="startPressure" unit="bar" showPsi={true} />
                             <PrecisionSlider label="Temp. Ambiente" value={state.refTemp} min={-10} max={45} step={1} onChangeKey="refTemp" unit="ºC" colorClass="text-orange-400" />
                         </div>
 
-                        {/* DESTINO */}
+                        {/* COLUMNA 3: CONDICIONES */}
                         <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
-                            <label className="text-xs font-bold text-cyan-400 uppercase block border-b border-slate-700 pb-1">3. Condiciones Destino</label>
-                            
+                            <label className="text-xs font-bold text-cyan-400 uppercase block border-b border-slate-700 pb-1">Condiciones Rodaje</label>
                             <PrecisionSlider label="Temp. Exterior" value={state.targetTemp} min={-20} max={50} step={1} onChangeKey="targetTemp" unit="ºC" colorClass="text-cyan-400" />
-                            
-                            {/* Toggle Autopista */}
-                            <div className="mt-4 pt-2">
-                                <div className="flex items-center justify-between cursor-pointer" onClick={() => setState(p => ({...p, highwayMode: !p.highwayMode}))}>
-                                    <span className="text-xs font-bold text-slate-300">¿Rodando en Autopista?</span>
-                                    <div className={`w-14 h-7 flex items-center rounded-full p-1 transition-colors duration-300 ${state.highwayMode ? 'bg-green-500' : 'bg-slate-700'}`}>
-                                        <div className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-transform duration-300 ${state.highwayMode ? 'translate-x-7' : 'translate-x-0'}`}></div>
-                                    </div>
-                                </div>
-                                <div className="text-[9px] text-slate-500 mt-2 italic text-right h-4">
-                                    {state.highwayMode ? `Fricción extrema: Gas se calienta +${HIGHWAY_TEMP_ADD}ºC` : "Rodaje urbano o parado: Sin calor extra por fricción."}
-                                </div>
-                            </div>
+                            <div className="mt-4 pt-2 cursor-pointer" onClick={() => setState(p => ({...p, highwayMode: !p.highwayMode}))}><div className="flex items-center justify-between"><span className="text-xs font-bold text-slate-300">Modo Autopista</span><div className={`w-10 h-6 rounded-full p-1 transition-colors ${state.highwayMode ? 'bg-green-500' : 'bg-slate-700'}`}><div className={`bg-white w-4 h-4 rounded-full transition-transform ${state.highwayMode ? 'translate-x-4' : 'translate-x-0'}`}></div></div></div><div className="text-[9px] text-slate-500 mt-1 italic text-right">{state.highwayMode ? "+25ºC fricción rodadura" : "Sin fricción extra"}</div></div>
                         </div>
                     </div>
                 </div>
 
-                {/* 2. RESULTADOS */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                {/* 2. VISUALIZADOR COMBINADO (CENTRO) */}
+                <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden relative shadow-2xl min-h-[450px]">
+                    {/* Título absoluto */}
+                    <div className="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur px-3 py-1 rounded border border-slate-700">
+                        <div className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2">
+                            <Icons.Activity className="w-4 h-4"/> Simulación Visual (2D + 3D)
+                        </div>
+                    </div>
                     
-                    {/* MANÓMETRO */}
-                    <div className="md:col-span-5 lg:col-span-4 bg-slate-900/80 border border-slate-800 rounded-xl p-6 flex justify-center relative overflow-hidden">
-                        <div className="h-[500px] w-full max-w-[200px] relative flex">
-                            
-                            {/* ESCALA IZQUIERDA */}
-                            <div className="w-14 h-full relative border-r border-slate-500 mr-1 rounded-l-md overflow-hidden">
-                                <div className="absolute inset-0 opacity-40" style={{ background: zoneGradient }}></div>
-                                {ticks.map(tick => {
-                                    const val = parseFloat(tick);
-                                    const isTarget = Math.abs(val - state.recPressure) < 0.05;
-                                    const isThresh = isThreshold(val);
-                                    
-                                    let tickClass = "text-slate-300 font-medium opacity-70";
-                                    let tickSize = "text-[9px]";
-                                    
-                                    if (isTarget) {
-                                        tickClass = "text-yellow-400 font-black opacity-100 scale-110";
-                                        tickSize = "text-[11px]";
-                                    } else if (isThresh) {
-                                        tickClass = "text-white font-bold opacity-100";
-                                        tickSize = "text-[10px]";
-                                    }
-
-                                    return (
-                                        <div key={tick} className="absolute right-0 w-full flex items-center justify-end pr-1 z-10" style={{bottom: `${getPct(tick)}%`}}>
-                                            <span className={`${tickSize} font-mono mr-1 drop-shadow-md ${tickClass}`}>{tick}</span>
-                                            <div className={`h-px ${isTarget ? 'bg-yellow-400 w-4' : isThresh ? 'bg-white w-3' : 'bg-white/30 w-1.5'}`}></div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* TUBO */}
-                            <div className="flex-1 h-full bg-slate-900 rounded-r-lg relative overflow-hidden border border-slate-700 shadow-inner">
-                                <div className="absolute inset-0 w-full h-full opacity-20" style={{ background: zoneGradient }}></div>
-                                {/* LINEA TARGET GORDA (4px) */}
-                                <div className="absolute w-full border-t-4 border-dashed border-yellow-400 z-10 opacity-80" style={{bottom: `${getPct(state.recPressure)}%`}}></div>
-                                <div className={`absolute bottom-0 w-full transition-all duration-700 ease-out shadow-[0_0_15px_rgba(0,0,0,0.5)] border-t border-white/50 ${barFillColor}`} style={{height: `${Math.min(100, Math.max(0, getPct(resultPressureBar)))}%`, opacity: 0.95}}>
-                                    <div className="absolute top-0 left-0 w-full h-8 bg-gradient-to-b from-white/30 to-transparent"></div>
-                                </div>
-                            </div>
-
-                            {/* VALOR FLOTANTE CON PSI */}
-                            <div className="absolute left-16 z-30 transition-all duration-700" style={{bottom: `${getPct(resultPressureBar)}%`, transform: 'translateY(50%)'}}>
-                                <div className="bg-slate-900 border border-slate-500 px-3 py-1 rounded shadow-xl flex flex-col items-center gap-0 min-w-[100px]">
-                                    <span className={`text-2xl font-bold font-mono ${statusColor}`}>{resultPressureBar.toFixed(2)} <span className="text-xs">bar</span></span>
-                                    <span className="text-xs font-bold text-slate-400">{toPsi(resultPressureBar)} PSI</span>
-                                </div>
-                            </div>
+                    {/* LAYOUT COMBINADO: 2 COLUMNAS (Con Padding Top para que no choque el título) */}
+                    <div className="grid grid-cols-12 h-full pt-12">
+                        {/* 2D: Manómetro */}
+                        <div className="col-span-3 md:col-span-2 border-r border-slate-800 bg-slate-900/50 flex items-center justify-center">
+                            <Manometer2D currentBar={resultPressureBar} targetBar={state.recPressure} />
                         </div>
-                    </div>
-
-                    {/* DATOS + EFICIENCIA */}
-                    <div className="md:col-span-7 lg:col-span-8 flex flex-col gap-4">
                         
-                        {/* ESTADO DESGASTE */}
-                        <div className={`p-6 rounded-xl border-2 shadow-lg flex flex-col justify-center items-center text-center transition-colors ${statusColor.includes('red') ? 'bg-red-900/20 border-red-500/50' : statusColor.includes('blue') ? 'bg-blue-900/20 border-blue-500/50' : 'bg-green-900/20 border-green-500/50'}`}>
-                            <WearIcon className={`w-16 h-16 mb-2 ${statusColor} opacity-90`} />
-                            <h3 className={`text-3xl font-black uppercase leading-none mb-2 ${statusColor} drop-shadow-lg`}>{wearText}</h3>
-                            <p className="text-slate-200 text-lg font-medium leading-relaxed">{wearDesc}</p>
-                        </div>
-
-                        {/* DATOS NUMÉRICOS */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-slate-800/60 border border-slate-700 p-4 rounded-xl text-center">
-                                <div className="text-xs font-bold text-slate-500 uppercase mb-1">Presión Real (PSI)</div>
-                                <div className="text-4xl font-mono font-bold text-white">{toPsi(resultPressureBar)}</div>
-                            </div>
-                            <div className="bg-slate-800/60 border border-slate-700 p-4 rounded-xl text-center">
-                                <div className="text-xs font-bold text-slate-500 uppercase mb-1">Temp. Gas Interno</div>
-                                <div className="text-4xl font-mono font-bold text-orange-300">{effectiveTargetTemp.toFixed(0)}°</div>
-                            </div>
-                        </div>
-
-                        {/* EFICIENCIA */}
-                        <div className="bg-slate-900/50 border border-slate-700 rounded-xl p-5 mt-auto">
-                            <div className="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-2">
-                                <h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2"><Icons.Zap className="w-4 h-4 text-yellow-400"/> Impacto Eficiencia</h4>
-                                <span className="text-[10px] text-slate-500 font-bold">Ref: {REF_CONSUMPTION} kWh/100</span>
-                            </div>
+                        {/* 3D: Rueda Centrada */}
+                        <div className="col-span-9 md:col-span-10 relative flex items-center justify-center">
+                            <Tire3DScene currentBar={resultPressureBar} targetBar={state.recPressure} />
                             
-                            <div className="flex items-center justify-around gap-4">
-                                <div className="text-center flex-1">
-                                    <div className="text-xs text-slate-500 font-bold uppercase mb-1">Autonomía (100km)</div>
-                                    <div className={`text-3xl font-mono font-bold ${kmDiff < -0.1 ? 'text-red-400' : kmDiff > 0.1 ? 'text-green-400' : 'text-white'}`}>
-                                        {kmDiff > 0 ? '+' : ''}{kmDiff.toFixed(1)} <span className="text-sm text-slate-500">km</span>
-                                    </div>
-                                    <div className="text-[10px] text-slate-500 mt-1">{kmDiff < 0 ? 'Pérdida por rozamiento' : kmDiff > 0 ? 'Ganancia teórica' : 'Sin impacto'}</div>
+                            {/* Datos Flotantes sobre el 3D */}
+                            <div className="absolute bottom-4 right-4 flex gap-4 pointer-events-none z-20">
+                                <div className="bg-slate-900/90 border border-slate-600 px-4 py-2 rounded-xl text-center shadow-xl backdrop-blur-md">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase">PRESIÓN REAL</div>
+                                    <div className={`text-2xl font-mono font-bold ${statusColor}`}>{resultPressureBar.toFixed(2)} bar</div>
+                                    <div className="text-xs font-bold text-white">{toPsi(resultPressureBar)} PSI</div>
                                 </div>
-                                <div className="w-px h-12 bg-slate-700"></div>
-                                <div className="text-center flex-1">
-                                    <div className="text-xs text-slate-500 font-bold uppercase mb-1">Energía Extra</div>
-                                    <div className={`text-3xl font-mono font-bold ${extraConsumptionKwh > 0.01 ? 'text-red-400' : extraConsumptionKwh < -0.01 ? 'text-green-400' : 'text-white'}`}>
-                                        {extraConsumptionKwh > 0 ? '+' : ''}{extraConsumptionKwh.toFixed(2)} <span className="text-sm text-slate-500">kWh</span>
-                                    </div>
-                                    <div className="text-[10px] text-slate-500 mt-1">Diferencial consumo</div>
+                                <div className="bg-slate-900/90 border border-slate-600 px-4 py-2 rounded-xl text-center shadow-xl backdrop-blur-md hidden sm:block">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase">TEMP GAS</div>
+                                    <div className="text-2xl font-mono font-bold text-orange-300">{effectiveTargetTemp.toFixed(0)}°C</div>
                                 </div>
                             </div>
                         </div>
-
                     </div>
                 </div>
 
-                {/* FOOTER AMAZON - XIAOMI COMPRESSOR */}
-                <div className="mt-2 p-6 bg-slate-800 border border-slate-700 rounded-xl flex flex-col items-center gap-4 text-center">
-                    <div className="flex items-center gap-2 mb-1">
-                        <Icons.Zap className="w-5 h-5 text-orange-500" />
-                        <span className="text-sm font-bold text-slate-300 uppercase tracking-wider">Accesorio Recomendado</span>
+                {/* 3. PANELES DE DIAGNÓSTICO (ABAJO) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Desgaste */}
+                    <div className={`p-6 rounded-xl border-2 shadow-lg flex flex-col justify-center items-center text-center transition-colors ${statusColor.includes('red') ? 'bg-red-900/20 border-red-500/50' : statusColor.includes('blue') ? 'bg-blue-900/20 border-blue-500/50' : 'bg-green-900/20 border-green-500/50'}`}>
+                        <WearIcon className={`w-12 h-12 mb-2 ${statusColor}`} />
+                        <h3 className={`text-2xl font-black uppercase leading-tight mb-2 ${statusColor}`}>{wearText}</h3>
+                        <p className="text-slate-300 text-sm font-medium">
+                            {val < p * 0.96 ? "Neumático aplastado. Riesgo de reventón y desgaste rápido en hombros." : 
+                             val > p * 1.05 ? "Neumático abombado. Desgaste central y menor superficie de frenada." : 
+                             "Pisada óptima. Máxima adherencia y vida útil."}
+                        </p>
                     </div>
-                    <p className="text-xs text-slate-400 max-w-2xl">
-                        Para mantener la presión exacta en cualquier lugar sin depender de gasolineras (y ajustarla en frío), el compresor portátil de Xiaomi es el estándar de oro para propietarios de Tesla.
-                    </p>
-                    <a 
-                        href="https://www.amazon.es/s?k=xiaomi+portable+electric+air+compressor+2" // Poner aquí tu enlace de referido si lo tienes
-                        target="_blank" 
-                        className="bg-orange-600 hover:bg-orange-500 text-white text-lg font-bold px-8 py-3 rounded-xl transition-all shadow-lg hover:shadow-orange-500/20 transform hover:-translate-y-1 flex items-center gap-2"
-                    >
-                        COMPRAR XIAOMI AIR COMPRESSOR 2 PRO
-                    </a>
+
+                    {/* Eficiencia */}
+                    <div className="bg-slate-800/40 border border-slate-700 rounded-xl p-6 flex flex-col justify-center">
+                        <div className="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-2"><h4 className="text-sm font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2"><Icons.Zap className="w-4 h-4 text-yellow-400"/> Impacto en Autonomía</h4></div>
+                        <div className="grid grid-cols-2 gap-4 text-center">
+                            <div><div className="text-xs text-slate-500 font-bold uppercase mb-1">Rango (100km)</div><div className={`text-2xl font-mono font-bold ${kmDiff < -0.1 ? 'text-red-400' : kmDiff > 0.1 ? 'text-green-400' : 'text-white'}`}>{kmDiff > 0 ? '+' : ''}{kmDiff.toFixed(1)} <span className="text-sm text-slate-500">km</span></div></div>
+                            <div><div className="text-xs text-slate-500 font-bold uppercase mb-1">Consumo Extra</div><div className={`text-2xl font-mono font-bold ${extraConsumptionKwh > 0.01 ? 'text-red-400' : extraConsumptionKwh < -0.01 ? 'text-green-400' : 'text-white'}`}>{extraConsumptionKwh > 0 ? '+' : ''}{extraConsumptionKwh.toFixed(2)} <span className="text-sm text-slate-500">kWh</span></div></div>
+                        </div>
+                        
+                        {/* Explicación Técnica */}
+                        <div className="mt-4 pt-3 border-t border-slate-700/50 text-[10px] text-slate-400 leading-relaxed bg-slate-900/30 p-2 rounded">
+                            <strong>¿Por qué ocurre esto?</strong> Una presión baja aumenta la superficie de contacto del neumático con el suelo (resistencia a la rodadura), lo que obliga al motor a usar más energía (kWh) para mover el coche, reduciendo los km totales.
+                        </div>
+                    </div>
+                </div>
+
+                {/* FOOTER AMAZON */}
+                <div className="mt-2 p-4 bg-slate-800 border border-slate-700 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="text-left"><div className="flex items-center gap-2 mb-1"><Icons.Zap className="w-5 h-5 text-orange-500" /><span className="text-sm font-bold text-slate-300 uppercase">Herramienta Recomendada</span></div><p className="text-xs text-slate-400 max-w-lg">Ajusta la presión en frío donde quieras con el compresor Xiaomi Portable 2 Pro. Digital y exacto.</p></div>
+                    <a href="https://www.amazon.es/s?k=xiaomi+portable+electric+air+compressor+2" target="_blank" className="bg-orange-600 hover:bg-orange-500 text-white text-sm font-bold px-6 py-3 rounded-xl transition-all shadow-lg whitespace-nowrap">Ver en Amazon ➜</a>
                 </div>
             </div>
         );
       };
+
 
   
       // --- GUÍA DE ROTACIÓN DE NEUMÁTICOS (V2 - INTERVALO PERSONALIZABLE) ---
