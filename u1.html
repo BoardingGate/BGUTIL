@@ -1225,7 +1225,8 @@ const Icons = {
       };
 
         
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICO 3D MATRIX CORREGIDO FINAL) ---
+   
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICO 3D PERFECT ALIGNMENT) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1252,15 +1253,20 @@ const Icons = {
 
                 // 1. SETUP
                 const width = mountRef.current.offsetWidth;
-                const height = 320; 
+                const height = 300; 
                 const scene = new THREE.Scene();
                 scene.background = null; 
 
-                // Cámara isométrica
-                const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 1000);
-                const camDist = 130; // Un poco más lejos para acomodar la altura extra
-                camera.position.set(0, 35, camDist); 
-                camera.lookAt(0, 15, 0); // Mirar un poco más arriba (centro de las barras nuevas)
+                // CONFIGURACIÓN CLAVE PARA ALINEACIÓN:
+                // Altura máxima de las barras
+                const maxBarHeight = 50; 
+                const centerY = maxBarHeight / 2;
+
+                // Cámara: Posición Y igual al centro de las barras para evitar distorsión vertical
+                const camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 1000);
+                const camDist = 160; 
+                camera.position.set(0, centerY, camDist); 
+                camera.lookAt(0, centerY, 0); 
 
                 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
                 renderer.setSize(width, height);
@@ -1271,12 +1277,12 @@ const Icons = {
                 }
                 mountRef.current.appendChild(renderer.domElement);
 
-                // 2. CÁLCULO DE ALINEACIÓN
+                // 2. CÁLCULO DE ALINEACIÓN HORIZONTAL
                 const vFOV = THREE.MathUtils.degToRad(camera.fov); 
                 const visibleHeight = 2 * Math.tan(vFOV / 2) * camDist;
                 const visibleWidth = visibleHeight * camera.aspect;
                 
-                const workingWidth = visibleWidth * 0.85; 
+                const workingWidth = visibleWidth * 0.82; // Margen lateral para encajar con columnas HTML
                 const spacing = workingWidth / 7;
                 const startX = - (spacing * 3); 
 
@@ -1284,7 +1290,7 @@ const Icons = {
                 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
                 scene.add(ambientLight);
                 const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-                dirLight.position.set(20, 50, 20);
+                dirLight.position.set(20, 50, 50);
                 scene.add(dirLight);
                 const bottomLight = new THREE.PointLight(0x3b82f6, 0.5);
                 bottomLight.position.set(0, -10, 20);
@@ -1294,17 +1300,16 @@ const Icons = {
                 const mainGroup = new THREE.Group();
                 scene.add(mainGroup);
 
-                // CONFIGURACIÓN DE DIMENSIONES (AUMENTADA ALTURA)
-                const maxBarHeight = 55; // Aumentado de 35 a 55 para estirar la gráfica
-                const radius = spacing * 0.25;
+                const radius = spacing * 0.28; // Cilindros un poco más anchos
 
-                // A. RETICULADO (GRID) HORIZONTAL
+                // A. RETICULADO (GRID)
                 const gridGroup = new THREE.Group();
                 const gridMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
                 
                 // Líneas cada 10% (0 a 10 inclusive)
                 for(let i=0; i<=10; i++) {
-                    const y = 1 + (i * 10 / 100) * maxBarHeight;
+                    // El suelo es Y=0.
+                    const y = (i * 10 / 100) * maxBarHeight;
                     const points = [];
                     points.push(new THREE.Vector3(-visibleWidth/2 + 5, y, -5));
                     points.push(new THREE.Vector3(visibleWidth/2 - 5, y, -5));
@@ -1320,11 +1325,11 @@ const Icons = {
                     const xPos = startX + (index * spacing);
                     dayGroup.position.set(xPos, 0, 0);
 
-                    // Base
-                    const baseGeo = new THREE.CylinderGeometry(radius + 0.5, radius + 0.5, 1, 32);
+                    // Base (Suelo) en Y=0
+                    const baseGeo = new THREE.CylinderGeometry(radius + 0.5, radius + 0.5, 0.5, 32);
                     const baseMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.2 });
                     const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-                    baseMesh.position.y = 0.5;
+                    baseMesh.position.y = -0.25; // Justo debajo de 0
                     dayGroup.add(baseMesh);
 
                     // Energía Restante (Sólido)
@@ -1344,7 +1349,7 @@ const Icons = {
                             roughness: 0.3 
                         });
                         const solidMesh = new THREE.Mesh(solidGeo, solidMat);
-                        solidMesh.position.y = 1 + (solidHeight / 2);
+                        solidMesh.position.y = solidHeight / 2; // Desde 0 hacia arriba
                         dayGroup.add(solidMesh);
                     }
 
@@ -1356,13 +1361,13 @@ const Icons = {
                         const glassMat = new THREE.MeshPhysicalMaterial({ 
                             color: 0xffffff, 
                             transparent: true, 
-                            opacity: 0.2, 
+                            opacity: 0.15, 
                             roughness: 0.1,
                             metalness: 0.1,
-                            transmission: 0.5 
+                            transmission: 0.6 
                         });
                         const glassMesh = new THREE.Mesh(glassGeo, glassMat);
-                        glassMesh.position.y = 1 + solidHeight + (glassHeight / 2);
+                        glassMesh.position.y = solidHeight + (glassHeight / 2);
                         dayGroup.add(glassMesh);
                     }
 
@@ -1374,14 +1379,14 @@ const Icons = {
                         const ringMat = new THREE.MeshBasicMaterial({ color: 0x60a5fa });
                         const ringMesh = new THREE.Mesh(ringGeo, ringMat);
                         ringMesh.rotation.x = Math.PI / 2;
-                        ringMesh.position.y = 1 + targetHeight;
+                        ringMesh.position.y = targetHeight;
                         dayGroup.add(ringMesh);
 
                         // Hilo conector
                         const guideGeo = new THREE.CylinderGeometry(0.05, 0.05, targetHeight, 8);
                         const guideMat = new THREE.MeshBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.3 });
                         const guideMesh = new THREE.Mesh(guideGeo, guideMat);
-                        guideMesh.position.y = 1 + (targetHeight / 2);
+                        guideMesh.position.y = targetHeight / 2;
                         dayGroup.add(guideMesh);
                     }
 
@@ -1394,7 +1399,7 @@ const Icons = {
                 const animate = () => {
                     frameId = requestAnimationFrame(animate);
                     time += 0.005;
-                    mainGroup.rotation.y = Math.sin(time) * 0.05; 
+                    mainGroup.rotation.y = Math.sin(time) * 0.03; // Oscilación muy leve
                     renderer.render(scene, camera);
                 };
                 animate();
@@ -1416,7 +1421,7 @@ const Icons = {
                 };
             }, [data]);
 
-            return <div ref={mountRef} className="w-full h-[320px] cursor-grab active:cursor-grabbing" title="Matriz de Energía 3D" />;
+            return <div ref={mountRef} className="w-full h-[300px] cursor-grab active:cursor-grabbing" title="Matriz de Energía 3D" />;
         };
 
         // Estado para la fecha de guardado
@@ -1805,10 +1810,10 @@ const Icons = {
                             <Icons.Activity className="w-4 h-4" /> Evolución de Carga Diaria (Matriz 3D)
                         </h4>
                         
-                        <div className="rounded-xl overflow-hidden bg-gradient-to-b from-slate-900/0 via-slate-900/50 to-slate-900/0 border border-white/5 relative h-[320px]">
+                        <div className="rounded-xl overflow-hidden bg-gradient-to-b from-slate-900/0 via-slate-900/50 to-slate-900/0 border border-white/5 relative h-[300px]">
                             
-                            {/* EJE Y (CORREGIDO: ALINEACIÓN VERTICAL AJUSTADA AL PIXEL) */}
-                            <div className="absolute top-[30px] bottom-[60px] left-2 w-8 flex flex-col justify-between text-[9px] text-slate-500 font-bold text-right z-10 select-none">
+                            {/* EJE Y (ALINEACIÓN EXACTA CON PUNTOS 3D - TOP:6px, BOTTOM: 8px) */}
+                            <div className="absolute top-[6px] bottom-[8px] left-2 w-8 flex flex-col justify-between text-[9px] text-slate-500 font-bold text-right z-10 select-none">
                                 {[100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0].map(val => (
                                     <div key={val} className="h-0 flex items-center justify-end">
                                         <span>{val}%</span>
@@ -1820,7 +1825,7 @@ const Icons = {
                                 <WeeklyCharge3D data={results} />
                             </div>
                             
-                            {/* ETIQUETAS DÍAS + DATOS CARGA */}
+                            {/* ETIQUETAS DÍAS + DATOS CARGA (Pegado a la base 3D) */}
                             <div className="absolute bottom-2 w-full flex px-[7.5%] pointer-events-none">
                                 {results.map((row, i) => {
                                     const totalRangeAtTarget = (row.target / 100) * (state.battery / state.consumption) * 100;
