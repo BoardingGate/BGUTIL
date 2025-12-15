@@ -1225,7 +1225,8 @@ const Icons = {
       };
 
         
-    // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICO 3D MATRIX CORREGIDO) ---
+    
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (CORREGIDO: CARAGE + GRÁFICO ALINEADO) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1297,17 +1298,14 @@ const Icons = {
                 const maxBarHeight = 35; // Altura del 100%
                 const radius = spacing * 0.25;
 
-                // A. RETICULADO (GRID) HORIZONTAL CORREGIDO (0 a 100)
+                // A. RETICULADO (GRID) HORIZONTAL (0 a 100)
                 const gridGroup = new THREE.Group();
-                // Material más visible para la línea
                 const gridMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
                 
                 // Líneas cada 10% (0 a 10 inclusive)
                 for(let i=0; i<=10; i++) {
-                    // y=1 es el suelo de la barra sólida.
                     const y = 1 + (i * 10 / 100) * maxBarHeight;
                     const points = [];
-                    // Línea ancha que cruza toda la gráfica
                     points.push(new THREE.Vector3(-visibleWidth/2 + 5, y, -5));
                     points.push(new THREE.Vector3(visibleWidth/2 - 5, y, -5));
                     const geometry = new THREE.BufferGeometry().setFromPoints(points);
@@ -1470,6 +1468,47 @@ const Icons = {
             const startM = Math.round(startTotal % 60);
             return `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
         };
+
+        // --- HELPERS RECUPERADOS (ESENCIALES PARA EVITAR ReferenceError) ---
+        const parseSmartDate = (dateStr) => {
+            if (!dateStr) return null;
+            const parts = dateStr.split(/[-/]/);
+            if (parts.length === 3) {
+                const p0 = parseInt(parts[0], 10);
+                const p1 = parseInt(parts[1], 10);
+                const p2 = parseInt(parts[2], 10);
+                if (!isNaN(p0) && !isNaN(p1) && !isNaN(p2)) {
+                    if (p2 > 1000) {
+                        const date = new Date(p2, p1 - 1, p0);
+                        if (date.getFullYear() === p2 && date.getMonth() === p1 - 1 && date.getDate() === p0) {
+                            return date;
+                        }
+                    }
+                }
+            }
+            const isoDate = new Date(dateStr);
+            if (!isNaN(isoDate.getTime())) return isoDate;
+            return null;
+        };
+
+        const getCarAge = () => {
+            if (!state.purchaseDate) return null;
+            const start = parseSmartDate(state.purchaseDate);
+            if (!start) return null;
+            const now = new Date();
+            const diffTime = Math.abs(now - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+            const safeDays = Math.max(1, diffDays);
+            let years = now.getFullYear() - start.getFullYear();
+            let months = now.getMonth() - start.getMonth();
+            if (months < 0 || (months === 0 && now.getDate() < start.getDate())) {
+                years--;
+                months += 12;
+            }
+            return { text: `${years} años y ${months} meses`, days: safeDays };
+        };
+
+        const carAge = getCarAge(); // Definido ANTES de usarse en Histórico
 
         // --- CÁLCULOS PRINCIPALES ---
         const calcAmps = () => state.power >= 11 ? { val: (state.power * 1000) / (400 * Math.sqrt(3)), phase: 'Trifásica (400V)'} : { val: (state.power * 1000) / 230, phase: 'Monofásica (230V)'};
@@ -2090,9 +2129,7 @@ const Icons = {
             </div>
         );
       };
-
-      
-    
+ 
       
 
       // --- CURVA DE CARGA (MODIFICADO LAYOUT & FUENTES) ---
