@@ -3809,7 +3809,7 @@ const Icons = {
       };
 
 
-      // --- LABORATORIO DE NEUMÁTICOS V10 (COMBINADO) ---
+      // --- LABORATORIO DE NEUMÁTICOS V10 (MEJORADO) ---
       const TirePressureLab = () => {
         const [state, setState] = usePersistentState('tireLabV10', {
             recPressure: 2.9, startPressure: 2.9, refTemp: 20, targetTemp: 5, highwayMode: false, gasType: 'air'
@@ -3819,6 +3819,7 @@ const Icons = {
         const HIGHWAY_TEMP_ADD = 25; 
         const REF_CONSUMPTION = 14.5; 
 
+        // Helper para mostrar PSI sin decimales
         const toPsi = (bar) => (bar * BAR_TO_PSI).toFixed(0);
 
         const adjust = (key, delta, min, max) => {
@@ -3838,6 +3839,7 @@ const Icons = {
         let resultPressureBar = state.startPressure * (t2Kelvin / t1Kelvin);
 
         if (state.gasType === 'air' && effectiveTargetTemp > state.refTemp) {
+            // El aire tiene humedad, expande más que el N2 puro
             resultPressureBar += (effectiveTargetTemp - state.refTemp) * 0.002; 
         }
         
@@ -3855,12 +3857,19 @@ const Icons = {
 
         // EFICIENCIA
         const pressureDiffPct = (resultPressureBar - state.recPressure) / state.recPressure;
+        // Aproximación empírica: -10% presión ~ +3% consumo (resistencia a rodadura)
         const extraConsumptionKwh = REF_CONSUMPTION * (pressureDiffPct * 100 * -0.3 / 100);
         const kmDiff = ((REF_CONSUMPTION / (REF_CONSUMPTION + extraConsumptionKwh)) * 100) - 100;
 
-        const PrecisionSlider = ({ label, value, min, max, step, onChangeKey, unit, colorClass = "text-white" }) => (
+        // Slider reutilizable con soporte PSI opcional
+        const PrecisionSlider = ({ label, value, min, max, step, onChangeKey, unit, colorClass = "text-white", showPsi = false }) => (
             <div>
-                <div className="flex justify-between mb-1 text-xs font-bold text-slate-300"><span>{label}</span><span className={colorClass}>{value} {unit}</span></div>
+                <div className="flex justify-between mb-1 text-xs font-bold text-slate-300">
+                    <span>{label}</span>
+                    <span className={colorClass}>
+                        {value} {unit} {showPsi && <span className="text-slate-500 font-normal">({toPsi(value)} PSI)</span>}
+                    </span>
+                </div>
                 <div className="flex items-center gap-3">
                     <button onClick={() => adjust(onChangeKey, -step, min, max)} className="w-8 h-8 flex items-center justify-center bg-slate-700 hover:bg-slate-600 rounded text-white font-bold text-lg select-none">-</button>
                     <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => handleChange(onChangeKey, e.target.value)} className="flex-1 h-2 bg-slate-700 rounded-lg cursor-pointer accent-blue-500"/>
@@ -3870,51 +3879,77 @@ const Icons = {
         );
 
         return (
-            <div className="space-y-6 animate-fade-in">
+            <div className="space-y-6 animate-fade-in pb-10">
                 {/* 1. CONFIGURACIÓN (TOP) */}
                 <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-5 shadow-lg">
                     <h2 className="text-lg font-display font-bold text-white mb-4 flex items-center gap-2 border-b border-slate-800 pb-2"><Icons.Settings className="w-5 h-5 text-slate-400" /> Laboratorio de Presión</h2>
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        
+                        {/* COLUMNA 1: REFERENCIA */}
                         <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 flex flex-col justify-center">
-                            <label className="text-xs font-bold text-yellow-500 uppercase block mb-3">Referencia (Puerta)</label>
-                            <div className="flex items-center justify-between mb-2"><span className="text-3xl font-mono font-bold text-white">{state.recPressure} <span className="text-sm text-slate-500">bar</span></span></div>
+                            <label className="text-xs font-bold text-yellow-500 uppercase block mb-3">Referencia (Etiqueta Puerta)</label>
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-3xl font-mono font-bold text-white">{state.recPressure} <span className="text-sm text-slate-500">bar</span></span>
+                                <span className="text-xl font-mono font-bold text-slate-400">{toPsi(state.recPressure)} <span className="text-xs text-slate-500">PSI</span></span>
+                            </div>
                             <div className="flex items-center gap-3">
                                 <button onClick={() => adjust('recPressure', -0.1, 2.2, 3.4)} className="w-8 h-8 bg-slate-700 hover:bg-slate-600 rounded text-yellow-500 font-bold">-</button>
                                 <input type="range" min="2.2" max="3.4" step="0.1" value={state.recPressure} onChange={e => handleChange('recPressure', e.target.value)} className="flex-1 h-3 bg-slate-700 rounded-lg accent-yellow-500 cursor-pointer"/>
                                 <button onClick={() => adjust('recPressure', 0.1, 2.2, 3.4)} className="w-8 h-8 bg-slate-700 hover:bg-slate-600 rounded text-yellow-500 font-bold">+</button>
                             </div>
                         </div>
+
+                        {/* COLUMNA 2: INFLADO INICIAL */}
                         <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
                             <label className="text-xs font-bold text-blue-400 uppercase block border-b border-slate-700 pb-1">Inflado Inicial</label>
-                            <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-600 mb-1"><button onClick={() => setState(p => ({...p, gasType: 'air'}))} className={`flex-1 py-2 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'air' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Aire</button><button onClick={() => setState(p => ({...p, gasType: 'nitro'}))} className={`flex-1 py-2 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'nitro' ? 'bg-green-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Nitrógeno</button></div>
-                            <PrecisionSlider label="Presión Puesta" value={state.startPressure} min={1.5} max={4.0} step={0.1} onChangeKey="startPressure" unit="bar" />
+                            
+                            <div>
+                                <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-600 mb-2">
+                                    <button onClick={() => setState(p => ({...p, gasType: 'air'}))} className={`flex-1 py-2 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'air' ? 'bg-slate-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Aire</button>
+                                    <button onClick={() => setState(p => ({...p, gasType: 'nitro'}))} className={`flex-1 py-2 text-[10px] font-bold uppercase rounded transition-all ${state.gasType === 'nitro' ? 'bg-green-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>Nitrógeno</button>
+                                </div>
+                                <p className="text-[10px] text-slate-500 italic leading-tight">
+                                    {state.gasType === 'air' 
+                                        ? "El aire normal contiene humedad que se expande más con el calor." 
+                                        : "El nitrógeno es un gas seco y más estable a cambios de temperatura."}
+                                </p>
+                            </div>
+
+                            <PrecisionSlider label="Presión Puesta" value={state.startPressure} min={1.5} max={4.0} step={0.1} onChangeKey="startPressure" unit="bar" showPsi={true} />
                             <PrecisionSlider label="Temp. Ambiente" value={state.refTemp} min={-10} max={45} step={1} onChangeKey="refTemp" unit="ºC" colorClass="text-orange-400" />
                         </div>
+
+                        {/* COLUMNA 3: CONDICIONES */}
                         <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 space-y-4">
                             <label className="text-xs font-bold text-cyan-400 uppercase block border-b border-slate-700 pb-1">Condiciones Rodaje</label>
                             <PrecisionSlider label="Temp. Exterior" value={state.targetTemp} min={-20} max={50} step={1} onChangeKey="targetTemp" unit="ºC" colorClass="text-cyan-400" />
-                            <div className="mt-4 pt-2 cursor-pointer" onClick={() => setState(p => ({...p, highwayMode: !p.highwayMode}))}><div className="flex items-center justify-between"><span className="text-xs font-bold text-slate-300">Modo Autopista</span><div className={`w-10 h-6 rounded-full p-1 transition-colors ${state.highwayMode ? 'bg-green-500' : 'bg-slate-700'}`}><div className={`bg-white w-4 h-4 rounded-full transition-transform ${state.highwayMode ? 'translate-x-4' : 'translate-x-0'}`}></div></div></div><div className="text-[9px] text-slate-500 mt-1 italic text-right">{state.highwayMode ? "+25ºC fricción" : "Sin fricción extra"}</div></div>
+                            <div className="mt-4 pt-2 cursor-pointer" onClick={() => setState(p => ({...p, highwayMode: !p.highwayMode}))}><div className="flex items-center justify-between"><span className="text-xs font-bold text-slate-300">Modo Autopista</span><div className={`w-10 h-6 rounded-full p-1 transition-colors ${state.highwayMode ? 'bg-green-500' : 'bg-slate-700'}`}><div className={`bg-white w-4 h-4 rounded-full transition-transform ${state.highwayMode ? 'translate-x-4' : 'translate-x-0'}`}></div></div></div><div className="text-[9px] text-slate-500 mt-1 italic text-right">{state.highwayMode ? "+25ºC fricción rodadura" : "Sin fricción extra"}</div></div>
                         </div>
                     </div>
                 </div>
 
                 {/* 2. VISUALIZADOR COMBINADO (CENTRO) */}
-                <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden relative shadow-2xl">
-                    <div className="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur px-3 py-1 rounded border border-slate-700"><div className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2"><Icons.Activity className="w-4 h-4"/> Simulación Visual (2D + 3D)</div></div>
+                <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden relative shadow-2xl min-h-[450px]">
+                    {/* Título absoluto */}
+                    <div className="absolute top-4 left-4 z-10 bg-slate-900/80 backdrop-blur px-3 py-1 rounded border border-slate-700">
+                        <div className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2">
+                            <Icons.Activity className="w-4 h-4"/> Simulación Visual (2D + 3D)
+                        </div>
+                    </div>
                     
-                    {/* LAYOUT COMBINADO: 2 COLUMNAS */}
-                    <div className="grid grid-cols-12 h-full">
+                    {/* LAYOUT COMBINADO: 2 COLUMNAS (Con Padding Top para que no choque el título) */}
+                    <div className="grid grid-cols-12 h-full pt-12">
                         {/* 2D: Manómetro */}
-                        <div className="col-span-3 md:col-span-2 border-r border-slate-800 bg-slate-900/50">
+                        <div className="col-span-3 md:col-span-2 border-r border-slate-800 bg-slate-900/50 flex items-center justify-center">
                             <Manometer2D currentBar={resultPressureBar} targetBar={state.recPressure} />
                         </div>
                         
                         {/* 3D: Rueda Centrada */}
-                        <div className="col-span-9 md:col-span-10 relative">
+                        <div className="col-span-9 md:col-span-10 relative flex items-center justify-center">
                             <Tire3DScene currentBar={resultPressureBar} targetBar={state.recPressure} />
                             
                             {/* Datos Flotantes sobre el 3D */}
-                            <div className="absolute bottom-4 right-4 flex gap-4 pointer-events-none">
+                            <div className="absolute bottom-4 right-4 flex gap-4 pointer-events-none z-20">
                                 <div className="bg-slate-900/90 border border-slate-600 px-4 py-2 rounded-xl text-center shadow-xl backdrop-blur-md">
                                     <div className="text-[10px] font-bold text-slate-400 uppercase">PRESIÓN REAL</div>
                                     <div className={`text-2xl font-mono font-bold ${statusColor}`}>{resultPressureBar.toFixed(2)} bar</div>
@@ -3949,6 +3984,11 @@ const Icons = {
                             <div><div className="text-xs text-slate-500 font-bold uppercase mb-1">Rango (100km)</div><div className={`text-2xl font-mono font-bold ${kmDiff < -0.1 ? 'text-red-400' : kmDiff > 0.1 ? 'text-green-400' : 'text-white'}`}>{kmDiff > 0 ? '+' : ''}{kmDiff.toFixed(1)} <span className="text-sm text-slate-500">km</span></div></div>
                             <div><div className="text-xs text-slate-500 font-bold uppercase mb-1">Consumo Extra</div><div className={`text-2xl font-mono font-bold ${extraConsumptionKwh > 0.01 ? 'text-red-400' : extraConsumptionKwh < -0.01 ? 'text-green-400' : 'text-white'}`}>{extraConsumptionKwh > 0 ? '+' : ''}{extraConsumptionKwh.toFixed(2)} <span className="text-sm text-slate-500">kWh</span></div></div>
                         </div>
+                        
+                        {/* Explicación Técnica */}
+                        <div className="mt-4 pt-3 border-t border-slate-700/50 text-[10px] text-slate-400 leading-relaxed bg-slate-900/30 p-2 rounded">
+                            <strong>¿Por qué ocurre esto?</strong> Una presión baja aumenta la superficie de contacto del neumático con el suelo (resistencia a la rodadura), lo que obliga al motor a usar más energía (kWh) para mover el coche, reduciendo los km totales.
+                        </div>
                     </div>
                 </div>
 
@@ -3960,7 +4000,6 @@ const Icons = {
             </div>
         );
       };
-
 
 
   
