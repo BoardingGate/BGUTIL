@@ -3581,9 +3581,9 @@ const Icons = {
       };
 
 
-      // --- LABORATORIO DE NEUMÁTICOS V12 (RUEDA RESTAURADA + PSI + FIXED TITLE) ---
+      // --- LABORATORIO DE NEUMÁTICOS V13 (RUEDA DONUT GIRATORIA + PSI + FIXED TITLE) ---
       const TirePressureLab = () => {
-        const [state, setState] = usePersistentState('tireLabV12', {
+        const [state, setState] = usePersistentState('tireLabV13', {
             recPressure: 2.9, // Objetivo (bar)
             startPressure: 2.9, // Inicial (bar)
             refTemp: 20,      // ºC inicial
@@ -3792,7 +3792,7 @@ const Icons = {
                 {/* 2. RESULTADOS (MANÓMETRO + RUEDA + DATOS) */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                     
-                    {/* VISUALIZADOR 2D + 3D (BARRA + RUEDA) */}
+                    {/* VISUALIZADOR 2D + 3D (BARRA + RUEDA DONUT) */}
                     <div className="md:col-span-12 lg:col-span-5 bg-slate-900/80 border border-slate-800 rounded-xl flex flex-col relative overflow-hidden h-[500px]">
                         
                         {/* TÍTULO SEPARADO (Solución solapamiento) */}
@@ -3804,7 +3804,7 @@ const Icons = {
                         </div>
 
                         {/* ÁREA GRÁFICA (FLEX ROW PARA BARRA Y RUEDA) */}
-                        <div className="flex-1 flex items-end justify-center relative pb-8 pt-4 gap-8">
+                        <div className="flex-1 flex items-end justify-center relative pb-8 pt-4 gap-4">
                             
                             {/* 1. BARRA VERTICAL (MANÓMETRO) */}
                             <div className="w-24 h-full relative flex">
@@ -3840,31 +3840,33 @@ const Icons = {
                                 </div>
                             </div>
 
-                            {/* 2. RUEDA 3D (SIMULACIÓN CSS) */}
-                            <div className="flex flex-col items-center justify-end h-full pb-4">
-                                <div className="relative perspective-[600px] w-40 h-64 flex items-center justify-center">
-                                    {/* Sombra Suelo */}
-                                    <div className="absolute bottom-[-10px] w-32 h-6 bg-black/60 blur-md rounded-[100%] transform rotate-x-60"></div>
+                            {/* 2. RUEDA ESTILO DONUT (3D CSS) */}
+                            <div className="flex flex-col items-center justify-center h-full pb-6 pl-4">
+                                <div 
+                                    className="relative w-48 h-48 rounded-full border-[3.5rem] border-slate-800 shadow-[0_10px_20px_rgba(0,0,0,0.5),inset_0_5px_15px_rgba(0,0,0,0.8)] transition-all duration-700 ease-out flex items-center justify-center"
+                                    style={{
+                                        transform: `scale(${0.9 + (resultPressureBar/20)}) rotateY(-20deg) rotateX(15deg)`, 
+                                        borderColor: '#1e293b'
+                                    }}
+                                >
+                                    {/* Tread pattern (Spinning) */}
+                                    <div className="absolute inset-[-3.5rem] rounded-full border-[3.5rem] border-dashed border-slate-600/30 animate-[spin_3s_linear_infinite]"></div>
                                     
-                                    {/* Cuerpo Neumático (Cilindro simulado) */}
-                                    <div 
-                                        className="w-28 h-56 bg-gradient-to-r from-slate-800 via-slate-700 to-slate-900 rounded-[2.5rem] border-l border-slate-600 shadow-[10px_0_20px_rgba(0,0,0,0.8)] relative transition-all duration-700 ease-out transform-gpu"
-                                        style={{
-                                            transform: `scale(${0.9 + (resultPressureBar/20)}) rotateY(-15deg)`, // Efecto hinchado sutil
-                                            width: `${100 + (Math.max(0, resultPressureBar - 2) * 8)}px` // Se ensancha al inflar
-                                        }}
-                                    >
-                                        {/* Brillo especular (simula redondez) */}
-                                        <div className="absolute top-0 left-4 w-6 h-full bg-gradient-to-r from-transparent via-white/10 to-transparent skew-x-[-5deg] blur-sm"></div>
-                                        
-                                        {/* Dibujo banda rodadura (Textura sutil) */}
-                                        <div className="absolute inset-0 opacity-20 bg-[linear-gradient(0deg,transparent_50%,#000_50%)] bg-[length:100%_8px] rounded-[2.5rem] overflow-hidden"></div>
-                                        
-                                        {/* Eje / Llanta asomando */}
-                                        <div className="absolute top-1/2 -right-4 w-4 h-12 bg-slate-900 -translate-y-1/2 rounded-r-md border-y border-r border-slate-600"></div>
+                                    {/* Rim */}
+                                    <div className="absolute inset-0 bg-slate-900 rounded-full flex items-center justify-center shadow-inner z-10">
+                                        <div className="w-2 h-2 bg-slate-500 rounded-full"></div>
+                                        {/* Spokes */}
+                                        <div className="absolute w-full h-2 bg-slate-800 rotate-0"></div>
+                                        <div className="absolute w-full h-2 bg-slate-800 rotate-90"></div>
+                                        <div className="absolute w-full h-2 bg-slate-800 rotate-45"></div>
+                                        <div className="absolute w-full h-2 bg-slate-800 -rotate-45"></div>
                                     </div>
+                                    
+                                    {/* Gloss overlay */}
+                                    <div className="absolute inset-[-3.5rem] rounded-full bg-gradient-to-tr from-white/10 to-transparent pointer-events-none z-20"></div>
                                 </div>
-                                <div className="text-[10px] font-bold text-slate-500 mt-2 uppercase tracking-widest">Simulación Perfil</div>
+                                <div className="text-[10px] font-bold text-slate-500 mt-6 uppercase tracking-widest text-center w-full">Simulación Donut</div>
+                                <div className="w-32 h-4 bg-black/40 blur-lg rounded-full mt-[-10px] transform rotate-x-60"></div>
                             </div>
 
                         </div>
@@ -3946,6 +3948,7 @@ const Icons = {
             </div>
         );
       };
+ 
 
 
   
