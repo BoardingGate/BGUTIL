@@ -4051,7 +4051,6 @@ const Icons = {
                 scene.add(dirLight);
 
                 // 3. OBJETOS
-                // Grupo principal para centrar todo
                 const carGroup = new THREE.Group();
                 scene.add(carGroup);
 
@@ -4061,11 +4060,11 @@ const Icons = {
                 const chassis = new THREE.Mesh(chassisGeo, chassisMat);
                 carGroup.add(chassis);
 
-                // Cabina (para saber cuál es el frente)
+                // Cabina
                 const cabinGeo = new THREE.BoxGeometry(12, 4, 15);
                 const cabin = new THREE.Mesh(cabinGeo, chassisMat);
                 cabin.position.y = 2.5;
-                cabin.position.z = 2; // Un poco atrás
+                cabin.position.z = 2; 
                 carGroup.add(cabin);
 
                 // Flecha Frente
@@ -4078,21 +4077,17 @@ const Icons = {
                 const arrowMat = new THREE.MeshBasicMaterial({ color: 0x475569 });
                 const frontArrow = new THREE.Mesh(arrowGeo, arrowMat);
                 frontArrow.rotation.x = -Math.PI / 2;
-                frontArrow.position.set(0, 0.6, -18); // Frente del coche (-Z)
+                frontArrow.position.set(0, 0.6, -18); 
                 carGroup.add(frontArrow);
 
-
                 // --- NEUMÁTICOS ---
-                // Definir geometría una vez y clonar
                 const createTire = () => {
                     const group = new THREE.Group();
-                    // Goma
                     const tireGeo = new THREE.CylinderGeometry(3, 3, 2.5, 32);
                     const tireMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.8 });
                     const tireMesh = new THREE.Mesh(tireGeo, tireMat);
                     tireMesh.rotation.z = Math.PI / 2;
                     group.add(tireMesh);
-                    // Llanta
                     const rimGeo = new THREE.CylinderGeometry(2, 2, 2.6, 16);
                     const rimMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.6, roughness: 0.3 });
                     const rimMesh = new THREE.Mesh(rimGeo, rimMat);
@@ -4101,17 +4096,16 @@ const Icons = {
                     return group;
                 };
 
-                // Posiciones Base: 0:FL, 1:FR, 2:RL, 3:RR (Z negativo es frente en ThreeJS standard, pero aquí usaremos Z- para frente visual)
-                // Posiciones: X (izq/der), Y (altura), Z (frente/atras)
+                // Posiciones Base: 0:FL, 1:FR, 2:RL, 3:RR
+                // Z negativo es "arriba" en la pantalla (Frente del coche en isométrica)
                 const POSITIONS = [
-                    new THREE.Vector3(-8, 2, -10), // 0: FL
-                    new THREE.Vector3( 8, 2, -10), // 1: FR
-                    new THREE.Vector3(-8, 2,  10), // 2: RL
-                    new THREE.Vector3( 8, 2,  10), // 3: RR
+                    new THREE.Vector3(-8, 2, -10), // 0: FL (Delantera Izq)
+                    new THREE.Vector3( 8, 2, -10), // 1: FR (Delantera Der)
+                    new THREE.Vector3(-8, 2,  10), // 2: RL (Trasera Izq)
+                    new THREE.Vector3( 8, 2,  10), // 3: RR (Trasera Der)
                 ];
 
                 const tires = [];
-                // Crear los 4 neumáticos
                 for (let i = 0; i < 4; i++) {
                     const t = createTire();
                     t.position.copy(POSITIONS[i]);
@@ -4121,8 +4115,8 @@ const Icons = {
 
                 // 4. ANIMACIÓN
                 let time = 0;
-                const animDuration = 120; // Frames por ciclo
-                const pauseDuration = 60; // Frames pausa
+                const animDuration = 120;
+                const pauseDuration = 60;
                 let frameId;
 
                 const animate = () => {
@@ -4132,7 +4126,6 @@ const Icons = {
                     const cycle = animDuration + pauseDuration;
                     const progress = time % cycle;
 
-                    // Resetear posiciones al inicio del ciclo
                     if (progress === 0) {
                         tires.forEach((t, i) => {
                             t.mesh.position.copy(POSITIONS[i]);
@@ -4141,48 +4134,35 @@ const Icons = {
                         });
                     }
 
-                    // Fase de Movimiento
                     if (progress < animDuration && moves && moves.length > 0) {
                         const t = progress / animDuration;
-                        // Easing suave (SmoothStep)
                         const ease = t * t * (3 - 2 * t);
 
-                        // Mover solo los que están en la lista de movimientos
                         moves.forEach(move => {
-                            // Encontrar el neumático que está en la posición 'start'
-                            // Como reseteamos cada ciclo, tires[i] corresponde a POSITIONS[i]
                             const tireObj = tires[move.start];
                             const startPos = POSITIONS[move.start];
                             const endPos = POSITIONS[move.end];
 
-                            // Interpolación lineal posición
                             tireObj.mesh.position.lerpVectors(startPos, endPos, ease);
                             
-                            // Arco de salto (Parábola) para no chocar
                             const jumpHeight = 8;
                             tireObj.mesh.position.y = 2 + (Math.sin(ease * Math.PI) * jumpHeight);
-
-                            // Rotación visual para efecto de rodadura/vuelo
                             tireObj.mesh.rotation.x = ease * Math.PI * 2;
-                            tireObj.mesh.rotation.y = ease * Math.PI; // Giro sobre sí mismo
+                            tireObj.mesh.rotation.y = ease * Math.PI; 
                         });
-                    } 
-                    // Fase de Pausa (mantener posición final)
-                    else if (progress >= animDuration) {
+                    } else if (progress >= animDuration) {
                          moves.forEach(move => {
                             const tireObj = tires[move.start];
                             tireObj.mesh.position.copy(POSITIONS[move.end]);
-                            tireObj.mesh.position.y = 2; // Suelo
+                            tireObj.mesh.position.y = 2;
                             tireObj.mesh.rotation.set(0,0,0);
                          });
                     }
-
                     renderer.render(scene, camera);
                 };
 
                 animate();
 
-                // Handle Resize
                 const handleResize = () => {
                     if (!mountRef.current) return;
                     const w = mountRef.current.offsetWidth;
@@ -4197,7 +4177,7 @@ const Icons = {
                     cancelAnimationFrame(frameId);
                     if (mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
                 };
-            }, [moves]); // Re-render si cambian los movimientos
+            }, [moves]);
 
             return <div ref={mountRef} className="w-full h-[350px] cursor-pointer" title="Visualización 3D" />;
         };
@@ -4215,18 +4195,16 @@ const Icons = {
         const wearDiff = Math.abs(state.treadFront - state.treadRear);
         const needsRotationByKm = kmSinceLast >= interval;
         
-        // Patrones de rotación (Lógica para pasar al 3D)
+        // Patrones de rotación
         let patternName = "Cruzado Trasero (Rearward Cross)";
         let patternDesc = "El patrón estándar para AWD/RWD con medidas iguales.";
-        // Moves: array de objetos { start: index, end: index }
-        // Indices: 0:FL, 1:FR, 2:RL, 3:RR
         let moves = []; 
 
         if (state.isStaggered) {
             if (state.isDirectional) {
                 patternName = "Imposible Rotar";
                 patternDesc = "Doble medida + Direccionales: No se pueden cambiar de posición sin desmontar la goma de la llanta.";
-                moves = []; // Sin movimiento
+                moves = []; 
             } else {
                 patternName = "Lado a Lado (Side-to-Side)";
                 patternDesc = "Solo se pueden intercambiar izquierda con derecha en el mismo eje.";
@@ -4246,10 +4224,6 @@ const Icons = {
             } else {
                 patternName = "Cruzado Modificado";
                 patternDesc = "Los traseros pasan delante cruzados. Los delanteros pasan atrás en el mismo lado.";
-                // Traseros (2,3) van a Delanteros Cruzados (2->1, 3->0)
-                // Delanteros (0,1) van a Traseros Rectos (0->2, 1->3)
-                // NOTA: Para la animación visual simple, hacemos el ciclo completo.
-                // FL(0) -> RL(2), FR(1) -> RR(3), RL(2) -> FR(1), RR(3) -> FL(0)
                 moves = [
                     { start: 0, end: 2 }, 
                     { start: 1, end: 3 }, 
@@ -4362,24 +4336,34 @@ const Icons = {
                 {/* VISUALIZADOR Y DESGASTE */}
                 <div className="lg:col-span-7 space-y-6">
                     
-                    {/* VISUALIZADOR ESQUEMA (AHORA 3D ANIMADO) */}
-                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-0 flex flex-col items-center relative overflow-hidden min-h-[400px]">
-                        {/* Cabecera Flotante */}
-                        <div className="absolute top-4 left-6 z-10 pointer-events-none">
-                            <h3 className="text-lg font-display font-bold text-white mb-1">Esquema de Rotación</h3>
-                            <div className="text-blue-400 font-bold text-sm uppercase tracking-wider">{patternName}</div>
-                            <div className="text-slate-400 text-xs mt-1 max-w-xs leading-relaxed">{patternDesc}</div>
+                    {/* VISUALIZADOR ESQUEMA (DISEÑO MEJORADO) */}
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 flex flex-col items-center relative overflow-hidden">
+                        
+                        {/* 1. Cabecera Estática y Ampliada */}
+                        <div className="w-full text-center mb-4 z-10 relative">
+                            <h3 className="text-xl font-display font-bold text-white mb-2">Esquema de Rotación</h3>
+                            <div className="text-blue-400 font-bold text-lg uppercase tracking-wider mb-3">{patternName}</div>
+                            
+                            {/* Descripción ampliada y con fondo */}
+                            <p className="text-slate-300 text-sm font-medium leading-relaxed max-w-lg mx-auto bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
+                                {patternDesc}
+                            </p>
                         </div>
 
-                        {/* COMPONENTE 3D INSERTADO AQUÍ */}
-                        <div className="w-full relative z-0 mt-8">
+                        {/* 2. Contenedor Escena 3D */}
+                        <div className="w-full relative h-[350px] bg-gradient-to-b from-slate-900/0 via-slate-900/30 to-slate-900/0 rounded-xl border border-white/5 shadow-inner">
+                            
+                            {/* ETIQUETAS EJE (Arriba/Abajo) */}
+                            <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-slate-900/80 border border-slate-700 px-3 py-1 rounded text-xs font-bold text-slate-400 uppercase tracking-widest z-10 shadow-lg">
+                                Eje Delantero
+                            </div>
+
+                            {/* Escena 3D */}
                             <Rotation3DScene moves={moves} />
-                        </div>
-                        
-                        {/* Etiquetas Estáticas para referencia */}
-                        <div className="absolute bottom-4 w-full flex justify-between px-12 text-[10px] text-slate-500 font-bold uppercase pointer-events-none">
-                            <span>Trasera</span>
-                            <span>Delantera</span>
+                            
+                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-slate-900/80 border border-slate-700 px-3 py-1 rounded text-xs font-bold text-slate-400 uppercase tracking-widest z-10 shadow-lg">
+                                Eje Trasero
+                            </div>
                         </div>
                     </div>
 
@@ -4489,8 +4473,7 @@ const Icons = {
             </div>
         );
       };
-
-        
+ 
   
 
       // --- CHECKLIST DE ENTREGA (ACTUALIZADO: CONSEJOS CON LINKS AMAZON) ---
