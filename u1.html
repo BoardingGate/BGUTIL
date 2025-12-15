@@ -658,7 +658,7 @@ const Icons = {
       };
 
       
-      // --- CALCULADORA DE CARGA (DISTRIBUCIÓN FULL WIDTH) ---
+      // --- CALCULADORA DE CARGA (DISTRIBUCIÓN FULL WIDTH + INTERÉS COMPUESTO) ---
       const ChargingCalculator = () => {
         const [state, setState] = usePersistentState('chargeState', { 
             capacity: 60, 
@@ -678,15 +678,26 @@ const Icons = {
             fsdAmortYears: 10
         });
 
+        // --- NUEVO ESTADO PARA INTERÉS COMPUESTO ---
+        const [compState, setCompState] = usePersistentState('compoundCalc', {
+            principal: 3000,
+            annualAddition: 2400,
+            years: 30,
+            rate: 10,
+            compoundsPerYear: 1,
+            addAtStart: true
+        });
+        const [showCompTable, setShowCompTable] = useState(false);
+
         // CURVE DATA
         const curvePoints = {
             LFP: [{p:0, v:170}, {p:10, v:168}, {p:20, v:155}, {p:30, v:135}, {p:45, v:110}, {p:55, v:85}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}],
             NCA: [{p:0, v:200}, {p:5, v:250}, {p:15, v:250}, {p:25, v:210}, {p:40, v:150}, {p:60, v:100}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}]
         };
 
-        // NUEVA LISTA DE PRESETS NUMÉRICOS
         const powerPresets = [3.3, 7.4, 11, 22, 50, 60, 100, 150, 170, 200, 250, 300, 400, 800];
 
+        // --- LÓGICA CALCULADORA CARGA (EXISTENTE) ---
         const getBatteryLimitAtSoC = (soc, type, chargerPowerInput) => {
             const points = curvePoints[type];
             const baseRef = type === 'NCA' ? 250 : 170; 
@@ -706,12 +717,8 @@ const Icons = {
         const validTarget = Math.max(state.startPct, state.targetPct);
         const percentAdded = validTarget - state.startPct;
         const energyAdded = state.capacity * (percentAdded / 100);
-        
-        // LINEAR CALC
         const timeHoursLin = state.power > 0 ? energyAdded / state.power : 0;
         const minutesLin = timeHoursLin * 60;
-        
-        // CURVE CALC
         let minutesCurve = 0;
         const kwhPerPercent = state.capacity / 100;
         for (let i = state.startPct; i < validTarget; i++) {
@@ -719,30 +726,20 @@ const Icons = {
             const realPower = Math.min(state.power, limit);
             if (realPower > 0) minutesCurve += (kwhPerPercent / realPower) * 60;
         }
-
         const rangeAdded = state.consumption > 0 ? (energyAdded / state.consumption) * 100 : 0;
         const totalCostCharge = energyAdded * state.energyPrice;
         const totalRangeAtTarget = state.consumption > 0 ? (state.capacity * (validTarget/100) / state.consumption) * 100 : 0;
         
-        // --- CÁLCULOS DE PROYECCIÓN ---
         const monthlyKm = state.monthlyKm || 0;
-        
-        // 1. Energía
         const costEnergyMonthly = (monthlyKm / 100) * state.consumption * state.energyPrice;
         const costEnergyDaily = costEnergyMonthly / 30.41; 
         const costEnergyAnnual = costEnergyMonthly * 12;
-
-        // 2. Servicios Fijos
         const fixedMonthly = (state.costPremium || 0) + (state.costFSD || 0) + (state.costOther || 0);
         const fixedDaily = fixedMonthly / 30.41;
         const fixedAnnual = fixedMonthly * 12;
-
-        // 3. Totales (Energía + Servicios)
         const totalMonthly = costEnergyMonthly + fixedMonthly;
         const totalDaily = costEnergyDaily + fixedDaily;
         const totalAnnual = costEnergyAnnual + fixedAnnual;
-
-        // 4. Coste por Km
         const perKmEnergy = monthlyKm > 0 ? costEnergyMonthly / monthlyKm : 0;
         const perKmServices = monthlyKm > 0 ? fixedMonthly / monthlyKm : 0;
         const perKmTotal = monthlyKm > 0 ? totalMonthly / monthlyKm : 0;
@@ -756,18 +753,13 @@ const Icons = {
             });
         };
 
-        // Handlers para el Slider Dual
         const handleDualSliderChange = (key, value) => {
             const val = parseInt(value);
             setState(prev => {
                 let newStart = prev.startPct;
                 let newTarget = prev.targetPct;
-
-                if (key === 'startPct') {
-                    newStart = Math.min(val, prev.targetPct - 1);
-                } else if (key === 'targetPct') {
-                    newTarget = Math.max(val, prev.startPct + 1);
-                }
+                if (key === 'startPct') newStart = Math.min(val, prev.targetPct - 1);
+                else if (key === 'targetPct') newTarget = Math.max(val, prev.startPct + 1);
                 return { ...prev, startPct: newStart, targetPct: newTarget };
             });
         };
@@ -777,13 +769,7 @@ const Icons = {
              const y = parseFloat(years) || 0;
              const months = y * 12;
              const monthlyCost = months > 0 ? c / months : 0;
-             
-             setState(prev => ({
-                 ...prev,
-                 fsdOneTimeCost: c,
-                 fsdAmortYears: y,
-                 costFSD: monthlyCost
-             }));
+             setState(prev => ({ ...prev, fsdOneTimeCost: c, fsdAmortYears: y, costFSD: monthlyCost }));
         };
 
         const toggleFsdOneTime = (e) => {
@@ -796,17 +782,54 @@ const Icons = {
                     const months = years * 12;
                     newMonthly = months > 0 ? cost / months : 0;
                 }
-                return {
-                    ...prev,
-                    isFsdOneTime: isChecked,
-                    costFSD: newMonthly,
-                    fsdOneTimeCost: prev.fsdOneTimeCost || 7500,
-                    fsdAmortYears: prev.fsdAmortYears || 10
-                };
+                return { ...prev, isFsdOneTime: isChecked, costFSD: newMonthly, fsdOneTimeCost: prev.fsdOneTimeCost || 7500, fsdAmortYears: prev.fsdAmortYears || 10 };
             });
         };
-        
-        // Estilos específicos para el slider dual (inyectados localmente)
+
+        // --- LÓGICA INTERÉS COMPUESTO ---
+        const calculateCompound = () => {
+            let balance = compState.principal;
+            let totalPrincipal = compState.principal;
+            const history = [];
+            
+            // Tasa Efectiva Anual (EAR) basada en la frecuencia de capitalización
+            // Fórmula: (1 + r/n)^n - 1
+            const r = compState.rate / 100;
+            const n = compState.compoundsPerYear;
+            const effectiveAnnualRate = Math.pow(1 + (r/n), n) - 1;
+
+            for(let i = 1; i <= compState.years; i++) {
+                let contribution = compState.annualAddition;
+                
+                // Si se añade al principio
+                if(compState.addAtStart) {
+                    balance += contribution;
+                    totalPrincipal += contribution;
+                }
+                
+                // Aplicar Interés (sobre el balance acumulado)
+                const interestEarned = balance * effectiveAnnualRate;
+                balance += interestEarned;
+                
+                // Si se añade al final
+                if(!compState.addAtStart) {
+                    balance += contribution;
+                    totalPrincipal += contribution;
+                }
+
+                history.push({
+                    year: i,
+                    principal: totalPrincipal,
+                    interest: balance - totalPrincipal,
+                    balance: balance
+                });
+            }
+            return { finalBalance: balance, totalPrincipal, history };
+        };
+
+        const compResult = calculateCompound();
+        const handleCompChange = (k, v) => setCompState(p => ({...p, [k]: parseFloat(v)}));
+
         const sliderStyle = `
             .range-slider-input { pointer-events: none; -webkit-appearance: none; z-index: 10; }
             .range-slider-input::-webkit-slider-thumb { pointer-events: auto; -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; position: relative; z-index: 20; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
@@ -822,33 +845,21 @@ const Icons = {
                 <div className="lg:col-span-5 space-y-6">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 h-full">
                         <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Icons.BatteryCharging /> Parámetros de Carga</h2>
-                        
                         <div className="flex gap-2 mb-4 bg-slate-800/50 p-2 rounded-lg border border-slate-700">
                              <button onClick={() => setState(p => ({...p, batType: 'LFP'}))} className={`flex-1 py-3 text-sm font-bold rounded-md transition-colors ${state.batType === 'LFP' ? 'bg-green-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}>LFP (RWD)</button>
                              <button onClick={() => setState(p => ({...p, batType: 'NCA'}))} className={`flex-1 py-3 text-sm font-bold rounded-md transition-colors ${state.batType === 'NCA' ? 'bg-red-600 text-white' : 'text-slate-400 hover:bg-slate-700'}`}>NCA/NMC (LR,PF)</button>
                         </div>
-
                         <div className="space-y-6">
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.capacity} onChange={v => handleChange('capacity', v)} decimals={1}/></div>
-                            
                             <div className="pt-4 border-t border-slate-800">
                                 <label className="text-sm font-bold text-slate-400 block mb-2">Potencia de Carga (kW)</label>
                                 <FormattedInput value={state.power} onChange={v => handleChange('power', v)} decimals={1}/>
-                                
-                                {/* NUEVA BOTONERA NUMÉRICA */}
                                 <div className="flex flex-wrap gap-2 mt-4 justify-between">
                                     {powerPresets.map(p => (
-                                        <button 
-                                            key={p} 
-                                            onClick={() => handleChange('power', p)} 
-                                            className={`px-3 py-1.5 text-xs font-bold rounded border transition-colors ${state.power === p ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
-                                        >
-                                            {p}
-                                        </button>
+                                        <button key={p} onClick={() => handleChange('power', p)} className={`px-3 py-1.5 text-xs font-bold rounded border transition-colors ${state.power === p ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>{p}</button>
                                     ))}
                                 </div>
                             </div>
-
                             <div className="pt-4 grid grid-cols-2 gap-6"><div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo (kWh/100)</label><FormattedInput value={state.consumption} onChange={v => handleChange('consumption', v)} decimals={1}/></div><div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Energía (€/kWh)</label><FormattedInput value={state.energyPrice} onChange={v => handleChange('energyPrice', v)} decimals={3}/></div></div>
                         </div>
                     </div>
@@ -856,7 +867,6 @@ const Icons = {
 
                 {/* COLUMNA DERECHA: RESULTADOS INMEDIATOS */}
                 <div className="lg:col-span-7 space-y-6">
-                     {/* BATERÍA VISUAL */}
                      <div className="bg-black/40 border border-slate-800 rounded-xl p-8 flex items-center justify-center relative overflow-hidden h-48">
                         <div className="relative w-full max-w-md h-28 border-4 border-slate-600 rounded-2xl p-1 flex items-center">
                             <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-10 bg-slate-600 rounded-r-md"></div>
@@ -866,8 +876,6 @@ const Icons = {
                              <div className="absolute inset-0 flex items-center justify-center text-4xl font-display font-bold text-white drop-shadow-md z-10">{state.startPct}% <span className="text-slate-400 mx-4">▶</span> <span className="text-green-400">{state.targetPct}%</span></div>
                         </div>
                      </div>
-
-                     {/* TARJETA SLIDER DUAL */}
                      <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
                         <div className="flex justify-between mb-2 items-end">
                             <label className="text-sm font-bold text-slate-300">Rango de Carga</label>
@@ -877,43 +885,15 @@ const Icons = {
                                 <span className="text-green-400">{state.targetPct}%</span>
                             </div>
                         </div>
-                        
                         <div className="relative h-10 select-none mt-2">
-                            {/* Barra de fondo */}
                             <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 h-3 bg-slate-900 rounded-full border border-slate-700 overflow-hidden">
-                                {/* Relleno visual entre inicio y fin */}
-                                <div className="absolute top-0 bottom-0 bg-gradient-to-r from-yellow-500 to-green-500 opacity-80" 
-                                     style={{left: `${state.startPct}%`, right: `${100-state.targetPct}%`}}></div>
+                                <div className="absolute top-0 bottom-0 bg-gradient-to-r from-yellow-500 to-green-500 opacity-80" style={{left: `${state.startPct}%`, right: `${100-state.targetPct}%`}}></div>
                             </div>
-                            
-                            {/* Inputs Superpuestos */}
-                            <input 
-                                id="slider-dual-start"
-                                type="range" min="0" max="99" 
-                                value={state.startPct} 
-                                onChange={e => handleDualSliderChange('startPct', e.target.value)} 
-                                className="range-slider-input absolute inset-0 w-full opacity-0 sm:opacity-100 bg-transparent" 
-                            />
-                            <input 
-                                id="slider-dual-target"
-                                type="range" min="1" max="100" 
-                                value={state.targetPct} 
-                                onChange={e => handleDualSliderChange('targetPct', e.target.value)} 
-                                className="range-slider-input absolute inset-0 w-full bg-transparent" 
-                            />
+                            <input id="slider-dual-start" type="range" min="0" max="99" value={state.startPct} onChange={e => handleDualSliderChange('startPct', e.target.value)} className="range-slider-input absolute inset-0 w-full opacity-0 sm:opacity-100 bg-transparent" />
+                            <input id="slider-dual-target" type="range" min="1" max="100" value={state.targetPct} onChange={e => handleDualSliderChange('targetPct', e.target.value)} className="range-slider-input absolute inset-0 w-full bg-transparent" />
                         </div>
-                        <div className="flex justify-between text-[10px] text-slate-500 font-bold px-1 mt-1">
-                            <span>0%</span>
-                            <span>20%</span>
-                            <span>40%</span>
-                            <span>60%</span>
-                            <span>80%</span>
-                            <span>100%</span>
-                        </div>
+                        <div className="flex justify-between text-[10px] text-slate-500 font-bold px-1 mt-1"><span>0%</span><span>20%</span><span>40%</span><span>60%</span><span>80%</span><span>100%</span></div>
                     </div>
-                    {/* FIN TARJETA SLIDER */}
-
-                     {/* GRID RESULTADOS CARGA INMEDIATA */}
                      <div className="grid grid-cols-2 gap-4">
                         <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center text-center">
                             <div className="text-slate-300 font-bold text-sm uppercase tracking-widest mb-2 flex gap-2 items-center"><Icons.Clock className="w-5 h-5"/> Tiempo Estimado</div>
@@ -933,68 +913,29 @@ const Icons = {
                     </h3>
                     
                     <div className="bg-slate-900/80 p-6 rounded-xl border border-slate-700 space-y-8">
-                        
-                        {/* 1. INPUTS: KM Y COSTES FIJOS */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div>
                                 <label className="text-sm font-bold text-blue-400 block mb-2 uppercase tracking-wider">Uso del Vehículo</label>
-                                <label className="text-xs font-bold text-slate-400 block mb-1">
-                                    Kilómetros Mensuales <span className="text-slate-500">[{formatDecimal(state.monthlyKm / 30, 0)} km/día]</span>
-                                </label>
+                                <label className="text-xs font-bold text-slate-400 block mb-1">Kilómetros Mensuales <span className="text-slate-500">[{formatDecimal(state.monthlyKm / 30, 0)} km/día]</span></label>
                                 <FormattedInput value={state.monthlyKm} onChange={v => handleChange('monthlyKm', v)} grouped={true} />
                             </div>
                             <div>
                                 <label className="text-sm font-bold text-blue-400 block mb-2 uppercase tracking-wider">Otros Costes Fijos Mensuales</label>
                                 <div className="grid grid-cols-3 gap-3 items-start">
-                                    <div>
-                                        <label className="text-[10px] font-bold text-slate-400 block mb-1 truncate" title="Servicio Premium">Serv. Premium</label>
-                                        <FormattedInput value={state.costPremium} onChange={v => handleChange('costPremium', v)} decimals={2} grouped={true} />
-                                    </div>
-                                    <div>
-                                        <label className="text-[10px] font-bold text-slate-400 block mb-1 truncate" title="Otros Servicios">Otros Serv.</label>
-                                        <FormattedInput value={state.costOther} onChange={v => handleChange('costOther', v)} decimals={2} grouped={true} />
-                                    </div>
-                                    
-                                    {/* BLOQUE FSD CON OPCIÓN PAGO ÚNICO */}
+                                    <div><label className="text-[10px] font-bold text-slate-400 block mb-1 truncate" title="Servicio Premium">Serv. Premium</label><FormattedInput value={state.costPremium} onChange={v => handleChange('costPremium', v)} decimals={2} grouped={true} /></div>
+                                    <div><label className="text-[10px] font-bold text-slate-400 block mb-1 truncate" title="Otros Servicios">Otros Serv.</label><FormattedInput value={state.costOther} onChange={v => handleChange('costOther', v)} decimals={2} grouped={true} /></div>
                                     <div className={`transition-all duration-300 ${state.isFsdOneTime ? 'col-span-1 md:col-span-3 bg-slate-800/50 p-3 rounded border border-slate-700' : ''}`}>
-                                        <div className="flex justify-between items-center mb-1">
-                                            <label className="text-[10px] font-bold text-slate-400 truncate" title="FSD o Similar">
-                                                {state.isFsdOneTime ? 'Amortización FSD/Pago Único' : 'FSD / Otros (Mensual)'}
-                                            </label>
-                                            <div className="flex items-center gap-1">
-                                                 <input 
-                                                    type="checkbox" 
-                                                    checked={state.isFsdOneTime || false} 
-                                                    onChange={toggleFsdOneTime}
-                                                    className="w-3 h-3 accent-blue-500 cursor-pointer" 
-                                                 />
-                                                 <span className="text-[9px] text-slate-400 font-bold uppercase cursor-pointer" onClick={() => toggleFsdOneTime({target: {checked: !state.isFsdOneTime}})}>Pago Único</span>
-                                            </div>
-                                        </div>
-
+                                        <div className="flex justify-between items-center mb-1"><label className="text-[10px] font-bold text-slate-400 truncate" title="FSD o Similar">{state.isFsdOneTime ? 'Amortización FSD/Pago Único' : 'FSD / Otros (Mensual)'}</label><div className="flex items-center gap-1"><input type="checkbox" checked={state.isFsdOneTime || false} onChange={toggleFsdOneTime} className="w-3 h-3 accent-blue-500 cursor-pointer" /><span className="text-[9px] text-slate-400 font-bold uppercase cursor-pointer" onClick={() => toggleFsdOneTime({target: {checked: !state.isFsdOneTime}})}>Pago Único</span></div></div>
                                         {state.isFsdOneTime ? (
                                             <div className="grid grid-cols-3 gap-2">
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 block">Coste Total (€)</label>
-                                                    <FormattedInput value={state.fsdOneTimeCost} onChange={(v) => handleFsdOneTimeCalc(v, state.fsdAmortYears)} grouped={true} />
-                                                </div>
-                                                <div>
-                                                    <label className="text-[9px] text-slate-500 block">Años Amortizar</label>
-                                                    <FormattedInput value={state.fsdAmortYears} onChange={(v) => handleFsdOneTimeCalc(state.fsdOneTimeCost, v)} decimals={1} />
-                                                </div>
-                                                <div>
-                                                    <label className="text-[9px] text-blue-400 block font-bold">Mensual (Calc)</label>
-                                                     <div className="w-full bg-slate-900/50 border border-slate-700 rounded px-2 py-3 text-blue-400 font-mono font-bold text-right text-lg h-[54px] flex items-center justify-end">
-                                                        {formatDecimal(state.costFSD)}€
-                                                     </div>
-                                                </div>
+                                                <div><label className="text-[9px] text-slate-500 block">Coste Total (€)</label><FormattedInput value={state.fsdOneTimeCost} onChange={(v) => handleFsdOneTimeCalc(v, state.fsdAmortYears)} grouped={true} /></div>
+                                                <div><label className="text-[9px] text-slate-500 block">Años Amortizar</label><FormattedInput value={state.fsdAmortYears} onChange={(v) => handleFsdOneTimeCalc(state.fsdOneTimeCost, v)} decimals={1} /></div>
+                                                <div><label className="text-[9px] text-blue-400 block font-bold">Mensual (Calc)</label><div className="w-full bg-slate-900/50 border border-slate-700 rounded px-2 py-3 text-blue-400 font-mono font-bold text-right text-lg h-[54px] flex items-center justify-end">{formatDecimal(state.costFSD)}€</div></div>
                                             </div>
                                         ) : (
                                             <FormattedInput value={state.costFSD} onChange={v => handleChange('costFSD', v)} decimals={2} grouped={true} />
                                         )}
                                     </div>
-                                    {/* FIN BLOQUE FSD */}
-
                                 </div>
                             </div>
                         </div>
@@ -1002,93 +943,173 @@ const Icons = {
                         <div className="border-t border-slate-700/50"></div>
 
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {/* 2. RESULTADOS: COSTES ENERGÍA */}
                             <div className="bg-slate-800/20 p-4 rounded-xl border border-slate-700/50">
                                 <h4 className="text-sm font-bold text-slate-300 mb-3 uppercase text-center">Coste Energía</h4>
                                 <div className="space-y-3">
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-slate-400 font-bold uppercase text-xs">Diario</span>
-                                        <span className="text-xl font-bold text-white">{formatDecimal(costEnergyDaily)}€</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-slate-400 font-bold uppercase text-xs">Mensual</span>
-                                        <span className="text-xl font-bold text-white">{formatDecimal(costEnergyMonthly)}€</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-sm border-t border-slate-700 pt-2">
-                                        <span className="text-slate-400 font-bold uppercase text-xs">Anual</span>
-                                        <span className="text-xl font-bold text-blue-400">{formatMoney(costEnergyAnnual)}€</span>
-                                    </div>
+                                    <div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase text-xs">Diario</span><span className="text-xl font-bold text-white">{formatDecimal(costEnergyDaily)}€</span></div>
+                                    <div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase text-xs">Mensual</span><span className="text-xl font-bold text-white">{formatDecimal(costEnergyMonthly)}€</span></div>
+                                    <div className="flex justify-between items-center text-sm border-t border-slate-700 pt-2"><span className="text-slate-400 font-bold uppercase text-xs">Anual</span><span className="text-xl font-bold text-blue-400">{formatMoney(costEnergyAnnual)}€</span></div>
                                 </div>
                             </div>
-
-                            {/* 3. RESULTADOS: COSTES SERVICIOS */}
                             <div className="bg-slate-800/20 p-4 rounded-xl border border-slate-700/50">
                                 <h4 className="text-sm font-bold text-slate-300 mb-3 uppercase text-center">Coste Servicios</h4>
                                 <div className="space-y-3">
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-slate-400 font-bold uppercase text-xs">Diario</span>
-                                        <span className="text-xl font-bold text-white">{formatDecimal(fixedDaily)}€</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-slate-400 font-bold uppercase text-xs">Mensual</span>
-                                        <span className="text-xl font-bold text-white">{formatDecimal(fixedMonthly)}€</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-sm border-t border-slate-700 pt-2">
-                                        <span className="text-slate-400 font-bold uppercase text-xs">Anual</span>
-                                        <span className="text-xl font-bold text-purple-400">{formatMoney(fixedAnnual)}€</span>
-                                    </div>
+                                    <div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase text-xs">Diario</span><span className="text-xl font-bold text-white">{formatDecimal(fixedDaily)}€</span></div>
+                                    <div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase text-xs">Mensual</span><span className="text-xl font-bold text-white">{formatDecimal(fixedMonthly)}€</span></div>
+                                    <div className="flex justify-between items-center text-sm border-t border-slate-700 pt-2"><span className="text-slate-400 font-bold uppercase text-xs">Anual</span><span className="text-xl font-bold text-purple-400">{formatMoney(fixedAnnual)}€</span></div>
                                 </div>
                             </div>
-
-                            {/* 4. RESULTADOS: TOTALES (ENERGÍA + SERVICIOS) */}
                             <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-600 shadow-lg">
                                 <h4 className="text-sm font-bold text-slate-300 mb-3 uppercase text-center">Total (Energía + Servicios)</h4>
                                 <div className="space-y-3">
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-slate-400 font-bold uppercase text-xs">Diario</span>
-                                        <span className="text-2xl font-bold text-white">{formatDecimal(totalDaily)}€</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-sm">
-                                        <span className="text-slate-400 font-bold uppercase text-xs">Mensual</span>
-                                        <span className="text-2xl font-bold text-white">{formatDecimal(totalMonthly)}€</span>
-                                    </div>
-                                    <div className="flex justify-between items-center text-sm border-t border-slate-600 pt-2">
-                                        <span className="text-slate-400 font-bold uppercase text-xs">Anual</span>
-                                        <span className="text-2xl font-bold text-green-400">{formatMoney(totalAnnual)}€</span>
-                                    </div>
+                                    <div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase text-xs">Diario</span><span className="text-2xl font-bold text-white">{formatDecimal(totalDaily)}€</span></div>
+                                    <div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase text-xs">Mensual</span><span className="text-2xl font-bold text-white">{formatDecimal(totalMonthly)}€</span></div>
+                                    <div className="flex justify-between items-center text-sm border-t border-slate-600 pt-2"><span className="text-slate-400 font-bold uppercase text-xs">Anual</span><span className="text-2xl font-bold text-green-400">{formatMoney(totalAnnual)}€</span></div>
                                 </div>
                             </div>
                         </div>
-
-                        {/* 5. RESULTADOS: COSTE POR KM */}
                         <div className="bg-slate-800/30 rounded-xl p-4 border border-slate-700/50">
                             <h4 className="text-sm font-bold text-slate-300 mb-3 uppercase text-center">Desglose Coste por Km</h4>
                             <div className="grid grid-cols-3 gap-4 text-center divide-x divide-slate-700">
-                                <div>
-                                    <div className="text-[10px] font-bold text-slate-500 uppercase">Solo Energía</div>
-                                    <div className="text-lg font-bold text-blue-300">{formatDecimal(perKmEnergy, 3)} €/km</div>
+                                <div><div className="text-[10px] font-bold text-slate-500 uppercase">Solo Energía</div><div className="text-lg font-bold text-blue-300">{formatDecimal(perKmEnergy, 3)} €/km</div></div>
+                                <div><div className="text-[10px] font-bold text-slate-500 uppercase">Solo Servicios</div><div className="text-lg font-bold text-purple-300">{formatDecimal(perKmServices, 3)} €/km</div></div>
+                                <div><div className="text-[10px] font-bold text-slate-500 uppercase">Total (Ambos)</div><div className="text-lg font-bold text-green-400">{formatDecimal(perKmTotal, 3)} €/km</div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* --- NUEVA SECCIÓN: CALCULADORA DE INTERÉS COMPUESTO --- */}
+                <div className="lg:col-span-12 mt-8 pt-8 border-t-2 border-slate-800 animate-fade-in">
+                    <h3 className="text-2xl font-display font-bold text-slate-200 mb-8 flex items-center gap-3">
+                        <Icons.TrendingUp className="w-8 h-8 text-green-500" /> Calculadora de Interés Compuesto
+                    </h3>
+
+                    <div className="bg-slate-900/80 p-8 rounded-2xl border border-slate-700 shadow-2xl">
+                        
+                        {/* INPUTS GRID */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+                            <div>
+                                <label className="text-sm font-bold text-slate-400 block mb-2">Capital Inicial (€)</label>
+                                <FormattedInput value={compState.principal} onChange={v => handleCompChange('principal', v)} grouped={true} />
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-slate-400 block mb-2">Aportación Anual (€)</label>
+                                <FormattedInput value={compState.annualAddition} onChange={v => handleCompChange('annualAddition', v)} grouped={true} />
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-slate-400 block mb-2">Años a crecer</label>
+                                <FormattedInput value={compState.years} onChange={v => handleCompChange('years', v)} decimals={0} />
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-slate-400 block mb-2">Interés Anual (%)</label>
+                                <FormattedInput value={compState.rate} onChange={v => handleCompChange('rate', v)} decimals={2} />
+                            </div>
+                        </div>
+
+                        {/* CONFIGURACIÓN AVANZADA */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8 pb-8 border-b border-slate-700/50">
+                            <div>
+                                <label className="text-sm font-bold text-slate-400 block mb-2">Capitalización (veces/año)</label>
+                                <div className="flex items-center gap-4">
+                                    <input 
+                                        type="range" min="1" max="12" step="1"
+                                        value={compState.compoundsPerYear} 
+                                        onChange={e => handleCompChange('compoundsPerYear', e.target.value)}
+                                        className="flex-grow h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500" 
+                                    />
+                                    <div className="w-24 text-right font-bold text-white bg-slate-800 px-3 py-2 rounded border border-slate-600">
+                                        {compState.compoundsPerYear} {compState.compoundsPerYear === 1 ? 'vez' : 'veces'}
+                                    </div>
                                 </div>
-                                <div>
-                                    <div className="text-[10px] font-bold text-slate-500 uppercase">Solo Servicios</div>
-                                    <div className="text-lg font-bold text-purple-300">{formatDecimal(perKmServices, 3)} €/km</div>
-                                </div>
-                                <div>
-                                    <div className="text-[10px] font-bold text-slate-500 uppercase">Total (Ambos)</div>
-                                    <div className="text-lg font-bold text-green-400">{formatDecimal(perKmTotal, 3)} €/km</div>
+                                <p className="text-xs text-slate-500 mt-2 font-bold">
+                                    {compState.compoundsPerYear === 1 ? 'Anual' : compState.compoundsPerYear === 12 ? 'Mensual' : compState.compoundsPerYear === 4 ? 'Trimestral' : 'Personalizado'}
+                                </p>
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-slate-400 block mb-3">Momento de la aportación</label>
+                                <div className="flex gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${compState.addAtStart ? 'border-blue-500' : 'border-slate-500 group-hover:border-slate-400'}`}>
+                                            {compState.addAtStart && <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>}
+                                        </div>
+                                        <input type="radio" className="hidden" checked={compState.addAtStart} onChange={() => setCompState(p => ({...p, addAtStart: true}))} />
+                                        <span className={`text-sm font-bold ${compState.addAtStart ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'}`}>Inicio del periodo</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer group">
+                                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${!compState.addAtStart ? 'border-blue-500' : 'border-slate-500 group-hover:border-slate-400'}`}>
+                                            {!compState.addAtStart && <div className="w-2.5 h-2.5 bg-blue-500 rounded-full"></div>}
+                                        </div>
+                                        <input type="radio" className="hidden" checked={!compState.addAtStart} onChange={() => setCompState(p => ({...p, addAtStart: false}))} />
+                                        <span className={`text-sm font-bold ${!compState.addAtStart ? 'text-white' : 'text-slate-400 group-hover:text-slate-300'}`}>Final del periodo</span>
+                                    </label>
                                 </div>
                             </div>
                         </div>
 
+                        {/* RESULTADOS TOTALES */}
+                        <div className="bg-gradient-to-r from-blue-900/40 to-slate-900 rounded-xl p-6 border border-blue-500/30 flex flex-col md:flex-row justify-between items-center gap-6">
+                            <div className="text-center md:text-left">
+                                <div className="text-sm font-bold text-blue-300 uppercase tracking-widest mb-1">Valor Futuro Estimado</div>
+                                <div className="text-5xl font-display font-bold text-white">{formatMoney(compResult.finalBalance)} €</div>
+                            </div>
+                            <div className="flex gap-8 text-right">
+                                <div>
+                                    <div className="text-xs font-bold text-slate-400 uppercase">Total Aportado</div>
+                                    <div className="text-xl font-bold text-slate-200">{formatMoney(compResult.totalPrincipal)} €</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs font-bold text-green-400 uppercase">Intereses Generados</div>
+                                    <div className="text-xl font-bold text-green-400">+{formatMoney(compResult.finalBalance - compResult.totalPrincipal)} €</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* TABLA DESPLEGABLE */}
+                        <div className="mt-8">
+                            <button 
+                                onClick={() => setShowCompTable(!showCompTable)} 
+                                className="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-base font-medium text-slate-300 transition-colors flex items-center justify-center gap-2"
+                            >
+                                <Icons.Table /> {showCompTable ? 'Ocultar Tabla Anual' : 'Ver Desglose Año a Año'}
+                            </button>
+                            
+                            {showCompTable && (
+                                <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800 animate-fade-in max-h-[500px] overflow-y-auto">
+                                    <table className="w-full custom-table">
+                                        <thead className="bg-slate-900 sticky top-0 z-10">
+                                            <tr>
+                                                <th className="px-6 py-3">Año</th>
+                                                <th className="px-6 py-3 text-right">Total Aportado</th>
+                                                <th className="px-6 py-3 text-right">Interés Acumulado</th>
+                                                <th className="px-6 py-3 text-right text-white">Balance Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-slate-900/50 divide-y divide-slate-800">
+                                            {compResult.history.map((row) => (
+                                                <tr key={row.year} className="hover:bg-slate-800/50 transition-colors">
+                                                    <td className="px-6 py-3 font-bold text-slate-400">{row.year}</td>
+                                                    <td className="px-6 py-3 text-right text-slate-300">{formatMoney(row.principal)} €</td>
+                                                    <td className="px-6 py-3 text-right text-green-400">+{formatMoney(row.interest)} €</td>
+                                                    <td className="px-6 py-3 text-right font-bold text-white text-lg">{formatMoney(row.balance)} €</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                    
-                    <div className="mt-6 p-4 bg-slate-900/80 border border-slate-700 rounded-xl text-sm font-bold text-slate-400 text-center">
+                </div>
+
+                <div className="mt-6 p-4 bg-slate-900/80 border border-slate-700 rounded-xl text-sm font-bold text-slate-400 text-center">
                     <p>(*) La mejor app del mercado para controlar y gestionar tu Tesla, según mi experiencia es Tessie. Referido: <a href="https://share.tessie.com/JDukqlINZMb" target="_blank" className="text-purple-400 font-bold underline hover:text-purple-300">https://share.tessie.com/JDukqlINZMb</a></p>
-                    </div>
                 </div>
             </div>
         );
       };
 
+        
         
       
       // --- DRENAJE (LETRAS MÁS GRANDES) ---
