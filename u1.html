@@ -1201,7 +1201,7 @@ const Icons = {
         const costB = netChargeNeededB * state.costPerKwh;
         const costDiff = costB - costA;
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: parseFloat(v) || 0}));
-        const handleStrategy = (val) => setState(prev => ({...prev, chargingStrategy: val}));
+       const handleStrategy = (val) => setState(prev => ({...prev, chargingStrategy: val}));
         
         const formatTimeLocal = (min) => {
             if(!min || !isFinite(min)) return "00:00";
@@ -1226,7 +1226,7 @@ const Icons = {
 
         
    
-      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICO 3D PERFECT ALIGNMENT) ---
+      // --- NUEVO COMPONENTE: ESTRATEGIA DE CARGA (GRÁFICO 3D FINAL - ALINEACIÓN 20%) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1257,12 +1257,12 @@ const Icons = {
                 const scene = new THREE.Scene();
                 scene.background = null; 
 
-                // CONFIGURACIÓN CLAVE PARA ALINEACIÓN:
-                // Altura máxima de las barras
+                // CONFIGURACIÓN DE ALTURA PARA ALINEACIÓN
                 const maxBarHeight = 50; 
                 const centerY = maxBarHeight / 2;
 
-                // Cámara: Posición Y igual al centro de las barras para evitar distorsión vertical
+                // Cámara: Posición Y centrada exactamente en la mitad de la altura de las barras
+                // Esto elimina la distorsión vertical y hace que las líneas sean paralelas visualmente
                 const camera = new THREE.PerspectiveCamera(30, width / height, 0.1, 1000);
                 const camDist = 160; 
                 camera.position.set(0, centerY, camDist); 
@@ -1282,7 +1282,7 @@ const Icons = {
                 const visibleHeight = 2 * Math.tan(vFOV / 2) * camDist;
                 const visibleWidth = visibleHeight * camera.aspect;
                 
-                const workingWidth = visibleWidth * 0.82; // Margen lateral para encajar con columnas HTML
+                const workingWidth = visibleWidth * 0.82; 
                 const spacing = workingWidth / 7;
                 const startX = - (spacing * 3); 
 
@@ -1300,16 +1300,17 @@ const Icons = {
                 const mainGroup = new THREE.Group();
                 scene.add(mainGroup);
 
-                const radius = spacing * 0.28; // Cilindros un poco más anchos
+                const radius = spacing * 0.28;
 
-                // A. RETICULADO (GRID)
+                // A. RETICULADO (GRID) - INTERVALOS DE 20%
                 const gridGroup = new THREE.Group();
                 const gridMaterial = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
                 
-                // Líneas cada 10% (0 a 10 inclusive)
-                for(let i=0; i<=10; i++) {
-                    // El suelo es Y=0.
-                    const y = (i * 10 / 100) * maxBarHeight;
+                // 0, 20, 40, 60, 80, 100 (6 líneas)
+                for(let i=0; i<=5; i++) {
+                    const pct = i * 20;
+                    const y = (pct / 100) * maxBarHeight;
+                    
                     const points = [];
                     points.push(new THREE.Vector3(-visibleWidth/2 + 5, y, -5));
                     points.push(new THREE.Vector3(visibleWidth/2 - 5, y, -5));
@@ -1329,7 +1330,7 @@ const Icons = {
                     const baseGeo = new THREE.CylinderGeometry(radius + 0.5, radius + 0.5, 0.5, 32);
                     const baseMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.2 });
                     const baseMesh = new THREE.Mesh(baseGeo, baseMat);
-                    baseMesh.position.y = -0.25; // Justo debajo de 0
+                    baseMesh.position.y = -0.25; 
                     dayGroup.add(baseMesh);
 
                     // Energía Restante (Sólido)
@@ -1349,7 +1350,7 @@ const Icons = {
                             roughness: 0.3 
                         });
                         const solidMesh = new THREE.Mesh(solidGeo, solidMat);
-                        solidMesh.position.y = solidHeight / 2; // Desde 0 hacia arriba
+                        solidMesh.position.y = solidHeight / 2;
                         dayGroup.add(solidMesh);
                     }
 
@@ -1399,7 +1400,7 @@ const Icons = {
                 const animate = () => {
                     frameId = requestAnimationFrame(animate);
                     time += 0.005;
-                    mainGroup.rotation.y = Math.sin(time) * 0.03; // Oscilación muy leve
+                    mainGroup.rotation.y = Math.sin(time) * 0.03; 
                     renderer.render(scene, camera);
                 };
                 animate();
@@ -1474,7 +1475,7 @@ const Icons = {
             return `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
         };
 
-        // --- HELPERS PARA HISTÓRICO ---
+        // --- HELPERS HISTÓRICO ---
         const parseSmartDate = (dateStr) => {
             if (!dateStr) return null;
             const parts = dateStr.split(/[-/]/);
@@ -1812,20 +1813,21 @@ const Icons = {
                         
                         <div className="rounded-xl overflow-hidden bg-gradient-to-b from-slate-900/0 via-slate-900/50 to-slate-900/0 border border-white/5 relative h-[300px]">
                             
-                            {/* EJE Y (ALINEACIÓN EXACTA CON PUNTOS 3D - TOP:6px, BOTTOM: 8px) */}
-                            <div className="absolute top-[6px] bottom-[8px] left-2 w-8 flex flex-col justify-between text-[9px] text-slate-500 font-bold text-right z-10 select-none">
-                                {[100, 90, 80, 70, 60, 50, 40, 30, 20, 10, 0].map(val => (
-                                    <div key={val} className="h-0 flex items-center justify-end">
-                                        <span>{val}%</span>
-                                    </div>
-                                ))}
+                            {/* EJE Y (ALINEACIÓN EXACTA 20%) - TOP: 40px, BOTTOM: 55px */}
+                            <div className="absolute top-[40px] bottom-[55px] left-2 w-8 flex flex-col justify-between text-[9px] text-slate-500 font-bold text-right z-10 select-none">
+                                <span>100%</span>
+                                <span>80%</span>
+                                <span>60%</span>
+                                <span>40%</span>
+                                <span>20%</span>
+                                <span>0%</span>
                             </div>
 
                             <div className="absolute inset-0">
                                 <WeeklyCharge3D data={results} />
                             </div>
                             
-                            {/* ETIQUETAS DÍAS + DATOS CARGA (Pegado a la base 3D) */}
+                            {/* ETIQUETAS DÍAS + DATOS CARGA */}
                             <div className="absolute bottom-2 w-full flex px-[7.5%] pointer-events-none">
                                 {results.map((row, i) => {
                                     const totalRangeAtTarget = (row.target / 100) * (state.battery / state.consumption) * 100;
@@ -2134,7 +2136,7 @@ const Icons = {
             </div>
         );
       };
-
+    
       
       
 
