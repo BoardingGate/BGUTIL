@@ -1,4 +1,4 @@
-v1
+v2
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -3582,9 +3582,10 @@ const Icons = {
       };
 
 
-      // --- LABORATORIO DE NEUMÁTICOS V14 (RUEDA DONUT ORIGINAL RESTAURADA + PSI + FIXED TITLE) ---
+   
+      // --- LABORATORIO DE NEUMÁTICOS V15 (RUEDA DONUT ORIGINAL EXACTA + PSI) ---
       const TirePressureLab = () => {
-        const [state, setState] = usePersistentState('tireLabV14', {
+        const [state, setState] = usePersistentState('tireLabV15', {
             recPressure: 2.9, // Objetivo (bar)
             startPressure: 2.9, // Inicial (bar)
             refTemp: 20,      // ºC inicial
@@ -3793,22 +3794,21 @@ const Icons = {
                 {/* 2. RESULTADOS (MANÓMETRO + RUEDA + DATOS) */}
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                     
-                    {/* VISUALIZADOR 2D + 3D (BARRA + RUEDA DONUT) */}
+                    {/* VISUALIZADOR 2D + 3D (BARRA + RUEDA DONUT ORIGINAL) */}
                     <div className="md:col-span-12 lg:col-span-5 bg-slate-900/80 border border-slate-800 rounded-xl flex flex-col relative overflow-hidden h-[500px]">
                         
                         {/* TÍTULO SEPARADO (Solución solapamiento) */}
-                        <div className="px-6 py-3 border-b border-slate-800 bg-slate-900/50 z-20 flex justify-between items-center">
+                        <div className="absolute top-4 left-6 z-20 bg-slate-900/80 px-3 py-1 rounded border border-slate-700 backdrop-blur-sm">
                             <h3 className="text-sm font-display font-bold text-slate-300 uppercase flex items-center gap-2">
                                 <Icons.Activity className="w-4 h-4"/> Simulación Visual
                             </h3>
-                            <span className="text-[10px] font-bold text-slate-500 uppercase">2D & 3D</span>
                         </div>
 
                         {/* ÁREA GRÁFICA (FLEX ROW PARA BARRA Y RUEDA) */}
-                        <div className="flex-1 flex items-end justify-center relative pb-8 pt-4 gap-4">
+                        <div className="flex-1 flex items-end justify-center relative pb-8 pt-4 gap-0">
                             
                             {/* 1. BARRA VERTICAL (MANÓMETRO) */}
-                            <div className="w-24 h-full relative flex">
+                            <div className="w-24 h-full relative flex mr-4">
                                 {/* Escala */}
                                 <div className="w-8 h-full relative border-r border-slate-500 mr-1">
                                     {ticks.map(tick => {
@@ -3841,33 +3841,32 @@ const Icons = {
                                 </div>
                             </div>
 
-                            {/* 2. RUEDA ESTILO DONUT (3D CSS) */}
-                            <div className="flex flex-col items-center justify-center h-full pb-6 pl-4">
+                            {/* 2. RUEDA ESTILO DONUT (3D CSS ORIGINAL REPLICADA) */}
+                            <div className="flex flex-col items-center justify-center h-full pb-10 pl-6 perspective-[800px]">
                                 <div 
-                                    className="relative w-48 h-48 rounded-full border-[3.5rem] border-slate-800 shadow-[0_10px_20px_rgba(0,0,0,0.5),inset_0_5px_15px_rgba(0,0,0,0.8)] transition-all duration-700 ease-out flex items-center justify-center"
+                                    className="relative w-56 h-56 rounded-full shadow-[inset_-10px_-10px_20px_rgba(0,0,0,0.8),_10px_10px_30px_rgba(0,0,0,0.5)] transition-all duration-700 ease-out flex items-center justify-center bg-slate-800"
                                     style={{
-                                        transform: `scale(${0.9 + (resultPressureBar/20)}) rotateY(-20deg) rotateX(15deg)`, 
-                                        borderColor: '#1e293b'
+                                        borderWidth: '4.5rem', // Donut grueso
+                                        borderColor: '#1e293b', // Color neumático
+                                        transform: `scale(${0.85 + (resultPressureBar/20)}) rotateY(-25deg)`, // Perspectiva isométrica
+                                        boxShadow: 'inset -20px -20px 40px rgba(0,0,0,0.6), 10px 10px 30px rgba(0,0,0,0.5)'
                                     }}
                                 >
-                                    {/* Tread pattern (Spinning) */}
-                                    <div className="absolute inset-[-3.5rem] rounded-full border-[3.5rem] border-dashed border-slate-600/30 animate-[spin_3s_linear_infinite]"></div>
+                                    {/* Tread pattern (Dashed border spin) */}
+                                    <div className="absolute inset-[-4.5rem] rounded-full border-[4.5rem] border-dashed border-slate-700/20 animate-[spin_4s_linear_infinite]"></div>
                                     
-                                    {/* Rim */}
+                                    {/* Brillo lateral (Efecto volumen) */}
+                                    <div className="absolute inset-[-4.5rem] rounded-full bg-gradient-to-br from-blue-400/10 via-transparent to-transparent pointer-events-none z-20"></div>
+
+                                    {/* Rim / Llantas */}
                                     <div className="absolute inset-0 bg-slate-900 rounded-full flex items-center justify-center shadow-inner z-10">
-                                        <div className="w-2 h-2 bg-slate-500 rounded-full"></div>
-                                        {/* Spokes */}
-                                        <div className="absolute w-full h-2 bg-slate-800 rotate-0"></div>
-                                        <div className="absolute w-full h-2 bg-slate-800 rotate-90"></div>
-                                        <div className="absolute w-full h-2 bg-slate-800 rotate-45"></div>
-                                        <div className="absolute w-full h-2 bg-slate-800 -rotate-45"></div>
+                                        <div className="w-3 h-3 bg-slate-600 rounded-full"></div>
+                                        {/* Eje saliente */}
+                                        <div className="absolute left-1/2 top-1/2 w-20 h-4 bg-slate-800 origin-left transform -translate-y-1/2 rotate-y-90 translate-z-10 shadow-lg"></div>
                                     </div>
-                                    
-                                    {/* Gloss overlay */}
-                                    <div className="absolute inset-[-3.5rem] rounded-full bg-gradient-to-tr from-white/10 to-transparent pointer-events-none z-20"></div>
                                 </div>
-                                <div className="text-[10px] font-bold text-slate-500 mt-6 uppercase tracking-widest text-center w-full">Simulación Donut</div>
-                                <div className="w-32 h-4 bg-black/40 blur-lg rounded-full mt-[-10px] transform rotate-x-60"></div>
+                                {/* Sombra suelo */}
+                                <div className="w-40 h-6 bg-black/50 blur-xl rounded-[100%] mt-[-20px] transform rotate-x-60"></div>
                             </div>
 
                         </div>
