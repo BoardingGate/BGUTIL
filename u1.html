@@ -1,4 +1,4 @@
-l3
+l4
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -2823,7 +2823,7 @@ const Icons = {
       };
 
 
-      // --- TARIFF COMPARATOR (FIXED: ALIGNED GRID & FULL STACK) ---
+      // --- TARIFF COMPARATOR (FIXED: VISIBLE GRID & COMPACT LAYOUT) ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV5', {
             // Shared Data
@@ -2865,33 +2865,29 @@ const Icons = {
             } catch (e) { console.error(e); }
         }, []);
 
-        // --- SUB-COMPONENTE: GRÁFICO 3D (ALINEACIÓN PERFECTA) ---
+        // --- SUB-COMPONENTE: GRÁFICO 3D (GRID MEJORADO) ---
         const Tariff3DChart = ({ billA, billB, nameA, nameB }) => {
             const mountRef = useRef(null);
 
             // 1. CÁLCULOS DE ESCALA
             const maxTotal = Math.max(billA.total, billB.total);
-            // Redondear al siguiente múltiplo de 10 para que el eje quede limpio
             const axisMax = Math.ceil((maxTotal * 1.15) / 10) * 10; 
             const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => axisMax * t);
 
-            // Configuración Escena
-            const viewSize = 50; // Altura total de la cámara ortográfica
-            const chartHeight3D = 40; // Altura máxima que usarán las barras dentro del viewSize
-            const startY = -20; // Punto base (suelo) en coordenadas 3D para que cuadre con el viewSize
-            
-            // Factor de conversión: Euros -> Unidades 3D
+            // Configuración Escena 3D
+            const viewSize = 50; 
+            const chartHeight3D = 40;
+            const startY = -20; // Suelo
             const scaleY = chartHeight3D / axisMax;
 
             useEffect(() => {
                 if (!mountRef.current || !window.THREE) return;
 
-                // SETUP BÁSICO
                 const width = mountRef.current.offsetWidth;
                 const height = 350;
                 const scene = new THREE.Scene();
                 
-                // CÁMARA ORTOGRÁFICA (SIN PERSPECTIVA)
+                // CÁMARA ORTOGRÁFICA
                 const aspect = width / height;
                 const camera = new THREE.OrthographicCamera(
                     -viewSize * aspect / 2, viewSize * aspect / 2, 
@@ -2899,7 +2895,6 @@ const Icons = {
                     1, 1000
                 );
                 
-                // Posición frontal pura, centrada en Y=0
                 camera.position.set(0, 0, 100); 
                 camera.lookAt(0, 0, 0); 
 
@@ -2907,7 +2902,6 @@ const Icons = {
                 renderer.setSize(width, height);
                 renderer.setPixelRatio(window.devicePixelRatio);
                 
-                // Limpieza
                 while (mountRef.current.firstChild) {
                     mountRef.current.removeChild(mountRef.current.firstChild);
                 }
@@ -2921,12 +2915,12 @@ const Icons = {
                 scene.add(dirLight);
 
                 // DATOS
-                const colors = [0x4ade80, 0x60a5fa, 0x94a3b8, 0xc084fc]; // Pot(Verde), Ener(Azul), Fijos(Gris), Imp(Morado)
+                const colors = [0x4ade80, 0x60a5fa, 0x94a3b8, 0xc084fc]; 
                 const dataA = [billA.termPotDisc, billA.termEnNet, billA.fixedCosts, billA.taxes];
                 const dataB = [billB.termPotDisc, billB.termEnNet, billB.fixedCosts, billB.taxes];
                 
-                const barWidth = 10; 
-                const spacing = 22; // Distancia del centro
+                const barWidth = 12; // Barras un poco más anchas
+                const spacing = 20;  // Separación del centro
 
                 // FUNCIÓN CREAR PILA
                 const createStack = (data, xPos) => {
@@ -2945,11 +2939,10 @@ const Icons = {
                         });
                         const mesh = new THREE.Mesh(geo, mat);
                         
-                        // Posicionar: El centro del cubo es su origen, así que subimos la mitad de su altura
+                        // Posicionar centro del cubo
                         mesh.position.y = currentY + (h / 2);
                         mesh.position.x = xPos;
                         
-                        // Bordes finos
                         const edges = new THREE.EdgesGeometry(geo);
                         const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.15 }));
                         line.position.copy(mesh.position);
@@ -2960,7 +2953,7 @@ const Icons = {
                         currentY += h;
                     });
                     
-                    // Sombra sutil en la base
+                    // Sombra base
                     const shadowGeo = new THREE.PlaneGeometry(barWidth, 4);
                     const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 });
                     const shadow = new THREE.Mesh(shadowGeo, shadowMat);
@@ -2976,20 +2969,19 @@ const Icons = {
                 scene.add(stackA);
                 scene.add(stackB);
 
-                // GRID DE LÍNEAS (Alineadas con los ticks)
+                // GRID DE LÍNEAS (Ahora más visibles y anchas)
                 const gridGroup = new THREE.Group();
                 ticks.forEach((tickVal, i) => {
-                    // Altura exacta en el mundo 3D
                     const y = startY + (tickVal * scaleY);
                     
                     const points = [];
-                    points.push(new THREE.Vector3(-40, y, -5)); // De izquierda
-                    points.push(new THREE.Vector3(40, y, -5));  // A derecha
+                    // Extendemos de -45 a 45 para llenar más ancho y tocar los textos
+                    points.push(new THREE.Vector3(-45, y, -5)); 
+                    points.push(new THREE.Vector3(45, y, -5));  
                     
                     const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
-                    // Línea base más visible, resto más sutiles
-                    const opacity = i === 0 ? 0.3 : 0.1;
-                    const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: opacity });
+                    // Aumentamos opacidad y usamos un color grisáceo (slate-600) en vez de blanco puro
+                    const lineMat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: i === 0 ? 0.6 : 0.3 });
                     const line = new THREE.Line(lineGeo, lineMat);
                     gridGroup.add(line);
                 });
@@ -2998,21 +2990,16 @@ const Icons = {
                 // RENDER
                 renderer.render(scene, camera);
                 
-                // Animación simple de entrada (Scale Y)
+                // Animación simple
                 let s = 0;
                 const animate = () => {
                     if (s < 1) {
                         s += 0.05;
                         stackA.scale.y = s;
                         stackB.scale.y = s;
-                        // Ajuste visual para que crezcan "desde el suelo"
-                        // Al escalar un grupo, lo hace desde (0,0,0). Como nuestro startY es -20,
-                        // necesitamos compensar la posición Y del grupo para simular que la base está fija.
-                        // Fórmula simplificada: mover el grupo hacia abajo a medida que crece.
                         const offset = startY * (1 - s);
                         stackA.position.y = offset;
                         stackB.position.y = offset;
-                        
                         renderer.render(scene, camera);
                         requestAnimationFrame(animate);
                     } else {
@@ -3045,12 +3032,9 @@ const Icons = {
                 };
             }, [billA, billB]); 
 
-            // CÁLCULO DE POSICIONES CSS PARA ETIQUETAS
-            // El canvas tiene un padding interno virtual (viewSize=50, chartHeight=40, startY=-20).
-            // startY (-20) corresponde al 10% de altura desde abajo (en un viewSize de 50 centrado en 0, el rango es -25 a +25).
-            // -20 está a 5 unidades del fondo (-25). 5/50 = 10%.
+            // Cálculo posiciones
             const bottomPaddingPct = 10; 
-            const drawingAreaPct = (chartHeight3D / viewSize) * 100; // 40/50 = 80%
+            const drawingAreaPct = (chartHeight3D / viewSize) * 100; // 80%
 
             return (
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 relative">
@@ -3067,31 +3051,29 @@ const Icons = {
                     </div>
 
                     <div className="relative h-[350px] w-full">
-                        {/* ETIQUETAS EJE Y (Posicionamiento Absoluto alineado con 3D) */}
-                        <div className="absolute inset-0 pointer-events-none z-10 w-full">
-                            {ticks.map((t, i) => {
-                                // Calcular posición % bottom exacta
-                                const pct = bottomPaddingPct + ((t / axisMax) * drawingAreaPct);
-                                return (
-                                    <div key={t} className="absolute left-0 w-full flex items-center" style={{ bottom: `${pct}%`, transform: 'translateY(50%)' }}>
-                                        <span className="text-[10px] font-bold text-slate-500 w-10 text-right pr-2">{t.toFixed(0)}€</span>
-                                        {/* Opcional: Línea guía HTML si la 3D falla, pero usamos 3D */}
+                        {/* EJE Y (HTML Overlay) - Pegado a la izquierda (w-10) */}
+                        <div className="absolute top-0 bottom-0 left-0 w-10 flex flex-col justify-between text-[10px] text-slate-400 font-bold text-right py-0 z-10 pointer-events-none border-r border-slate-700/30">
+                            <div className="h-full flex flex-col-reverse justify-between">
+                                {ticks.map(t => (
+                                    // Alineación exacta con la línea 3D
+                                    <div key={t} className="h-0 flex items-center justify-end pr-2 translate-y-[5px]">
+                                        {t.toFixed(0)}€
                                     </div>
-                                );
-                            })}
+                                ))}
+                            </div>
                         </div>
+                        
+                        {/* CANVAS 3D - Padding Left reducido (pl-10) para arrimarlo a la escala */}
+                        <div ref={mountRef} className="absolute inset-0 w-full h-full pl-10" /> 
 
-                        {/* CANVAS 3D */}
-                        <div ref={mountRef} className="absolute inset-0 w-full h-full pl-8" /> 
-
-                        {/* ETIQUETAS EJE X */}
-                        <div className="absolute bottom-2 left-0 w-full pl-10 pr-4 flex justify-between pointer-events-none">
-                            <div className="flex-1 text-center pr-8"> 
-                                <div className="text-xs font-bold text-white mb-1">{nameA}</div>
+                        {/* ETIQUETAS EJE X - Ajustado padding (pl-14) para centrar debajo de columnas */}
+                        <div className="absolute bottom-2 left-0 w-full pl-14 pr-4 flex justify-between pointer-events-none">
+                            <div className="flex-1 text-center pr-10"> 
+                                <div className="text-xs font-bold text-white mb-1 truncate">{nameA}</div>
                                 <div className="text-xl font-display font-bold text-green-400">{formatDecimal(billA.total)}€</div>
                             </div>
-                            <div className="flex-1 text-center pl-8"> 
-                                <div className="text-xs font-bold text-white mb-1">{nameB}</div>
+                            <div className="flex-1 text-center pl-10"> 
+                                <div className="text-xs font-bold text-white mb-1 truncate">{nameB}</div>
                                 <div className="text-xl font-display font-bold text-slate-300">{formatDecimal(billB.total)}€</div>
                             </div>
                         </div>
@@ -3141,7 +3123,7 @@ const Icons = {
         const calculateBill = (proposal) => {
             const termPotDisc = ((tState.potP1 * proposal.pricePotP1 * tState.days) + (tState.potP2 * proposal.pricePotP2 * tState.days)) * (1 - proposal.discPot / 100);
             const termEnRaw = (tState.p1Kwh * proposal.priceEnP1) + (tState.p2Kwh * proposal.priceEnP2) + (tState.p3Kwh * proposal.priceEnP3) + (tState.p3VeKwh * proposal.priceEnP3Ve) + (tState.p4Kwh * proposal.priceEnP4);
-            const termEnNet = Math.max(0, (termEnRaw * (1 - proposal.discEn / 100)) - (tState.solarExp * proposal.solarPrice * (proposal.virtualBat ? 1 : 1))); // Simplificado virtualBat logic check visual
+            const termEnNet = Math.max(0, (termEnRaw * (1 - proposal.discEn / 100)) - (tState.solarExp * proposal.solarPrice * (proposal.virtualBat ? 1 : 1))); 
             const fixedCosts = (tState.alquiler * tState.days) + (tState.bonoSocial * tState.days) + proposal.comision;
             const baseImp = termPotDisc + termEnNet;
             const total = (baseImp * (1 + tState.impuestoElec / 100) + fixedCosts) * (1 + tState.iva / 100);
@@ -3220,9 +3202,14 @@ const Icons = {
                     </div>
                 </div>
 
-                {/* GRÁFICO 3D */}
+                {/* --- NUEVO PANEL GRÁFICO 3D --- */}
                 <div className="lg:col-span-12">
-                    <Tariff3DChart billA={billA} billB={billB} nameA={tState.propA.name} nameB={tState.propB.name} />
+                    <Tariff3DChart 
+                        billA={billA} 
+                        billB={billB} 
+                        nameA={tState.propA.name} 
+                        nameB={tState.propB.name} 
+                    />
                 </div>
 
                 {/* BOTONES SNAPSHOT */}
