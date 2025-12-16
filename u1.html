@@ -508,7 +508,8 @@ const Icons = {
       };
 
       
-      // --- CALCULADORA DE AMORTIZACIÓN (CORREGIDA: ALINEACIÓN PERFECTA Y ESCALA) ---
+    
+      // --- CALCULADORA DE AMORTIZACIÓN (CORREGIDA: VISIBILIDAD GARANTIZADA Y DESGLOSE COMPLETO) ---
       const AmortizationCalculator = () => {
         const [data, setData] = usePersistentState('amortData', {
             priceEV: 43000, priceICE: 45000, moves: 8500, aidICE: 2200,
@@ -526,47 +527,71 @@ const Icons = {
         const Amortization3DChart = ({ inputData, years }) => {
             const mountRef = useRef(null);
 
-            // 1. Preparar Datos
+            // 1. PREPARACIÓN DE DATOS (DESGLOSE TOTAL)
             const chartData = useMemo(() => {
                 const rows = [];
-                const baseEV = inputData.priceEV - inputData.moves;
-                const baseICE = inputData.priceICE - inputData.aidICE;
+                
+                // Costes Base (Netos de ayudas)
+                const evNetPrice = inputData.priceEV - inputData.moves;
+                const iceNetPrice = inputData.priceICE - inputData.aidICE;
 
-                const annualFuel = (inputData.kmPerYear / 100) * inputData.consumptionICE * inputData.priceFuel;
-                const annualElec = (inputData.kmPerYear / 100) * inputData.consumptionEV * inputData.priceElec;
+                // Anualizados
+                const evFuelYear = (inputData.kmPerYear / 100) * inputData.consumptionEV * inputData.priceElec;
+                const iceFuelYear = (inputData.kmPerYear / 100) * inputData.consumptionICE * inputData.priceFuel;
                 
-                const annualBreakdownEV = (inputData.priceEV * (inputData.breakdownRateEV / 100)) / years;
-                const annualBreakdownICE = (inputData.priceICE * (inputData.breakdownRateICE / 100)) / years;
-                
-                const annualOtherEV = inputData.maintenanceEV + annualBreakdownEV - inputData.taxSavingsEV;
-                const annualOtherICE = inputData.maintenanceICE + annualBreakdownICE - inputData.taxSavingsICE;
+                // Averías prorrateadas (Total estimado / años) * año actual
+                const evBreakYear = (inputData.priceEV * (inputData.breakdownRateEV / 100)) / years;
+                const iceBreakYear = (inputData.priceICE * (inputData.breakdownRateICE / 100)) / years;
+
+                // Ajuste Impuestos (restamos del mantenimiento para no complicar la pila con valores negativos)
+                const evMaintYear = Math.max(0, inputData.maintenanceEV - inputData.taxSavingsEV);
+                const iceMaintYear = Math.max(0, inputData.maintenanceICE - inputData.taxSavingsICE);
 
                 for (let i = 0; i <= years; i++) {
+                    // EV STACK
+                    const evFuelAcc = evFuelYear * i;
+                    const evMaintAcc = evMaintYear * i;
+                    const evBreakAcc = evBreakYear * i;
+                    const evTotal = evNetPrice + evFuelAcc + evMaintAcc + evBreakAcc;
+
+                    // ICE STACK
+                    const iceFuelAcc = iceFuelYear * i;
+                    const iceMaintAcc = iceMaintYear * i;
+                    const iceBreakAcc = iceBreakYear * i;
+                    const iceTotal = iceNetPrice + iceFuelAcc + iceMaintAcc + iceBreakAcc;
+
                     rows.push({
                         year: i,
-                        evBase: baseEV,
-                        evEnergy: annualElec * i,
-                        evOther: annualOtherEV * i,
-                        evTotal: baseEV + (annualElec * i) + (annualOtherEV * i),
-                        iceBase: baseICE,
-                        iceFuel: annualFuel * i,
-                        iceOther: annualOtherICE * i,
-                        iceTotal: baseICE + (annualFuel * i) + (annualOtherICE * i)
+                        // EV Segments
+                        ev: { base: evNetPrice, fuel: evFuelAcc, maint: evMaintAcc, break: evBreakAcc, total: evTotal },
+                        // ICE Segments
+                        ice: { base: iceNetPrice, fuel: iceFuelAcc, maint: iceMaintAcc, break: iceBreakAcc, total: iceTotal }
                     });
                 }
                 return rows;
             }, [inputData, years]);
 
-            // Escalas
-            const maxVal = Math.max(chartData[chartData.length - 1].evTotal, chartData[chartData.length - 1].iceTotal);
-            // Redondear eje Y al siguiente 5000
-            const yAxisMax = Math.ceil(maxVal / 5000) * 5000;
-            const yTicks = [0, yAxisMax*0.25, yAxisMax*0.5, yAxisMax*0.75, yAxisMax];
+            // 2. ESCALADO (NORMALIZACIÓN)
+            // Calculamos el valor máximo absoluto para definir el "Techo" de la gráfica
+            const maxVal = Math.max(
+                chartData[chartData.length - 1].ev.total, 
+                chartData[chartData.length - 1].ice.total
+            );
+            
+            // Eje Y (Ticks)
+            const stepY = maxVal > 60000 ? 20000 : 10000;
+            const yAxisMax = Math.ceil(maxVal / stepY) * stepY;
+            const yTicks = [];
+            for(let i=stepY; i<=yAxisMax; i+=stepY) yTicks.push(i);
 
-            // Configuración Escena
-            const spacing = 4; // Separación entre años
-            const totalDataWidth = (chartData.length - 1) * spacing; // Ancho total útil (de centro de primera barra a centro de última)
-            const paddingX = 2; // Margen lateral en unidades 3D
+            // Dimensiones Lógicas del Escenario 3D (Unidades arbitrarias de ThreeJS)
+            const SCENE_WIDTH = 100;
+            const SCENE_HEIGHT = 50;
+            const BAR_WIDTH = (SCENE_WIDTH / chartData.length) * 0.6; // Ancho dinámico según nª años
+            const SPACING = SCENE_WIDTH / (chartData.length - 1);
+            
+            // Factor de conversión: Euros -> Altura 3D
+            const scaleY = SCENE_HEIGHT / yAxisMax;
 
             useEffect(() => {
                 if (!mountRef.current || !window.THREE) return;
@@ -574,38 +599,28 @@ const Icons = {
                 const width = mountRef.current.offsetWidth;
                 const height = 350;
                 
-                // Limpiar
+                // Limpieza
                 mountRef.current.innerHTML = '';
 
                 const scene = new THREE.Scene();
                 
-                // CÁMARA ORTOGRÁFICA AJUSTADA A LOS DATOS
-                // Definimos el frustum (volumen de visión) exacto para que coincida con nuestros datos
-                // Left: un poco antes de la primera barra (-padding)
-                // Right: un poco después de la última barra (totalDataWidth + padding)
-                // Top: Altura máxima de datos + margen
-                // Bottom: Suelo
-                const camRight = totalDataWidth + paddingX;
-                const camLeft = -paddingX;
-                const camTop = yAxisMax * 1.1; // 10% margen arriba
-                const camBottom = -(yAxisMax * 0.15); // Espacio abajo para base
-
-                const camera = new THREE.OrthographicCamera(camLeft, camRight, camTop, camBottom, 1, 1000);
+                // CÁMARA ORTOGRÁFICA FIJA (NO DINÁMICA)
+                // Encuadramos exactamente el rectángulo 0,0 a 100,50
+                const margin = 10;
+                const camera = new THREE.OrthographicCamera(
+                    -margin, SCENE_WIDTH + margin, 
+                    SCENE_HEIGHT + margin, -margin, 
+                    1, 1000
+                );
                 
-                // Posición isométrica frontal para alinear visualmente con HTML
-                camera.position.set(20, 20, 100); // Z alto para alejar, X e Y para ángulo
-                camera.lookAt(20, 10, 0); // Mirar al centro aproximado
+                // Posición isométrica frontal
+                camera.position.set(20, 20, 100); 
+                camera.lookAt(50, 25, 0); // Mirar al centro del gráfico (50, 25)
                 
-                // AJUSTE CRÍTICO: Para que las barras coincidan con el eje X HTML, 
-                // eliminamos la rotación de perspectiva compleja y usamos una vista casi frontal
-                // con una ligera elevación para ver la profundidad (stacked).
-                camera.position.set(totalDataWidth / 2, yAxisMax / 2, 200);
-                camera.lookAt(totalDataWidth / 2, yAxisMax / 2, 0);
-                // Ligera inclinación para ver que hay dos filas
-                camera.position.y += 50;
-                camera.position.x += 20;
-                camera.lookAt(totalDataWidth / 2, yAxisMax / 3, 0);
-
+                // Ajuste fino para ver profundidad
+                camera.position.set(SCENE_WIDTH/2, SCENE_HEIGHT/2, 100);
+                camera.rotation.x = -0.1; // Picado leve
+                camera.rotation.y = 0.2; // Giro leve
 
                 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
                 renderer.setSize(width, height);
@@ -613,148 +628,161 @@ const Icons = {
                 mountRef.current.appendChild(renderer.domElement);
 
                 // Luces
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
                 scene.add(ambientLight);
                 const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
                 dirLight.position.set(50, 100, 50);
                 scene.add(dirLight);
 
-                // GRUPO BARRAS
                 const group = new THREE.Group();
                 scene.add(group);
 
-                const barWidth = 2.5; // Barras más anchas
-                const zDist = 2.5; // Distancia entre fila ICE y EV
-
-                // REJILLA HORIZONTAL (Grid Lines)
+                // --- REJILLA EJE Y (LÍNEAS BLANCAS VISIBLES) ---
                 yTicks.forEach(val => {
-                    if (val === 0) return;
-                    // Línea
-                    const points = [new THREE.Vector3(-paddingX, val, -5), new THREE.Vector3(totalDataWidth + paddingX, val, -5)];
+                    const y = val * scaleY;
+                    const points = [new THREE.Vector3(-5, y, -5), new THREE.Vector3(SCENE_WIDTH + 5, y, -5)];
                     const geo = new THREE.BufferGeometry().setFromPoints(points);
-                    const mat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.5 }); // Más visible
+                    // Línea sólida blanca con 30% opacidad
+                    const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3 });
                     group.add(new THREE.Line(geo, mat));
                 });
 
-                // BARRAS
+                // --- GENERADOR DE BARRAS APILADAS ---
                 chartData.forEach((row, i) => {
-                    const x = i * spacing;
+                    const x = i * SPACING;
 
-                    const createBar = (h, y, color, z) => {
-                        if (h < 0.1) return;
-                        const geo = new THREE.BoxGeometry(barWidth, h, barWidth);
-                        const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.2 });
-                        const mesh = new THREE.Mesh(geo, mat);
-                        mesh.position.set(x, y + h/2, z);
+                    const createStack = (dataObj, zPos, colors) => {
+                        let currentY = 0;
                         
-                        // Bordes
-                        const edges = new THREE.EdgesGeometry(geo);
-                        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, opacity: 0.1, transparent: true }));
-                        line.position.copy(mesh.position);
-                        group.add(line);
-                        group.add(mesh);
+                        // Array de segmentos: [Altura, Color]
+                        const segments = [
+                            { h: dataObj.base * scaleY, c: colors[0] },  // Vehículo
+                            { h: dataObj.fuel * scaleY, c: colors[1] },  // Energía
+                            { h: dataObj.maint * scaleY, c: colors[2] }, // Mantenimiento
+                            { h: dataObj.break * scaleY, c: colors[3] }  // Averías
+                        ];
+
+                        segments.forEach(seg => {
+                            if (seg.h < 0.1) return;
+                            
+                            const geo = new THREE.BoxGeometry(BAR_WIDTH, seg.h, BAR_WIDTH);
+                            const mat = new THREE.MeshLambertMaterial({ color: seg.c });
+                            const mesh = new THREE.Mesh(geo, mat);
+                            
+                            mesh.position.set(x, currentY + (seg.h / 2), zPos);
+                            
+                            // Líneas de borde para distinguir bloques
+                            const edges = new THREE.EdgesGeometry(geo);
+                            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 }));
+                            line.position.copy(mesh.position);
+                            
+                            group.add(mesh);
+                            group.add(line);
+
+                            currentY += seg.h;
+                        });
                     };
 
-                    // EV (Frente) - z positivo
-                    createBar(row.evBase, 0, 0x1e3a8a, zDist); 
-                    createBar(row.evEnergy, row.evBase, 0x3b82f6, zDist);
-                    createBar(row.evOther, row.evBase + row.evEnergy, 0x93c5fd, zDist);
+                    // Colores EV (Azules)
+                    // [Base Oscura, Energía, Mantenimiento, Averías]
+                    const evColors = [0x1e3a8a, 0x2563eb, 0x60a5fa, 0xbfdbfe];
+                    createStack(row.ev, 2, evColors);
 
-                    // ICE (Fondo) - z negativo
-                    createBar(row.iceBase, 0, 0x7c2d12, -zDist);
-                    createBar(row.iceFuel, row.iceBase, 0xf97316, -zDist);
-                    createBar(row.iceOther, row.iceBase + row.iceFuel, 0xfdb_a74, -zDist);
+                    // Colores ICE (Naranjas)
+                    const iceColors = [0x7c2d12, 0xea580c, 0xfb923c, 0xfed7aa];
+                    createStack(row.ice, -2, iceColors);
                 });
 
-                // Suelo
-                const floorGeo = new THREE.PlaneGeometry(totalDataWidth + spacing * 4, zDist * 4);
-                const floorMat = new THREE.MeshBasicMaterial({ color: 0x0f172a, transparent: true, opacity: 0.0 }); // Invisible, solo para recibir sombra si quisieramos
+                // Suelo invisible para referencia
+                const floorGeo = new THREE.PlaneGeometry(200, 20);
+                const floorMat = new THREE.MeshBasicMaterial({ color: 0x000000, visible: false });
                 const floor = new THREE.Mesh(floorGeo, floorMat);
                 floor.rotation.x = -Math.PI / 2;
-                floor.position.x = totalDataWidth / 2;
-                floor.position.y = 0;
                 group.add(floor);
 
-                // Render estático (sin animación para nitidez máxima en gráfico de datos)
+                // Render estático
                 renderer.render(scene, camera);
 
-                // Resize handler
+                // Resize
                 const handleResize = () => {
-                    if(!mountRef.current) return;
+                    if (!mountRef.current) return;
                     const w = mountRef.current.offsetWidth;
-                    renderer.setSize(w, height); // Mantiene aspect de cámara ortográfica definido por coordenadas
+                    renderer.setSize(w, height);
                     renderer.render(scene, camera);
                 };
                 window.addEventListener('resize', handleResize);
+
                 return () => {
                     window.removeEventListener('resize', handleResize);
-                    mountRef.current && mountRef.current.innerHTML && (mountRef.current.innerHTML = '');
+                    mountRef.current && (mountRef.current.innerHTML = '');
                 };
-
             }, [chartData, yAxisMax]);
 
-            // Formatter "20k"
+            // Formateador "20k"
             const fmtK = (n) => n >= 1000 ? (n/1000).toFixed(0) + 'k' : n;
 
             return (
-                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 relative mb-6 overflow-hidden">
-                    {/* CABECERA Y LEYENDA */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2 gap-4">
-                        <div className="bg-black/40 px-3 py-1 rounded backdrop-blur border border-white/5">
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 relative mb-6">
+                    {/* CABECERA Y LEYENDA DETALLADA */}
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4">
+                        <div className="bg-black/40 px-3 py-2 rounded backdrop-blur border border-white/5">
                             <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                                <Icons.TrendingUp className="w-3 h-3 text-cyan-400" /> Comparativa Costes Apilada
+                                <Icons.TrendingUp className="w-3 h-3 text-cyan-400" /> Evolución Costes (Desglose)
                             </h4>
                         </div>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[9px] font-bold uppercase bg-black/40 p-2 rounded border border-white/5 w-full md:w-auto">
-                            <div className="text-orange-400 border-b border-orange-500/30 pb-1 mb-1 col-span-1 text-center">Térmico (Fondo)</div>
-                            <div className="text-blue-400 border-b border-blue-500/30 pb-1 mb-1 col-span-1 text-center">Eléctrico (Frente)</div>
+                        
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-[9px] font-bold uppercase bg-black/40 p-2 rounded border border-white/5 w-full lg:w-auto">
+                            <div className="text-orange-400 text-center border-b border-white/10 pb-1">Térmico (Fondo)</div>
+                            <div className="text-blue-400 text-center border-b border-white/10 pb-1">Eléctrico (Frente)</div>
                             
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 bg-orange-200"></div> Mtto</div>
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 bg-blue-200"></div> Mtto</div>
+                            {/* AVERÍAS */}
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-orange-200"></div> Averías</div>
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-blue-200"></div> Averías</div>
                             
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 bg-orange-500"></div> Gasolina</div>
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 bg-blue-500"></div> Luz</div>
+                            {/* MANTENIMIENTO */}
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-orange-300"></div> Mantenimiento</div>
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-blue-300"></div> Mantenimiento</div>
+
+                            {/* CONSUMO */}
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-orange-500"></div> Combustible</div>
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-blue-500"></div> Energía</div>
                             
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 bg-orange-900"></div> Coche</div>
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 bg-blue-900"></div> Coche</div>
+                            {/* VEHICULO */}
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-orange-900"></div> Vehículo (Neto)</div>
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-blue-900"></div> Vehículo (Neto)</div>
                         </div>
                     </div>
 
-                    <div className="relative h-[350px] w-full">
-                        {/* EJE Y (ETIQUETAS) - Posicionadas absolutas a la izquierda */}
-                        <div className="absolute top-0 bottom-0 left-0 w-8 z-10 flex flex-col justify-end pb-8 pointer-events-none"> 
-                            {/* pb-8 compensa el margen inferior de la cámara */}
-                            {yTicks.slice(1).map((tick) => {
-                                const pct = (tick / yAxisMax) * 100;
-                                // Ajuste manual fino para alinear con el mundo 3D (depende de camBottom/camTop)
-                                const visualPct = (tick / (yAxisMax * 1.25)) * 100; 
+                    <div className="relative h-[350px] w-full pl-8 pr-2">
+                        {/* EJE Y (ETIQUETAS) */}
+                        <div className="absolute top-0 bottom-0 left-0 w-8 flex flex-col justify-end pointer-events-none z-10 pb-[2%]">
+                            {yTicks.map((tick) => {
+                                // Mapeo %: (Valor / MaxEje) * (AlturaÚtil ~ 88% del canvas por márgenes cámara)
+                                const pct = (tick / yAxisMax) * 88; 
                                 return (
-                                    <div key={tick} className="absolute w-full text-right pr-1" style={{ bottom: `${visualPct + 4}%` }}>
-                                        <span className="text-[9px] font-mono font-bold text-slate-500">{fmtK(tick)}</span>
+                                    <div key={tick} className="absolute w-full text-right pr-2" style={{ bottom: `${pct}%`, transform: 'translateY(50%)' }}>
+                                        <span className="text-[9px] font-mono font-bold text-slate-400 block">{fmtK(tick)}</span>
+                                        <div className="h-px w-full bg-slate-600 opacity-50 absolute right-0 top-1/2 -z-10 translate-x-full w-[100vw]"></div>
                                     </div>
-                                );
+                                )
                             })}
                         </div>
 
-                        {/* CANVAS 3D (Con padding left para dejar sitio al eje Y) */}
-                        <div ref={mountRef} className="absolute inset-0 left-8 right-0 h-full cursor-grab active:cursor-grabbing" />
+                        {/* CANVAS 3D */}
+                        <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
                         
-                        {/* EJE X (ETIQUETAS AÑOS) - Posicionadas por % exacto */}
-                        <div className="absolute bottom-0 left-8 right-0 h-6 border-t border-slate-700">
+                        {/* EJE X (AÑOS 0, 2, 4...) */}
+                        <div className="absolute bottom-0 left-0 right-0 h-6 border-t border-slate-700/50">
                             {chartData.map((row, i) => {
-                                // Mostramos solo años pares para no saturar
-                                if (i % 2 !== 0) return null;
+                                if (i % 2 !== 0) return null; // Solo pares
                                 
-                                // Calculamos posición exacta: (índice / total_indices) * 100%
-                                // paddingX en 3D afecta los bordes, aquí usamos un margen seguro.
-                                // La lógica 3D era: ancho total = (count-1) * spacing.
-                                // El porcentaje de posición es i / (count-1).
+                                // Posición exacta: (i / (total-1)) * 100%
                                 const pct = (i / (chartData.length - 1)) * 100;
                                 
                                 return (
-                                    <div key={i} className="absolute flex flex-col items-center transform -translate-x-1/2" style={{ left: `${pct}%`, top: '4px' }}>
-                                        <div className="h-1 w-px bg-slate-500 mb-1"></div>
-                                        <span className="text-[9px] font-bold text-slate-400 font-mono">{row.year}</span>
+                                    <div key={i} className="absolute flex flex-col items-center transform -translate-x-1/2" style={{ left: `${pct}%`, top: '-2px' }}>
+                                        <div className="h-1.5 w-px bg-slate-500 mb-1"></div>
+                                        <span className="text-[10px] font-bold text-slate-400 font-mono">{row.year}</span>
                                     </div>
                                 );
                             })}
@@ -766,7 +794,7 @@ const Icons = {
 
         const handleChange = (field, value) => setData({...data, [field]: parseFloat(value) || 0});
 
-        // Cálculos Globales (Fuera de la gráfica para la tabla y KPIs)
+        // Cálculos
         const netPriceEV = data.priceEV - data.moves;
         const netPriceICE = data.priceICE - data.aidICE;
         const initialDifference = netPriceEV - netPriceICE;
@@ -886,7 +914,6 @@ const Icons = {
             </div>
         );
       };
-
         
      
         
