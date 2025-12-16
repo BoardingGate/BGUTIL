@@ -1,4 +1,4 @@
-l1
+l2
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -2823,7 +2823,7 @@ const Icons = {
       };
 
 
-      // --- TARIFF COMPARATOR (UPDATED WITH 3D CHART) ---
+      // --- TARIFF COMPARATOR (UPDATED: FLAT 3D CHART) ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV5', {
             // Shared Data
@@ -2867,9 +2867,15 @@ const Icons = {
             } catch (e) { console.error(e); }
         }, []);
 
-        // --- SUB-COMPONENTE: GRÁFICO 3D COMPARATIVO ---
+        // --- SUB-COMPONENTE: GRÁFICO 3D PLANO (FRONTAL) ---
         const Tariff3DChart = ({ billA, billB, nameA, nameB }) => {
             const mountRef = useRef(null);
+
+            // Calcular máximos para la escala
+            const maxTotal = Math.max(billA.total, billB.total);
+            // Redondear hacia arriba al siguiente múltiplo de 10 o 50 para que la gráfica respire
+            const axisMax = Math.ceil(maxTotal * 1.1 / 10) * 10;
+            const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => axisMax * t);
 
             useEffect(() => {
                 if (!mountRef.current || !window.THREE) return;
@@ -2880,14 +2886,19 @@ const Icons = {
                 const scene = new THREE.Scene();
                 scene.background = null; 
 
-                // Cámara isométrica para ver mejor las alturas
+                // CÁMARA ORTOGRÁFICA FRONTAL (SIN INCLINACIÓN)
+                // Ajustamos el frustum para que coincida con nuestras coordenadas de barras
+                const viewSize = 40; // Unidades verticales del mundo 3D
                 const aspect = width / height;
-                const d = 20;
-                const camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
+                const camera = new THREE.OrthographicCamera(
+                    -viewSize * aspect / 2, viewSize * aspect / 2, 
+                    viewSize / 2, -viewSize / 2, 
+                    1, 1000
+                );
                 
-                // Posición isométrica
-                camera.position.set(20, 20, 20); 
-                camera.lookAt(0, 5, 0); 
+                // Posición frontal pura
+                camera.position.set(0, 10, 100); 
+                camera.lookAt(0, 10, 0); 
 
                 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
                 renderer.setSize(width, height);
@@ -2898,45 +2909,39 @@ const Icons = {
                 }
                 mountRef.current.appendChild(renderer.domElement);
 
-                // 2. LUCES
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                // 2. LUCES (Frontal y ambiental para que se vea plano pero con volumen sutil)
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
                 scene.add(ambientLight);
-                const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
-                dirLight.position.set(10, 20, 10);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+                dirLight.position.set(10, 20, 50); // Luz frontal
                 scene.add(dirLight);
-                const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
-                fillLight.position.set(-10, 5, -10);
-                scene.add(fillLight);
 
                 // 3. DATOS Y ESCALA
-                // Estructura: [Potencia, Energía, Fijos, Impuestos]
-                // Colores: Verde (Pot), Azul (Ener), Gris (Fijos), Morado/Blanco (Imp)
-                const colors = [0x4ade80, 0x60a5fa, 0x94a3b8, 0xc084fc];
+                const colors = [0x4ade80, 0x60a5fa, 0x94a3b8, 0xc084fc]; // Pot, Ener, Fijos, Imp
                 
                 const dataA = [billA.termPotDisc, billA.termEnNet, billA.fixedCosts, billA.taxes];
                 const dataB = [billB.termPotDisc, billB.termEnNet, billB.fixedCosts, billB.taxes];
                 
-                const totalA = dataA.reduce((a,b) => a+b, 0);
-                const totalB = dataB.reduce((a,b) => a+b, 0);
-                const maxVal = Math.max(totalA, totalB) * 1.1; // 10% margen
+                // Mapear valor monetario a altura 3D
+                // Usamos 30 unidades de altura para la gráfica (dejando margen en viewSize=40)
+                const chartHeight3D = 30;
+                const scaleY = chartHeight3D / axisMax;
                 
-                const maxBarHeight = 16; // Altura máxima en unidades 3D
-                const scaleY = maxBarHeight / maxVal;
-                const barSize = 6; 
-                const spacing = 12;
+                const barWidth = 8; 
+                const spacing = 20; // Separación entre centros de columnas
 
                 const createStack = (data, xPos) => {
                     const group = new THREE.Group();
-                    let currentY = 0;
+                    let currentY = -15; // Empezar desde abajo del view (ajuste manual según cámara)
 
                     data.forEach((val, idx) => {
                         if (val <= 0) return;
                         
                         const h = val * scaleY;
-                        const geo = new THREE.BoxGeometry(barSize, h, barSize);
+                        const geo = new THREE.BoxGeometry(barWidth, h, barWidth); // Cubo
                         const mat = new THREE.MeshStandardMaterial({ 
                             color: colors[idx], 
-                            roughness: 0.3, 
+                            roughness: 0.4, 
                             metalness: 0.1 
                         });
                         const mesh = new THREE.Mesh(geo, mat);
@@ -2945,9 +2950,9 @@ const Icons = {
                         mesh.position.y = currentY + (h / 2);
                         mesh.position.x = xPos;
                         
-                        // Bordes para definición
+                        // Bordes sutiles
                         const edges = new THREE.EdgesGeometry(geo);
-                        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 }));
+                        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.1 }));
                         line.position.copy(mesh.position);
                         
                         group.add(mesh);
@@ -2956,82 +2961,84 @@ const Icons = {
                         currentY += h;
                     });
                     
-                    // Sombra base
-                    const shadowGeo = new THREE.PlaneGeometry(barSize + 2, barSize + 2);
-                    const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 });
+                    // Sombra base falsa
+                    const shadowGeo = new THREE.PlaneGeometry(barWidth, 2);
+                    const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 });
                     const shadow = new THREE.Mesh(shadowGeo, shadowMat);
                     shadow.rotation.x = -Math.PI / 2;
-                    shadow.position.set(xPos, 0.01, 0);
+                    shadow.position.set(xPos, -15.1, 0); // Justo debajo del inicio
                     group.add(shadow);
 
-                    return { group, finalHeight: currentY };
+                    return group;
                 };
 
                 const stackA = createStack(dataA, -spacing/2);
                 const stackB = createStack(dataB, spacing/2);
                 
-                scene.add(stackA.group);
-                scene.add(stackB.group);
+                scene.add(stackA);
+                scene.add(stackB);
 
-                // Grid de fondo (Eje Y)
+                // 4. GRID DE FONDO (Líneas horizontales alineadas con los ticks)
                 const gridGroup = new THREE.Group();
-                const gridSteps = 5;
-                const stepValue = maxVal / gridSteps;
                 
-                for(let i=0; i<=gridSteps; i++) {
-                    const y = (stepValue * i) * scaleY;
+                ticks.forEach(tickVal => {
+                    // Posición Y en mundo 3D
+                    // tickVal 0 -> Y = -15
+                    const y = -15 + (tickVal * scaleY);
+                    
                     const points = [];
-                    points.push(new THREE.Vector3(-15, y, -5));
-                    points.push(new THREE.Vector3(15, y, -5));
+                    // Línea larga de lado a lado
+                    points.push(new THREE.Vector3(-30, y, -5));
+                    points.push(new THREE.Vector3(30, y, -5));
+                    
                     const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
                     const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.1 });
                     const line = new THREE.Line(lineGeo, lineMat);
                     gridGroup.add(line);
-                }
+                });
                 scene.add(gridGroup);
 
-                // 4. ANIMACIÓN
-                let time = 0;
-                const animate = () => {
-                    requestAnimationFrame(animate);
-                    time += 0.02;
-                    
-                    // Sutil rotación de la escena completa
-                    scene.rotation.y = Math.sin(time * 0.5) * 0.05;
-                    
-                    renderer.render(scene, camera);
-                };
+                // 5. RENDER ÚNICO (Sin animación de rotación)
+                renderer.render(scene, camera);
                 
-                // Animación de entrada (Escalado)
-                stackA.group.scale.y = 0;
-                stackB.group.scale.y = 0;
-                
-                const introAnim = () => {
-                    if (stackA.group.scale.y < 1) {
-                        stackA.group.scale.y += 0.05;
-                        stackB.group.scale.y += 0.05;
-                        requestAnimationFrame(introAnim);
+                // Animación simple de crecimiento (entrada)
+                let scale = 0;
+                const animateEntry = () => {
+                    if (scale < 1) {
+                        scale += 0.05;
+                        stackA.scale.y = scale;
+                        stackB.scale.y = scale;
+                        // Ajustar posición Y para que crezcan desde abajo (-15)
+                        // Al escalar un grupo desde el centro (0,0,0), necesitamos compensar si el pivote no está abajo.
+                        // Solución simple: reposicionar el grupo entero en Y basado en escala es complejo.
+                        // Alternativa visual rápida: dejamos el escalado centrado o lo omitimos para mantener la precisión de la escala estática.
+                        // Para este caso, mejor estático para asegurar precisión de la gráfica.
+                        renderer.render(scene, camera);
+                        requestAnimationFrame(animateEntry);
                     } else {
-                        stackA.group.scale.y = 1;
-                        stackB.group.scale.y = 1;
-                        animate();
+                        stackA.scale.y = 1;
+                        stackB.scale.y = 1;
+                        renderer.render(scene, camera);
                     }
-                    renderer.render(scene, camera);
                 };
-                introAnim();
+                
+                // Fix: El pivote de los grupos está en 0,0,0. 
+                // Para simplificar y asegurar que la línea cuadra, renderizamos estático y preciso.
+                renderer.render(scene, camera);
 
                 const handleResize = () => {
                     if (!mountRef.current) return;
                     const w = mountRef.current.offsetWidth;
                     const aspect = w / height;
                     
-                    camera.left = -d * aspect;
-                    camera.right = d * aspect;
-                    camera.top = d;
-                    camera.bottom = -d;
+                    camera.left = -viewSize * aspect / 2;
+                    camera.right = viewSize * aspect / 2;
+                    camera.top = viewSize / 2;
+                    camera.bottom = -viewSize / 2;
                     
                     camera.updateProjectionMatrix();
                     renderer.setSize(w, height);
+                    renderer.render(scene, camera);
                 };
                 window.addEventListener('resize', handleResize);
 
@@ -3039,45 +3046,52 @@ const Icons = {
                     window.removeEventListener('resize', handleResize);
                     if (mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
                 };
-            }, [billA, billB]); // Re-render si cambian los datos
-
-            const maxTotal = Math.max(billA.total, billB.total);
-            const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => (maxTotal * 1.1 * t).toFixed(0));
+            }, [billA, billB]); 
 
             return (
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 relative">
                     <div className="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-2">
                         <h4 className="text-sm font-bold text-slate-300 uppercase flex items-center gap-2">
-                            <Icons.TrendingUp className="w-4 h-4"/> Comparativa Visual de Costes
+                            <Icons.TrendingUp className="w-4 h-4"/> Comparativa de Costes
                         </h4>
                         
                         {/* LEYENDA */}
-                        <div className="flex gap-3 text-[10px] font-bold uppercase">
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-400"></div>Potencia</div>
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-400"></div>Energía</div>
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-slate-400"></div>Fijos</div>
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-400"></div>Impuestos</div>
+                        <div className="flex flex-wrap justify-end gap-3 text-[10px] font-bold uppercase">
+                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-green-400"></div>Potencia</div>
+                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-blue-400"></div>Energía</div>
+                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-slate-400"></div>Fijos</div>
+                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-purple-400"></div>Impuestos</div>
                         </div>
                     </div>
 
                     <div className="relative h-[350px]">
-                        {/* EJE Y (HTML Overlay) */}
-                        <div className="absolute top-0 bottom-0 left-0 w-8 flex flex-col justify-between text-[10px] text-slate-500 font-bold text-right py-4 z-10 pointer-events-none">
-                            {ticks.reverse().map(t => <span key={t}>{t}€</span>)}
+                        {/* EJE Y (HTML Overlay) - Alineado con las líneas 3D */}
+                        <div className="absolute top-0 bottom-0 left-0 w-12 flex flex-col justify-between text-[10px] text-slate-500 font-bold text-right py-0 z-10 pointer-events-none">
+                            {/* Usamos flex-col-reverse para que el índice 0 esté abajo */}
+                            <div className="h-full flex flex-col-reverse justify-between">
+                                {ticks.map(t => (
+                                    // Truco de altura para centrar el texto con la línea: transform translateY
+                                    <div key={t} className="h-0 flex items-center justify-end pr-2 translate-y-[5px]">
+                                        {t.toFixed(0)}€
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                         
                         {/* CANVAS 3D */}
-                        <div ref={mountRef} className="absolute inset-0 w-full h-full" />
+                        <div ref={mountRef} className="absolute inset-0 w-full h-full pl-6" /> {/* pl-6 para dejar sitio al eje Y */}
                         
-                        {/* ETIQUETAS EJE X (HTML Overlay) */}
-                        <div className="absolute bottom-2 left-0 w-full flex justify-around text-center pointer-events-none">
-                            <div className="translate-x-4">
+                        {/* ETIQUETAS EJE X - Alineadas debajo de las barras */}
+                        {/* La escena 3D tiene las barras en -10 y +10 de un ancho total relativo.
+                            Usaremos un grid simple de 2 columnas para alinearlo. */}
+                        <div className="absolute bottom-1 left-0 w-full pl-12 pr-6 flex justify-between pointer-events-none">
+                            <div className="flex-1 text-center pr-4"> {/* Ajuste visual izquierda */}
                                 <div className="text-xs font-bold text-white mb-1">{nameA}</div>
-                                <div className="text-lg font-display font-bold text-slate-300">{formatDecimal(billA.total)}€</div>
+                                <div className="text-xl font-display font-bold text-green-400">{formatDecimal(billA.total)}€</div>
                             </div>
-                            <div className="-translate-x-4">
+                            <div className="flex-1 text-center pl-4"> {/* Ajuste visual derecha */}
                                 <div className="text-xs font-bold text-white mb-1">{nameB}</div>
-                                <div className="text-lg font-display font-bold text-slate-300">{formatDecimal(billB.total)}€</div>
+                                <div className="text-xl font-display font-bold text-slate-300">{formatDecimal(billB.total)}€</div>
                             </div>
                         </div>
                     </div>
@@ -3116,7 +3130,6 @@ const Icons = {
         // Handler for shared consumption updates
         const handleConsChange = (key, val) => {
             if (key === 'consTotal') {
-                 // Redistribute based on current ratios
                  const currentTotal = tState.p1Kwh + tState.p2Kwh + tState.p3Kwh + tState.p3VeKwh + tState.p4Kwh || 1;
                  const ratio1 = tState.p1Kwh / currentTotal;
                  const ratio2 = tState.p2Kwh / currentTotal;
@@ -3134,7 +3147,6 @@ const Icons = {
                      p4Kwh: val * ratio4
                  }));
             } else {
-                // Update specific bucket and sum total
                 setTState(prev => {
                     const newState = { ...prev, [key]: val };
                     newState.consTotal = newState.p1Kwh + newState.p2Kwh + newState.p3Kwh + newState.p3VeKwh + newState.p4Kwh;
@@ -3206,10 +3218,8 @@ const Icons = {
         const diffEnPct = Math.min(billA.termEnNet, billB.termEnNet) > 0 ? (Math.abs(diffEn) / Math.max(billA.termEnNet, billB.termEnNet)) * 100 : 0;
         const winnerEVCost = diff > 0 ? evCostA : evCostB;
 
-        // Helper para mostrar % en inputs
         const getConsPct = (val) => tState.consTotal > 0 ? (val / tState.consTotal) * 100 : 0;
 
-        // Objeto con datos de consumo para pasar a las columnas
         const consumptionData = {
             p1Kwh: tState.p1Kwh,
             p2Kwh: tState.p2Kwh,
@@ -3506,7 +3516,9 @@ const Icons = {
             </div>
         );
       };
-        
+
+
+
         
       // --- DECODIFICADOR VIN AVANZADO V2 (CORREGIDO) ---
       const VinDecoder = () => {
