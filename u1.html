@@ -1,4 +1,4 @@
-M10
+M11
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -508,10 +508,10 @@ const Icons = {
       };
 
       
-    
-      // --- CALCULADORA DE AMORTIZACIÓN (V7: SANITIZACIÓN DE DATOS Y ALINEACIÓN MATEMÁTICA) ---
+      // --- CALCULADORA DE AMORTIZACIÓN (V8: SISTEMA NORMALIZADO 0-100 Y VALIDACIÓN) ---
       const AmortizationCalculator = () => {
-        const [data, setData] = usePersistentState('amortData', {
+        // Estado con valores por defecto
+        const defaultValues = {
             priceEV: 43000, priceICE: 45000, moves: 8500, aidICE: 2200,
             kmPerYear: 20000, consumptionEV: 16.0, consumptionICE: 6.0,
             priceElec: 0.10, priceFuel: 1.45, 
@@ -519,94 +519,91 @@ const Icons = {
             maintenanceEV: 60, maintenanceICE: 300,
             breakdownRateEV: 25, breakdownRateICE: 10,
             taxSavingsEV: 50, taxSavingsICE: 0
-        });
-        
+        };
+
+        const [data, setData] = usePersistentState('amortData', defaultValues);
         const [showTable, setShowTable] = useState(true);
 
-        // --- 1. SANITIZACIÓN Y CÁLCULOS ---
-        // Forzamos Number() para evitar errores si el localStorage guardó strings
-        const val = (v) => Number(v) || 0;
+        // --- 1. SANITIZACIÓN ROBUSTA DE DATOS ---
+        // Aseguramos que nada sea NaN o string vacío. Si falla, usa default.
+        const v = (key) => {
+            const val = parseFloat(data[key]);
+            return isFinite(val) ? val : defaultValues[key];
+        };
 
-        const years = val(data.yearsToProject);
-        const netPriceEV = val(data.priceEV) - val(data.moves);
-        const netPriceICE = val(data.priceICE) - val(data.aidICE);
+        // --- 2. CÁLCULOS MATEMÁTICOS ---
+        const years = v('yearsToProject');
         
-        const annFuel = (val(data.kmPerYear) / 100) * val(data.consumptionICE) * val(data.priceFuel);
-        const annElec = (val(data.kmPerYear) / 100) * val(data.consumptionEV) * val(data.priceElec);
+        // Base (Vehículo Neto)
+        const netPriceEV = v('priceEV') - v('moves');
+        const netPriceICE = v('priceICE') - v('aidICE');
         
-        const totalBreakdownEV = val(data.priceEV) * (val(data.breakdownRateEV) / 100);
-        const totalBreakdownICE = val(data.priceICE) * (val(data.breakdownRateICE) / 100);
-        const annBrkEV = totalBreakdownEV / years;
-        const annBrkICE = totalBreakdownICE / years;
+        // Anuales
+        const annFuel = (v('kmPerYear') / 100) * v('consumptionICE') * v('priceFuel');
+        const annElec = (v('kmPerYear') / 100) * v('consumptionEV') * v('priceElec');
         
-        const annOpNetEV = Math.max(0, (val(data.maintenanceEV) + annBrkEV) - val(data.taxSavingsEV));
-        const annOpNetICE = Math.max(0, (val(data.maintenanceICE) + annBrkICE) - val(data.taxSavingsICE));
+        // Operativos (Mtto + Averías Prorrateadas - Impuestos)
+        // Nota: Las averías se calculan sobre el precio bruto
+        const totalBrkEV = v('priceEV') * (v('breakdownRateEV') / 100);
+        const totalBrkICE = v('priceICE') * (v('breakdownRateICE') / 100);
+        
+        // Coste operativo anual neto
+        const opEV = Math.max(0, v('maintenanceEV') + (totalBrkEV / years) - v('taxSavingsEV'));
+        const opICE = Math.max(0, v('maintenanceICE') + (totalBrkICE / years) - v('taxSavingsICE'));
 
-        // Generar filas de datos
+        // Generación de Datos (Filas)
         const tableRows = useMemo(() => {
             const rows = [];
             for (let i = 0; i <= years; i++) {
+                // Acumulados
                 const accElec = annElec * i;
                 const accFuel = annFuel * i;
-                const accOpEV = annOpNetEV * i;
-                const accOpICE = annOpNetICE * i;
-                const accBrkEV = annBrkEV * i;
-                const accBrkICE = annBrkICE * i;
+                const accOpEV = opEV * i;
+                const accOpICE = opICE * i;
 
-                // Total Acumulado Real
+                // Totales
                 const totalEV = netPriceEV + accElec + accOpEV;
                 const totalICE = netPriceICE + accFuel + accOpICE;
 
                 rows.push({
                     year: i,
-                    km: val(data.kmPerYear) * i,
+                    km: v('kmPerYear') * i,
                     ev: totalEV,
                     ice: totalICE,
                     diff: totalICE - totalEV,
-                    // Stacks para gráfica
+                    // Desglose para gráfica (3 bloques claros)
                     stacks: {
                         ev: [
-                            { val: netPriceEV, col: 0x1e3a8a }, // Base: Compra
-                            { val: accElec, col: 0x3b82f6 },    // Medio: Energía
-                            { val: accOpEV, col: 0x93c5fd }     // Tope: Mtto+Averías-Imp
+                            { h: netPriceEV, c: 0x1e3a8a }, // Base: Coche (Azul Oscuro)
+                            { h: accElec, c: 0x3b82f6 },    // Medio: Energía (Azul Vivo)
+                            { h: accOpEV, c: 0x93c5fd }     // Tope: Operativo (Azul Claro)
                         ],
                         ice: [
-                            { val: netPriceICE, col: 0x7c2d12 }, 
-                            { val: accFuel, col: 0xf97316 },     
-                            { val: accOpICE, col: 0xfed7aa }     
+                            { h: netPriceICE, c: 0x7c2d12 }, // Base: Coche (Rojo Oscuro)
+                            { h: accFuel, c: 0xf97316 },     // Medio: Fuel (Naranja Vivo)
+                            { h: accOpICE, c: 0xfed7aa }     // Tope: Operativo (Crema)
                         ]
                     }
                 });
             }
             return rows;
-        }, [data, years, netPriceEV, netPriceICE, annElec, annFuel, annOpNetEV, annOpNetICE]);
+        }, [data, years, netPriceEV, netPriceICE, annElec, annFuel, opEV, opICE]);
 
         const totalSavingsProjected = tableRows[tableRows.length -1].diff;
         const effectiveCost = netPriceEV - totalSavingsProjected;
         const breakEvenRow = tableRows.find(r => r.diff >= 0);
         const breakEvenYear = breakEvenRow ? breakEvenRow.year : 0;
 
-        // --- SUB-COMPONENTE GRÁFICA 3D ---
+        // --- SUB-COMPONENTE GRÁFICA 3D (SISTEMA NORMALIZADO 0-100) ---
         const Amortization3DChart = ({ rows }) => {
             const mountRef = useRef(null);
 
-            // Escala Eje Y (Euros)
+            // Escala Y Dinámica (Euros)
             const maxVal = Math.max(rows[rows.length-1].ev, rows[rows.length-1].ice);
             const stepY = maxVal > 80000 ? 20000 : 10000;
             const yAxisMax = Math.ceil((maxVal * 1.1) / stepY) * stepY;
             const yTicks = [];
             for(let i=stepY; i<=yAxisMax; i+=stepY) yTicks.push(i);
-
-            // CONSTANTES DE DIBUJO
-            const BAR_WIDTH = 0.8;
-            const SPACING = 1.5; 
-            const MARGIN_X = 1.5; // Margen lateral de la cámara
-            const TOTAL_BARS_WIDTH = (rows.length - 1) * SPACING; // Ancho desde x=0 hasta x=fin
-            
-            // LÍMITES CÁMARA (Matemática Exacta)
-            const CAM_LEFT = -MARGIN_X;
-            const CAM_RIGHT = TOTAL_BARS_WIDTH + MARGIN_X;
-            const CAM_WIDTH = CAM_RIGHT - CAM_LEFT;
 
             useEffect(() => {
                 if (!mountRef.current || !window.THREE) return;
@@ -617,21 +614,29 @@ const Icons = {
 
                 const scene = new THREE.Scene();
 
-                // Altura visual en unidades 3D
-                const MAX_H = 30; 
-                const SCALE_Y = MAX_H / yAxisMax;
-
-                // CÁMARA ORTOGRÁFICA
-                const camTop = MAX_H + 5; 
-                const camBottom = -5;
-
-                const camera = new THREE.OrthographicCamera(CAM_LEFT, CAM_RIGHT, camTop, camBottom, 1, 1000);
+                // === COORDENADAS NORMALIZADAS (0 a 100) ===
+                // X: 0 = Año 0, 100 = Año Final
+                // Y: 0 = 0€, 100 = yAxisMax €
+                // Esto garantiza alineación perfecta independiente de los valores
                 
-                // Posición: Centrada en el medio de los datos en X
-                camera.position.set(TOTAL_BARS_WIDTH / 2, MAX_H / 2, 100);
+                // Configuración Cámara (Encuadre exacto del espacio 0-100 con márgenes)
+                const marginX = 5; 
+                const marginY_Top = 15; // Espacio para perspectiva superior
+                const marginY_Bottom = 10; // Espacio para base
+
+                const camLeft = -marginX;
+                const camRight = 100 + marginX;
+                const camTop = 100 + marginY_Top;
+                const camBottom = -marginY_Bottom;
+
+                const camera = new THREE.OrthographicCamera(camLeft, camRight, camTop, camBottom, 1, 1000);
+                
+                // Posición Frontal Isométrica Limpia
+                // Centrada en (50, 50), alejada en Z
+                camera.position.set(50, 50, 100);
                 camera.rotation.order = 'YXZ';
-                camera.rotation.x = 0;    // 0 Inclinación vertical (Ejes rectos)
-                camera.rotation.y = 0.2;  // Ligero giro lateral para ver la profundidad (filas)
+                camera.rotation.y = 0.25; // Giro lateral para ver profundidad (filas separadas)
+                camera.rotation.x = 0;    // SIN inclinación vertical -> Ejes Y rectos y precisos
 
                 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
                 renderer.setSize(width, height);
@@ -642,38 +647,42 @@ const Icons = {
                 const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
                 scene.add(ambientLight);
                 const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
-                dirLight.position.set(10, 20, 50);
+                dirLight.position.set(20, 50, 50);
                 scene.add(dirLight);
 
                 const group = new THREE.Group();
                 scene.add(group);
 
-                // --- REJILLA Y (LÍNEAS) ---
+                // === REJILLA Y (LÍNEAS) ===
                 yTicks.forEach(val => {
-                    const y = val * SCALE_Y;
-                    const points = [
-                        new THREE.Vector3(-2, y, 0), 
-                        new THREE.Vector3(TOTAL_BARS_WIDTH + 2, y, 0)
-                    ];
+                    const y = (val / yAxisMax) * 100; // Normalizar a 0-100
+                    const points = [new THREE.Vector3(-2, y, 0), new THREE.Vector3(102, y, 0)];
                     const geo = new THREE.BufferGeometry().setFromPoints(points);
                     const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 });
                     group.add(new THREE.Line(geo, mat));
                 });
 
-                // --- BARRAS ---
+                // === BARRAS ===
+                const numYears = rows.length;
+                const barWidthRel = (100 / numYears) * 0.6; // Ancho barra relativo
+                
                 rows.forEach((row, i) => {
-                    const x = i * SPACING; // Barra 0 en X=0. Barra 1 en X=1.5...
+                    // Posición X Normalizada: i / (total-1) * 100
+                    const x = (i / (numYears - 1)) * 100;
 
                     const createStack = (layers, zPos) => {
                         let currentY = 0;
                         layers.forEach(layer => {
-                            if (layer.val <= 0.1) return;
-                            const h = layer.val * SCALE_Y;
-                            const geo = new THREE.BoxGeometry(BAR_WIDTH, h, BAR_WIDTH);
-                            const mat = new THREE.MeshLambertMaterial({ color: layer.col });
+                            if (layer.h <= 0) return;
+                            
+                            // Altura Normalizada
+                            const h = (layer.h / yAxisMax) * 100;
+                            
+                            const geo = new THREE.BoxGeometry(barWidthRel, h, barWidthRel);
+                            const mat = new THREE.MeshLambertMaterial({ color: layer.c });
                             const mesh = new THREE.Mesh(geo, mat);
                             
-                            // Base en currentY
+                            // Posición
                             mesh.position.set(x, currentY + h/2, zPos);
                             
                             // Bordes
@@ -687,18 +696,18 @@ const Icons = {
                         });
                     };
 
-                    // Fila Eléctrica (Frente, Z positivo)
-                    createStack(row.stacks.ev, 0.8);
-                    // Fila Térmica (Fondo, Z negativo)
-                    createStack(row.stacks.ice, -0.8);
+                    // EV (Frente, Z positivo)
+                    createStack(row.stacks.ev, 1.5);
+                    // ICE (Fondo, Z negativo)
+                    createStack(row.stacks.ice, -1.5);
                 });
 
                 renderer.render(scene, camera);
 
+                // Resize
                 const handleResize = () => {
                     if (!mountRef.current) return;
-                    const w = mountRef.current.offsetWidth;
-                    renderer.setSize(w, height);
+                    renderer.setSize(mountRef.current.offsetWidth, height);
                     renderer.render(scene, camera);
                 };
                 window.addEventListener('resize', handleResize);
@@ -708,19 +717,18 @@ const Icons = {
                 };
             }, [rows, yAxisMax]);
 
-            // Formateador
             const fmtK = (n) => n >= 1000 ? (n/1000).toFixed(0) + 'k' : n;
 
             return (
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 relative mb-6">
                     {/* CABECERA */}
-                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-2 gap-4">
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4">
                         <div className="bg-black/40 px-3 py-1 rounded backdrop-blur border border-white/5">
                             <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                                 <Icons.TrendingUp className="w-3 h-3 text-cyan-400" /> Comparativa Costes Apilada
                             </h4>
                         </div>
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[9px] font-bold uppercase bg-black/40 p-2 rounded border border-white/5">
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[9px] font-bold uppercase bg-black/40 p-2 rounded border border-white/5 w-full lg:w-auto">
                             <div className="text-orange-400 text-center border-b border-white/10 pb-1">Térmico</div>
                             <div className="text-blue-400 text-center border-b border-white/10 pb-1">Eléctrico</div>
                             
@@ -737,10 +745,13 @@ const Icons = {
 
                     <div className="relative h-[400px] w-full flex">
                         {/* EJE Y (HTML) */}
-                        <div className="absolute top-0 bottom-0 left-0 w-8 flex flex-col justify-end pointer-events-none z-10 pb-[12%]"> 
-                            {yTicks.slice(1).map((tick) => {
-                                // Mapeo porcentual: (ValorTick / MaxEje) * (% Altura Útil Pantalla)
-                                const pct = (tick / yAxisMax) * 78; // Ajustado visualmente a la altura de cámara
+                        {/* Alineación: Bottom 0 del HTML corresponde a Y=0 del 3D (que está levantado por marginY_Bottom) */}
+                        {/* La altura total de cámara es 125 (100 + 15 + 10). El 0 empieza en 10/125 = 8% */}
+                        <div className="absolute top-0 bottom-0 left-0 w-8 flex flex-col justify-end pointer-events-none z-10 pb-[8%]"> 
+                            {yTicks.map((tick) => {
+                                // pct dentro del área de dibujo (0 a 100 unidades 3D)
+                                // El área de dibujo es 100/125 = 80% de la altura total
+                                const pct = (tick / yAxisMax) * 80;
                                 return (
                                     <div key={tick} className="absolute w-full text-right pr-2" style={{ bottom: `${pct}%` }}>
                                         <span className="text-[9px] font-mono font-bold text-slate-500">{fmtK(tick)}</span>
@@ -754,21 +765,20 @@ const Icons = {
                         <div className="flex-1 relative h-full overflow-hidden ml-8">
                             <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
                             
-                            {/* EJE X (HTML) - FÓRMULA DE ALINEACIÓN EXACTA */}
+                            {/* EJE X (HTML) - ALINEACIÓN 0-100 EXACTA */}
                             <div className="absolute bottom-0 left-0 right-0 h-6 border-t border-slate-700/50">
                                 {rows.map((row, i) => {
-                                    if (i % 2 !== 0) return null; // Solo pares
+                                    if (i % 2 !== 0) return null; // Pares
                                     
-                                    // FÓRMULA MAESTRA DE ALINEACIÓN:
-                                    // Posición Barra (3D) = i * SPACING
-                                    // Borde Izquierdo Cámara (3D) = CAM_LEFT
-                                    // Ancho Total Cámara (3D) = CAM_WIDTH
-                                    // % HTML = ((PosBarra - CamLeft) / CamWidth) * 100
-                                    const posBar3D = i * SPACING;
-                                    const pct = ((posBar3D - CAM_LEFT) / CAM_WIDTH) * 100;
+                                    // Coordenada normalizada exacta
+                                    // Como la cámara va de -5 a 105 (ancho 110), y el dato va de 0 a 100:
+                                    // Pct visual = ((0 - (-5)) / 110) * 100 = 4.5%
+                                    // Pct visual final = ((100 - (-5)) / 110) * 100 = 95.4%
+                                    const logicalPos = (i / (rows.length - 1)) * 100;
+                                    const visualPct = ((logicalPos + 5) / 110) * 100;
 
                                     return (
-                                        <div key={i} className="absolute flex flex-col items-center transform -translate-x-1/2" style={{ left: `${pct}%`, top: '-2px' }}>
+                                        <div key={i} className="absolute flex flex-col items-center transform -translate-x-1/2" style={{ left: `${visualPct}%`, top: '-2px' }}>
                                             <div className="h-1.5 w-px bg-slate-500 mb-1"></div>
                                             <span className="text-[10px] font-bold text-slate-400 font-mono">{row.year}</span>
                                         </div>
@@ -791,7 +801,7 @@ const Icons = {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
                         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 relative overflow-hidden">
                             <div className="relative z-10">
-                                <div className="text-sm text-green-400 mb-2 uppercase font-bold">Ahorro Neto ({data.yearsToProject} años)</div>
+                                <div className="text-sm text-green-400 mb-2 uppercase font-bold">Ahorro Neto ({years} años)</div>
                                 <div className={`text-5xl font-bold font-display ${totalSavingsProjected >= 0 ? 'text-green-400' : 'text-red-400'}`}>{totalSavingsProjected > 0 ? '+' : ''}{formatMoney(totalSavingsProjected)}€</div>
                             </div>
                         </div>
@@ -820,7 +830,7 @@ const Icons = {
                         <div className="space-y-4">
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Compra (€)</label><FormattedInput value={data.priceEV} onChange={val=>handleChange('priceEV', val)} /></div>
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Ayudas / MOVES (€)</label><FormattedInput value={data.moves} onChange={val=>handleChange('moves', val)} /></div>
-                            <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-4 h-4"/> Mantenimiento y Averías</h5><div className="grid grid-cols-3 gap-4"><div><label className="text-xs font-bold text-slate-400 block mb-1">Mtto. Anual</label><FormattedInput value={data.maintenanceEV} onChange={val=>handleChange('maintenanceEV', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1 whitespace-nowrap">% Averías <span className="text-slate-500 font-normal">[{formatMoney((data.priceEV * data.breakdownRateEV)/100)}€]</span></label><FormattedInput decimals={1} value={data.breakdownRateEV} onChange={val=>handleChange('breakdownRateEV', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Ahorro Impuestos</label><FormattedInput value={data.taxSavingsEV} onChange={val=>handleChange('taxSavingsEV', val)} /></div></div></div>
+                            <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-4 h-4"/> Mantenimiento y Averías</h5><div className="grid grid-cols-3 gap-4"><div><label className="text-xs font-bold text-slate-400 block mb-1">Mtto. Anual</label><FormattedInput value={data.maintenanceEV} onChange={val=>handleChange('maintenanceEV', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1 whitespace-nowrap">% Averías <span className="text-slate-500 font-normal">[{formatMoney((v('priceEV') * v('breakdownRateEV'))/100)}€]</span></label><FormattedInput decimals={1} value={data.breakdownRateEV} onChange={val=>handleChange('breakdownRateEV', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Ahorro Impuestos</label><FormattedInput value={data.taxSavingsEV} onChange={val=>handleChange('taxSavingsEV', val)} /></div></div></div>
                             <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2">Consumo</h5><div className="grid grid-cols-2 gap-6"><div><label className="text-xs font-bold text-slate-400 block mb-1">kWh/100km</label><FormattedInput decimals={1} value={data.consumptionEV} onChange={val=>handleChange('consumptionEV', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Precio €/kWh</label><FormattedInput decimals={3} value={data.priceElec} onChange={val=>handleChange('priceElec', val)} /></div></div></div>
                         </div>
                     </div>
@@ -829,7 +839,7 @@ const Icons = {
                         <div className="space-y-4">
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Compra (€)</label><FormattedInput value={data.priceICE} onChange={val=>handleChange('priceICE', val)} /></div>
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Ayudas / Plan Renove (€)</label><FormattedInput value={data.aidICE} onChange={val=>handleChange('aidICE', val)} /></div>
-                            <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-4 h-4"/> Mantenimiento y Averías</h5><div className="grid grid-cols-3 gap-4"><div><label className="text-xs font-bold text-slate-400 block mb-1">Mtto. Anual</label><FormattedInput value={data.maintenanceICE} onChange={val=>handleChange('maintenanceICE', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1 whitespace-nowrap">% Averías <span className="text-slate-500 font-normal">[{formatMoney((data.priceICE * data.breakdownRateICE)/100)}€]</span></label><FormattedInput decimals={1} value={data.breakdownRateICE} onChange={val=>handleChange('breakdownRateICE', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Ahorro Impuestos</label><FormattedInput value={data.taxSavingsICE} onChange={val=>handleChange('taxSavingsICE', val)} /></div></div></div>
+                            <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-4 h-4"/> Mantenimiento y Averías</h5><div className="grid grid-cols-3 gap-4"><div><label className="text-xs font-bold text-slate-400 block mb-1">Mtto. Anual</label><FormattedInput value={data.maintenanceICE} onChange={val=>handleChange('maintenanceICE', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1 whitespace-nowrap">% Averías <span className="text-slate-500 font-normal">[{formatMoney((v('priceICE') * v('breakdownRateICE'))/100)}€]</span></label><FormattedInput decimals={1} value={data.breakdownRateICE} onChange={val=>handleChange('breakdownRateICE', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Ahorro Impuestos</label><FormattedInput value={data.taxSavingsICE} onChange={val=>handleChange('taxSavingsICE', val)} /></div></div></div>
                             <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2">Consumo</h5><div className="grid grid-cols-2 gap-6"><div><label className="text-xs font-bold text-slate-400 block mb-1">L/100km</label><FormattedInput decimals={1} value={data.consumptionICE} onChange={val=>handleChange('consumptionICE', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Precio €/L</label><FormattedInput decimals={3} value={data.priceFuel} onChange={val=>handleChange('priceFuel', val)} /></div></div></div>
                         </div>
                     </div>
