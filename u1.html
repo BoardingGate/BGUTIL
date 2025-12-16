@@ -1,4 +1,4 @@
-l8
+M01
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -507,144 +507,164 @@ const Icons = {
         );
       };
 
-    
-    
-      
-      // --- CALCULADORA DE AMORTIZACIÓN (LETRAS MÁS GRANDES) ---
-      const AmortizationCalculator = () => {
-        const [data, setData] = usePersistentState('amortData', {
-            priceEV: 43000, priceICE: 45000, moves: 8500, aidICE: 2200,
-            kmPerYear: 20000, consumptionEV: 16.0, consumptionICE: 6.0,
-            priceElec: 0.10, priceFuel: 1.45, 
-            yearsToProject: 20,
-            maintenanceEV: 60, maintenanceICE: 300,
-            breakdownRateEV: 25, breakdownRateICE: 10,
-            taxSavingsEV: 50, taxSavingsICE: 0
-        });
-        
-        const [showTable, setShowTable] = useState(true);
+      // --- SUB-COMPONENTE: GRÁFICA AMORTIZACIÓN 3D ---
+      const Amortization3DChart = ({ data }) => {
+        const mountRef = useRef(null);
 
-        const handleChange = (field, value) => setData({...data, [field]: parseFloat(value) || 0});
+        useEffect(() => {
+            if (!mountRef.current || !window.THREE || data.length === 0) return;
 
-        // Cálculos
-        const netPriceEV = data.priceEV - data.moves;
-        const netPriceICE = data.priceICE - data.aidICE;
-        const initialDifference = netPriceEV - netPriceICE;
-        
-        const totalBreakdownEV = data.priceEV * (data.breakdownRateEV / 100);
-        const totalBreakdownICE = data.priceICE * (data.breakdownRateICE / 100);
-        const annualBreakdownEV = totalBreakdownEV / data.yearsToProject;
-        const annualBreakdownICE = totalBreakdownICE / data.yearsToProject;
+            // 1. SETUP
+            const width = mountRef.current.offsetWidth;
+            const height = 320;
+            const scene = new THREE.Scene();
+            
+            // Cálculos de escala
+            const maxVal = Math.max(
+                data[data.length - 1].ev, 
+                data[data.length - 1].ice
+            );
+            
+            // Cámara Ortográfica para precisión técnica
+            const camSize = 50; 
+            const aspect = width / height;
+            const camera = new THREE.OrthographicCamera(
+                -camSize * aspect, camSize * aspect,
+                camSize, -camSize,
+                1, 1000
+            );
+            
+            // Posición isométrica
+            camera.position.set(20, 20, 20); 
+            camera.lookAt(0, 15, 0); 
 
-        const annualFuelCost = (data.kmPerYear / 100) * data.consumptionICE * data.priceFuel;
-        const annualElecCost = (data.kmPerYear / 100) * data.consumptionEV * data.priceElec;
-        
-        const totalAnnualCostEV = annualElecCost + data.maintenanceEV + annualBreakdownEV - data.taxSavingsEV;
-        const totalAnnualCostICE = annualFuelCost + data.maintenanceICE + annualBreakdownICE - data.taxSavingsICE;
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            
+            mountRef.current.innerHTML = '';
+            mountRef.current.appendChild(renderer.domElement);
 
-        const totalAnnualSavings = totalAnnualCostICE - totalAnnualCostEV;
+            // 2. LUCES
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(10, 30, 20);
+            scene.add(dirLight);
 
-        const breakEvenYears = initialDifference > 0 ? (initialDifference / totalAnnualSavings) : 0;
-        const breakEvenKm = initialDifference > 0 ? (breakEvenYears * data.kmPerYear) : 0;
-        
-        const totalSavingsProjected = (totalAnnualSavings * data.yearsToProject) - initialDifference;
-        const effectiveCost = netPriceEV - (totalAnnualSavings * data.yearsToProject);
+            // 3. OBJETOS (Barras)
+            const group = new THREE.Group();
+            scene.add(group);
 
-        const tableRows = [];
-        for (let i = 0; i <= data.yearsToProject; i++) {
-            const cumCostEV = netPriceEV + (totalAnnualCostEV * i);
-            const cumCostICE = netPriceICE + (totalAnnualCostICE * i);
-            const currentKm = data.kmPerYear * i;
-            tableRows.push({ year: i, km: currentKm, ev: cumCostEV, ice: cumCostICE, diff: cumCostICE - cumCostEV });
-        }
+            const barWidth = 1.5;
+            const spacing = 2.5;
+            const maxBarHeight = 35; // Altura visual máxima en la escena
+            const scaleY = maxBarHeight / maxVal;
+            
+            // Centrar el grupo
+            const totalWidth = data.length * spacing;
+            group.position.x = -(totalWidth / 2);
+            group.position.y = -10; // Bajar un poco la base
+
+            data.forEach((row, i) => {
+                const x = i * spacing;
+
+                // Barra EV (Azul)
+                const hEv = row.ev * scaleY;
+                const geoEv = new THREE.BoxGeometry(barWidth, hEv, barWidth);
+                const matEv = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.3 });
+                const meshEv = new THREE.Mesh(geoEv, matEv);
+                meshEv.position.set(x, hEv / 2, 1); // Fila frontal
+                group.add(meshEv);
+
+                // Barra ICE (Naranja)
+                const hIce = row.ice * scaleY;
+                const geoIce = new THREE.BoxGeometry(barWidth, hIce, barWidth);
+                const matIce = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.3 });
+                const meshIce = new THREE.Mesh(geoIce, matIce);
+                meshIce.position.set(x, hIce / 2, -1.5); // Fila trasera
+                group.add(meshIce);
+
+                // Marcador de año (Base)
+                if (i % 2 === 0 || i === data.length - 1) { // Mostrar cada 2 años para no saturar
+                    // Pequeña muesca en el suelo
+                    const tickGeo = new THREE.BoxGeometry(0.2, 0.2, 4);
+                    const tickMat = new THREE.MeshBasicMaterial({ color: 0x64748b });
+                    const tick = new THREE.Mesh(tickGeo, tickMat);
+                    tick.position.set(x, 0, 0);
+                    group.add(tick);
+                }
+            });
+
+            // Grid Suelo
+            const gridHelper = new THREE.GridHelper(totalWidth + 20, 20, 0x334155, 0x1e293b);
+            gridHelper.position.set(0, 0, 0);
+            gridHelper.scale.z = 0.5;
+            group.add(gridHelper);
+
+            // 4. ANIMACIÓN
+            let frameId;
+            const animate = () => {
+                frameId = requestAnimationFrame(animate);
+                // Rotación sutil automática
+                // group.rotation.y = Math.sin(Date.now() * 0.0005) * 0.05; 
+                renderer.render(scene, camera);
+            };
+            animate();
+
+            // Resize
+            const handleResize = () => {
+                if (!mountRef.current) return;
+                const w = mountRef.current.offsetWidth;
+                const newAspect = w / height;
+                camera.left = -camSize * newAspect;
+                camera.right = camSize * newAspect;
+                camera.updateProjectionMatrix();
+                renderer.setSize(w, height);
+            };
+            window.addEventListener('resize', handleResize);
+
+            return () => {
+                window.removeEventListener('resize', handleResize);
+                cancelAnimationFrame(frameId);
+                if (mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
+            };
+        }, [data]);
 
         return (
-            <div className="space-y-6">
-                <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-8 text-center shadow-2xl">
-                    <h3 className="text-slate-300 text-sm font-display uppercase tracking-widest mb-4 font-bold">Análisis de Rentabilidad</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
-                        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 relative overflow-hidden">
-                            <div className="relative z-10">
-                                <div className="text-sm text-green-400 mb-2 uppercase font-bold">Ahorro Neto ({data.yearsToProject} años)</div>
-                                <div className={`text-5xl font-bold font-display ${totalSavingsProjected >= 0 ? 'text-green-400' : 'text-red-400'}`}>{totalSavingsProjected > 0 ? '+' : ''}{formatMoney(totalSavingsProjected)}€</div>
-                            </div>
-                        </div>
-                        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 relative overflow-hidden">
-                             <div className="relative z-10">
-                                <div className="text-sm text-blue-300 mb-2 uppercase font-bold">Coste Real vs Térmico</div>
-                                <div className="text-4xl font-bold font-display text-white">{formatMoney(effectiveCost)}€</div>
-                                <div className="text-xs font-bold text-slate-400 leading-tight mt-2">Precio EV menos ahorro generado</div>
-                            </div>
-                        </div>
-                         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 relative overflow-hidden">
-                            <div className="text-sm text-slate-300 mb-3 uppercase font-bold">Punto de Equilibrio</div>
-                            <div className="flex justify-around items-center">
-                                <div><div className={`text-3xl font-bold font-display ${initialDifference <= 0 ? 'text-green-400' : 'text-white'}`}>{initialDifference <= 0 ? "0" : breakEvenYears.toFixed(1)} <span className="text-sm font-sans font-normal text-slate-400">años</span></div></div>
-                                <div className="h-8 w-px bg-slate-700"></div>
-                                <div><div className={`text-3xl font-bold font-display ${initialDifference <= 0 ? 'text-green-400' : 'text-white'}`}>{initialDifference <= 0 ? "0" : formatMoney(breakEvenKm)} <span className="text-sm font-sans font-normal text-slate-400">km</span></div></div>
-                            </div>
-                        </div>
-                    </div>
+            <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 relative mb-6">
+                <div className="absolute top-4 left-4 z-10 bg-black/40 px-3 py-1 rounded backdrop-blur border border-white/5">
+                    <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                        <Icons.TrendingUp className="w-3 h-3 text-cyan-400" /> Evolución Coste Acumulado
+                    </h4>
                 </div>
                 
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
-                        <h4 className="text-blue-400 font-display font-bold mb-4 flex items-center gap-2 text-lg"><Icons.Zap /> Vehículo Eléctrico</h4>
-                        <div className="space-y-4">
-                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Compra (€)</label><FormattedInput value={data.priceEV} onChange={val=>handleChange('priceEV', val)} /></div>
-                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Ayudas / MOVES (€)</label><FormattedInput value={data.moves} onChange={val=>handleChange('moves', val)} /></div>
-                            <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-4 h-4"/> Mantenimiento y Averías</h5><div className="grid grid-cols-3 gap-4"><div><label className="text-xs font-bold text-slate-400 block mb-1">Mtto. Anual</label><FormattedInput value={data.maintenanceEV} onChange={val=>handleChange('maintenanceEV', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1 whitespace-nowrap">% Averías <span className="text-slate-500 font-normal">[{formatMoney(totalBreakdownEV)}€]</span></label><FormattedInput decimals={1} value={data.breakdownRateEV} onChange={val=>handleChange('breakdownRateEV', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Ahorro Impuestos</label><FormattedInput value={data.taxSavingsEV} onChange={val=>handleChange('taxSavingsEV', val)} /></div></div></div>
-                            <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2">Consumo</h5><div className="grid grid-cols-2 gap-6"><div><label className="text-xs font-bold text-slate-400 block mb-1">kWh/100km</label><FormattedInput decimals={1} value={data.consumptionEV} onChange={val=>handleChange('consumptionEV', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Precio €/kWh</label><FormattedInput decimals={3} value={data.priceElec} onChange={val=>handleChange('priceElec', val)} /></div></div></div>
-                        </div>
+                {/* Leyenda */}
+                <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-1 pointer-events-none">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Térmico</span>
+                        <div className="w-3 h-3 bg-orange-500 rounded-sm"></div>
                     </div>
-                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
-                        <h4 className="text-orange-400 font-display font-bold mb-4 flex items-center gap-2 text-lg"><Icons.Fuel /> Vehículo Térmico</h4>
-                        <div className="space-y-4">
-                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Compra (€)</label><FormattedInput value={data.priceICE} onChange={val=>handleChange('priceICE', val)} /></div>
-                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Ayudas / Plan Renove (€)</label><FormattedInput value={data.aidICE} onChange={val=>handleChange('aidICE', val)} /></div>
-                            <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-4 h-4"/> Mantenimiento y Averías</h5><div className="grid grid-cols-3 gap-4"><div><label className="text-xs font-bold text-slate-400 block mb-1">Mtto. Anual</label><FormattedInput value={data.maintenanceICE} onChange={val=>handleChange('maintenanceICE', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1 whitespace-nowrap">% Averías <span className="text-slate-500 font-normal">[{formatMoney(totalBreakdownICE)}€]</span></label><FormattedInput decimals={1} value={data.breakdownRateICE} onChange={val=>handleChange('breakdownRateICE', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Ahorro Impuestos</label><FormattedInput value={data.taxSavingsICE} onChange={val=>handleChange('taxSavingsICE', val)} /></div></div></div>
-                            <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2">Consumo</h5><div className="grid grid-cols-2 gap-6"><div><label className="text-xs font-bold text-slate-400 block mb-1">L/100km</label><FormattedInput decimals={1} value={data.consumptionICE} onChange={val=>handleChange('consumptionICE', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Precio €/L</label><FormattedInput decimals={3} value={data.priceFuel} onChange={val=>handleChange('priceFuel', val)} /></div></div></div>
-                        </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Eléctrico</span>
+                        <div className="w-3 h-3 bg-blue-500 rounded-sm"></div>
                     </div>
                 </div>
+
+                <div ref={mountRef} className="w-full h-[320px] cursor-grab active:cursor-grabbing" />
                 
-                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
-                    <h4 className="text-slate-300 font-bold mb-4 text-base">Variables de Comparación</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Kilómetros Anuales</label><FormattedInput value={data.kmPerYear} onChange={val=>handleChange('kmPerYear', val)} /></div>
-                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Años a proyectar</label><FormattedInput value={data.yearsToProject} onChange={val=>handleChange('yearsToProject', val)} /></div>
-                    </div>
-                </div>
-                
-                <div className="mt-8">
-                    <button onClick={() => setShowTable(!showTable)} className="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-base font-medium text-slate-300 transition-colors flex items-center justify-center gap-2"><Icons.Table /> {showTable ? 'Ocultar Desglose' : 'Ver Desglose Detallado Año a Año'}</button>
-                    {showTable && (
-                        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800 animate-fade-in">
-                            <table className="w-full custom-table">
-                                <thead className="bg-slate-900"><tr><th>Año</th><th className="text-right">Kms Totales</th><th className="text-right">Coste Acumulado EV</th><th className="text-right">Coste Acumulado ICE</th><th className="text-right">Diferencia (Ahorro)</th></tr></thead>
-                                <tbody className="bg-slate-900/50">{tableRows.map((row) => (<tr key={row.year}><td className="font-bold text-slate-400">{row.year}</td><td className="text-slate-300">{formatMoney(row.km)}</td><td className="text-blue-300">{formatMoney(row.ev)}€</td><td className="text-orange-300">{formatMoney(row.ice)}€</td><td className={row.diff >= 0 ? 'text-green-400 font-bold' : 'text-red-400'}>{row.diff > 0 ? '+' : ''}{formatMoney(row.diff)}€</td></tr>))}</tbody>
-                            </table>
-                        </div>
-                    )}
-                </div>
-                {/* FOOTER REFERIDO TESLA - MODIFICADO CON BOTÓN GRANDE */}
-                <div className="mt-8 p-6 bg-blue-900/20 border border-blue-500/30 rounded-xl flex flex-col items-center gap-4 text-center">
-                    <p className="text-sm font-bold text-slate-300 leading-relaxed max-w-4xl">
-                        (*) Si estás pensando en comprar un Tesla, utiliza mi enlace de referido para obtener beneficios exclusivos (descuentos o meses de carga gratuita según la promoción vigente).
-                    </p>
-                    <a 
-                        href="https://ts.la/juancarlos162231" 
-                        target="_blank" 
-                        className="bg-blue-600 hover:bg-blue-500 text-white text-lg md:text-xl font-bold px-8 py-4 rounded-xl transition-all shadow-lg hover:shadow-blue-500/20 transform hover:-translate-y-1 flex items-center gap-2"
-                    >
-                        CONSEGUIR BENEFICIOS AL COMPRAR UN TESLA
-                    </a>
+                <div className="flex justify-between px-8 text-xs font-bold text-slate-500 uppercase mt-[-20px] relative z-20">
+                    <span>Año 0</span>
+                    <span>Año {Math.round(data.length/2)}</span>
+                    <span>Año {data.length - 1}</span>
                 </div>
             </div>
         );
       };
 
-      
+
+        
+
       // --- CALCULADORA DE CARGA (DISTRIBUCIÓN FULL WIDTH + INTERÉS COMPUESTO) ---
       const ChargingCalculator = () => {
         const [state, setState] = usePersistentState('chargeState', { 
@@ -1053,6 +1073,7 @@ const Icons = {
 
                         {/* TABLA DESPLEGABLE */}
                         <div className="mt-8">
+                            <Amortization3DChart data={tableRows} />
                             <button 
                                 onClick={() => setShowCompTable(!showCompTable)} 
                                 className="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-base font-medium text-slate-300 transition-colors flex items-center justify-center gap-2"
