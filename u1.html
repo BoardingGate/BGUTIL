@@ -483,7 +483,7 @@ const Icons = {
       };
 
 
-      // --- VISUALIZADOR LATERAL V4 (CORREGIDO: INCLINACIÓN Y LÍNEAS) ---
+      // --- VISUALIZADOR 3D HÍBRIDO (CORREGIDO: DIRECCIÓN, LÍNEAS Y VIENTO) ---
       const Visualizer = ({ params }) => {
         const mountRef = useRef(null);
         
@@ -502,8 +502,7 @@ const Icons = {
             const width = mountRef.current.offsetWidth;
             const height = 320;
             const scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0f172a); // Fondo oscuro
-            // Niebla para suavizar los bordes
+            scene.background = new THREE.Color(0x0f172a); 
             scene.fog = new THREE.Fog(0x0f172a, 10, 60); 
 
             // Cámara lateral
@@ -519,25 +518,25 @@ const Icons = {
             }
             mountRef.current.appendChild(renderer.domElement);
 
-            // 2. CARRETERA CON LÍNEA DISCONTINUA
+            // 2. CARRETERA (ASPHALT GRID TEXTURE)
             const canvas = document.createElement('canvas');
             canvas.width = 1024; canvas.height = 1024;
             const ctx = canvas.getContext('2d');
             
-            // Fondo asfalto con ruido
+            // Fondo
             ctx.fillStyle = '#1e293b'; 
             ctx.fillRect(0,0,1024,1024);
             
             // Línea Blanca Discontinua (Centro)
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
             ctx.lineWidth = 15;
-            ctx.setLineDash([60, 80]); // 60px pintado, 80px hueco
+            ctx.setLineDash([80, 100]); // Trazos más largos
             ctx.beginPath();
-            ctx.moveTo(0, 512); // Centro horizontal del canvas
+            ctx.moveTo(0, 512); 
             ctx.lineTo(1024, 512);
             ctx.stroke();
 
-            // Líneas sutiles laterales para dar sensación de velocidad extra
+            // Líneas sutiles
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
             ctx.lineWidth = 2;
             ctx.setLineDash([]);
@@ -550,34 +549,29 @@ const Icons = {
             const roadTexture = new THREE.CanvasTexture(canvas);
             roadTexture.wrapS = THREE.RepeatWrapping;
             roadTexture.wrapT = THREE.RepeatWrapping;
-            // Repetimos la textura horizontalmente para que sea infinita
             roadTexture.repeat.set(4, 1); 
 
             const roadGeo = new THREE.PlaneGeometry(120, 30); 
             const roadMat = new THREE.MeshBasicMaterial({ map: roadTexture });
             const road = new THREE.Mesh(roadGeo, roadMat);
             
-            // Posicionamiento de la carretera
-            road.rotation.x = -Math.PI / 2.05; // Ligeramente inclinada hacia cámara
+            road.rotation.x = -Math.PI / 2.05; 
             road.position.y = -1.5; 
             road.position.z = -2; 
             scene.add(road);
             roadMatRef.current = roadMat;
 
-
-            // 3. VIENTO (LÍNEAS HORIZONTALES)
+            // 3. VIENTO (LÍNEAS DE FLUJO)
             const lineCount = 120;
             const lineGeo = new THREE.BufferGeometry();
             const positions = [];
             const speeds = [];
 
             for(let i=0; i<lineCount; i++) {
-                // Posición aleatoria
                 const x = (Math.random() - 0.5) * 80;
                 const y = Math.random() * 6 - 1; 
                 const z = (Math.random() - 0.5) * 15 + 2;
-
-                const len = Math.random() * 4 + 2;
+                const len = Math.random() * 5 + 3; // Líneas más largas
 
                 positions.push(x, y, z);      
                 positions.push(x + len, y, z); 
@@ -589,13 +583,12 @@ const Icons = {
             const lineMat = new THREE.LineBasicMaterial({
                 color: 0x60a5fa, 
                 transparent: true,
-                opacity: 0.3
+                opacity: 0.4
             });
 
             const windLines = new THREE.LineSegments(lineGeo, lineMat);
             scene.add(windLines);
             windGeoRef.current = { geo: lineGeo, speeds: speeds, count: lineCount };
-
 
             // 4. ANIMACIÓN
             let frameId;
@@ -603,20 +596,17 @@ const Icons = {
                 frameId = requestAnimationFrame(animate);
                 const p = paramsRef.current;
 
-                // A. MOVER CARRETERA (LÍNEAS)
+                // A. MOVER CARRETERA (Positivo = Izquierda = Coche avanza derecha)
                 if (roadMatRef.current) {
-                    // Offset X mueve la textura. 
-                    // p.speed * factor ajusta la velocidad visual de las líneas discontinuas.
                     const speedFactor = p.speed * 0.0008;
-                    roadMatRef.current.map.offset.x -= speedFactor; // Negativo para ir hacia la izquierda (coche va derecha)
+                    roadMatRef.current.map.offset.x += speedFactor; 
                 }
 
-                // B. MOVER VIENTO
+                // B. MOVER VIENTO (Negativo X = Izquierda)
                 if (windGeoRef.current) {
                     const { geo, speeds, count } = windGeoRef.current;
                     const posArr = geo.attributes.position.array;
                     
-                    // Viento base relativo al coche
                     const windRelSpeed = (p.speed - p.windSpeed) * 0.08; 
                     const finalSpeed = Math.max(0.1, windRelSpeed);
 
@@ -627,10 +617,10 @@ const Icons = {
                         posArr[idx] -= spd;     // x1
                         posArr[idx+3] -= spd;   // x2
 
-                        // Reset cuando salen por la izquierda
+                        // Loop infinito
                         if (posArr[idx+3] < -40) {
                             const newX = 40 + Math.random() * 10;
-                            const len = Math.random() * 5 + 2; 
+                            const len = Math.random() * 5 + 3; 
                             const y = posArr[idx+1];
                             const z = posArr[idx+2];
 
@@ -645,12 +635,7 @@ const Icons = {
                     geo.attributes.position.needsUpdate = true;
                 }
 
-                // C. INCLINACIÓN (CORREGIDA)
-                // Rotamos la cámara en Z.
-                // Para que parezca subida (cuesta arriba /), la cámara debe rotar en negativo (antihorario) o positivo?
-                // Si la cámara rota a la izquierda (CCW), el mundo parece rotar a la derecha (CW, bajada).
-                // Si la cámara rota a la derecha (CW), el mundo parece rotar a la izquierda (CCW, subida).
-                // Queremos subida si gradient > 0.
+                // C. INCLINACIÓN (Invertida para coincidir con el coche)
                 const targetRotZ = THREE.MathUtils.degToRad(-p.gradient * 0.8);
                 camera.rotation.z = targetRotZ;
 
@@ -679,51 +664,205 @@ const Icons = {
 
         return (
             <div className="relative h-80 w-full rounded-3xl overflow-hidden border border-slate-800 shadow-2xl mb-8 bg-slate-900 group">
-                
-                {/* 1. FONDO 3D */}
                 <div ref={mountRef} className="absolute inset-0 z-0" />
-
-                {/* 2. COCHE HTML (SUPERPUESTO) */}
                 <div 
                     className="absolute inset-0 z-10 flex items-end justify-center pointer-events-none pb-12 transition-transform duration-300 ease-out"
-                    style={{ 
-                        // Rotación invertida respecto al código anterior para coincidir con la cámara
-                        // -params.gradient para CSS: negativo es antihorario (morro arriba)
-                        transform: `rotate(${-params.gradient}deg) translateY(${params.gradient * 3.5}px)` 
-                    }}
+                    style={{ transform: `rotate(${-params.gradient}deg) translateY(${params.gradient * 3.5}px)` }}
                 >
                     <div className="relative w-[400px] h-[200px]">
-                        <img 
-                            src="tesla_model_3.png" 
-                            alt="Tesla Model 3" 
-                            className="w-full h-full object-contain filter drop-shadow-2xl contrast-110 brightness-100" 
-                        />
-                        {/* Ruedas */}
-                        <div className={`absolute bottom-[20.5%] left-[12.8%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}
-                             style={{ animationDuration: isMoving && params.speed > 0 ? `${400/params.speed}s` : '0s' }}>
+                        <img src="tesla_model_3.png" alt="Tesla Model 3" className="w-full h-full object-contain filter drop-shadow-2xl contrast-110 brightness-100" />
+                        <div className={`absolute bottom-[20.5%] left-[12.8%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`} style={{ animationDuration: isMoving && params.speed > 0 ? `${400/params.speed}s` : '0s' }}></div>
+                        <div className={`absolute bottom-[20.5%] right-[13%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`} style={{ animationDuration: isMoving && params.speed > 0 ? `${400/params.speed}s` : '0s' }}></div>
+                    </div>
+                </div>
+                <div className="absolute top-4 left-4 right-4 flex justify-between z-20 pointer-events-none">
+                    <div className="space-y-2">
+                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-blue-400 flex items-center gap-2 shadow-lg"><Icons.Gauge className="w-4 h-4" /> {params.speed} km/h</div>
+                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-green-400 flex items-center gap-2 shadow-lg"><Icons.TrendingUp className="w-4 h-4" /> {params.gradient}% Desnivel</div>
+                    </div>
+                    <div className="space-y-2 text-right">
+                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-orange-400 flex items-center gap-2 ml-auto shadow-lg"><Icons.Thermometer className="w-4 h-4" /> {params.temperature}°C</div>
+                        <div className={`bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono flex items-center gap-2 ml-auto shadow-lg ${isHeadwind ? 'text-red-400' : 'text-cyan-400'}`}><Icons.Wind className="w-4 h-4" /> {Math.abs(params.windSpeed)} km/h {isHeadwind ? 'Contra' : 'Favor'}</div>
+                    </div>
+                </div>
+            </div>
+        );
+      };
+
+        const SimulationControls = ({ params, setParams }) => {
+        const handleChange = (key, value) => setParams(prev => ({ ...prev, [key]: parseFloat(value) }));
+
+        return (
+            <div className="bg-slate-900/50 backdrop-blur-lg border border-slate-800 rounded-2xl p-6 shadow-xl mb-6">
+                <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
+                    <Icons.Settings /> Parámetros de Simulación
+                </h2>
+                <div className="space-y-6">
+                    {[
+                        { icon: Icons.Gauge, label: "Velocidad", key: "speed", min: 0, max: 200, unit: "km/h" },
+                        { icon: Icons.Thermometer, label: "Temperatura", key: "temperature", min: -20, max: 50, unit: "°C" },
+                        { icon: Icons.TrendingUp, label: "Desnivel", key: "gradient", min: -20, max: 20, unit: "%" },
+                        { icon: Icons.Wind, label: "Viento", key: "windSpeed", min: -50, max: 50, unit: "km/h", customLabel: val => `${Math.abs(val)} km/h ${val < 0 ? 'Contra' : val > 0 ? 'Favor' : ''}` }
+                    ].map((item) => (
+                        <div key={item.key}>
+                            <div className="flex justify-between mb-2 text-base">
+                                <span className="text-slate-300 font-bold flex items-center gap-1"><item.icon className="w-5 h-5"/> {item.label}</span>
+                                <span className="text-blue-400 font-mono font-bold text-lg">
+                                    {item.customLabel ? item.customLabel(params[item.key]) : `${params[item.key]} ${item.unit}`}
+                                </span>
+                            </div>
+                            <input type="range" min={item.min} max={item.max} value={params[item.key]} 
+                                onChange={(e) => handleChange(item.key, e.target.value)}
+                                className="w-full h-4 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500" />
                         </div>
-                        <div className={`absolute bottom-[20.5%] right-[13%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}
-                             style={{ animationDuration: isMoving && params.speed > 0 ? `${400/params.speed}s` : '0s' }}>
+                    ))}
+                </div>
+            </div>
+        );
+      };
+      const ResultsDisplay = ({ consumption, params, costs }) => {
+        const costPer100ElecRaw = consumption * costs.electricityPrice;
+        const costPer100GasRaw = costs.gasConsumptionRef * costs.gasPrice;
+        const costPerKmElec = (costPer100ElecRaw / 100);
+        const costPerKmGas = (costPer100GasRaw / 100);
+        const savingsRaw = costPer100GasRaw - costPer100ElecRaw;
+        const extraKm = Math.max(0, (costPerKmElec > 0.0001 ? (savingsRaw / parseFloat(costPerKmElec)) : 0));
+        const range = consumption > 0.1 ? ((params.batteryCapacity / consumption) * 100) : 0;
+
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center shadow-lg group relative overflow-hidden">
+                    <div className="absolute inset-0 bg-blue-500/10 opacity-0 group-hover:opacity-100 transition duration-500"></div>
+                    <div className="text-slate-300 font-bold text-base mb-1 flex items-center gap-2"><Icons.Zap className="w-5 h-5"/> Consumo</div>
+                    <div className="text-5xl font-display font-bold text-white tabular-nums">{formatDecimal(consumption)}<span className="text-xl text-slate-400 ml-2 font-sans font-normal">kWh/100</span></div>
+                    <div className="text-base text-blue-400 mt-2 font-bold">Autonomía: {formatMoney(range)} km</div>
+                </div>
+
+                <div className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-start shadow-lg group relative overflow-hidden">
+                    <div className="absolute inset-0 bg-green-500/10 opacity-0 group-hover:opacity-100 transition duration-500"></div>
+                    <div className="flex flex-col items-center w-full mb-4">
+                        <div className="text-slate-300 font-bold text-base mb-1 flex items-center gap-2"><Icons.Euro className="w-5 h-5"/> Coste Eléctrico</div>
+                        <div className="text-5xl font-display font-bold text-green-400 tabular-nums">{formatDecimal(costPer100ElecRaw)}€<span className="text-xl text-slate-400 ml-2 font-sans font-normal">/100km</span></div>
+                        <div className="text-base text-green-300/70 mt-1 font-mono font-bold">{formatDecimal(costPerKmElec)} €/km</div>
+                        <div className="text-sm font-bold text-slate-400 mt-1">Ref: {costs.electricityPrice} €/kWh</div>
+                    </div>
+                    <div className="w-full h-px bg-slate-700 mb-3"></div>
+                    <div className="w-full flex flex-col items-center">
+                        <div className="text-xs uppercase tracking-widest text-slate-300 font-bold mb-1">Ahorro vs Térmico</div>
+                        <div className="flex items-baseline gap-3">
+                            <span className="text-xl font-bold text-white">+{formatDecimal(savingsRaw)}€</span>
+                            <span className="text-sm text-slate-400">➜</span>
+                            <span className="text-xl font-bold text-blue-400">+{formatMoney(extraKm)} km</span>
                         </div>
+                        <div className="text-xs font-bold text-slate-400 mt-0">por cada 100km recorridos</div>
                     </div>
                 </div>
 
-                {/* 3. HUD */}
-                <div className="absolute top-4 left-4 right-4 flex justify-between z-20 pointer-events-none">
-                    <div className="space-y-2">
-                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-blue-400 flex items-center gap-2 shadow-lg">
-                            <Icons.Gauge className="w-4 h-4" /> {params.speed} km/h
+                <div className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center shadow-lg group relative overflow-hidden">
+                    <div className="absolute inset-0 bg-orange-500/10 opacity-0 group-hover:opacity-100 transition duration-500"></div>
+                    <div className="text-slate-300 font-bold text-base mb-1 flex items-center gap-2"><Icons.Fuel className="w-5 h-5"/> Consumo en Térmico</div>
+                    <div className="text-5xl font-display font-bold text-orange-400 tabular-nums">{formatDecimal(costPer100GasRaw)}€<span className="text-xl text-slate-400 ml-2 font-sans font-normal">/100km</span></div>
+                    <div className="text-base text-orange-300/70 mt-2 font-mono font-bold">{formatDecimal(costPerKmGas)} €/km</div>
+                    <div className="text-sm font-bold text-slate-400 mt-4">Ref: {costs.gasConsumptionRef}L/100 a {costs.gasPrice}€/L</div>
+                </div>
+            </div>
+        );
+      };
+      const AdvancedConfig = ({ params, setParams, costs, setCosts }) => {
+        const handleChange = (key, value) => setParams(prev => ({ ...prev, [key]: parseFloat(value) }));
+        const handleCostChange = (key, value) => setCosts(prev => ({ ...prev, [key]: parseFloat(value) }));
+
+        return (
+            <div className="bg-slate-900/50 backdrop-blur-lg border border-slate-800 rounded-2xl p-6 shadow-xl mb-6">
+                <h3 className="text-lg font-bold text-slate-300 mb-4 flex items-center gap-2">
+                    <Icons.Wrench className="w-5 h-5"/> Configuración Avanzada
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div><label className="text-sm font-bold text-slate-400 block mb-1">Electricidad (€/kWh)</label><FormattedInput decimals={3} value={costs.electricityPrice} onChange={(val) => handleCostChange('electricityPrice', val)} /></div>
+                    <div><label className="text-sm font-bold text-slate-400 block mb-1">Gasolina (€/L)</label><FormattedInput decimals={3} value={costs.gasPrice} onChange={(val) => handleCostChange('gasPrice', val)} /></div>
+                    <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo Gasolina (L/100)</label><FormattedInput decimals={1} value={costs.gasConsumptionRef} onChange={(val) => handleCostChange('gasConsumptionRef', val)} /></div>
+                    <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo EV (kWh/100)</label><FormattedInput decimals={1} value={params.electricConsumptionRef} onChange={(val) => handleChange('electricConsumptionRef', val)} /></div>
+                    <div className="lg:col-span-4"><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={params.batteryCapacity} onChange={(val) => handleChange('batteryCapacity', val)} /></div>
+                </div>
+            </div>
+        );
+      };
+      const SimpleSavingsSimulator = ({ params, costs }) => {
+        // ACTUALIZADO: Estado inicial 500000
+        const [distance, setDistance] = usePersistentState('simpleSimDistance', 500000);
+        
+        const presets = [
+            { label: "100", val: 100 },
+            { label: "1.000", val: 1000 },
+            { label: "10.000", val: 10000 },
+            { label: "20.000", val: 20000 },
+            { label: "50.000", val: 50000 },
+            { label: "100.000", val: 100000 },
+            { label: "200.000", val: 200000 },
+            { label: "300.000", val: 300000 },
+            { label: "400.000", val: 400000 },
+            { label: "500.000", val: 500000 }
+        ];
+
+        const costEV = (distance / 100) * params.electricConsumptionRef * costs.electricityPrice;
+        const costICE = (distance / 100) * costs.gasConsumptionRef * costs.gasPrice;
+        const savings = costICE - costEV;
+        const percent = costICE > 0 ? (savings / costICE) * 100 : 0;
+
+        return (
+            <div className="bg-slate-900/50 backdrop-blur-lg border border-slate-800 rounded-2xl p-6 shadow-xl animate-fade-in">
+                <h3 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-4">
+                    <Icons.Piggy className="w-6 h-6 text-green-400" /> 
+                    SIMULADOR SIMPLE DE KM RECORRIDOS AHORRO VE / TÉRMICO
+                </h3>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                    <div className="space-y-6">
+                        <div>
+                            <label className="text-sm font-bold text-slate-400 block mb-2">KM. REALIZADOS</label>
+                            <FormattedInput value={distance} onChange={setDistance} grouped={true} />
                         </div>
-                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-green-400 flex items-center gap-2 shadow-lg">
-                            <Icons.TrendingUp className="w-4 h-4" /> {params.gradient}% Desnivel
+                        
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 block mb-2 uppercase tracking-wider">Selección Rápida</label>
+                            <div className="flex flex-wrap gap-2">
+                                {presets.map((preset) => (
+                                    <button 
+                                        key={preset.val}
+                                        onClick={() => setDistance(preset.val)}
+                                        className={`px-3 py-2 text-xs font-bold rounded border transition-colors ${distance === preset.val ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
+                                    >
+                                        {preset.label} km
+                                    </button>
+                                ))}
+                            </div>
                         </div>
                     </div>
-                    <div className="space-y-2 text-right">
-                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-orange-400 flex items-center gap-2 ml-auto shadow-lg">
-                            <Icons.Thermometer className="w-4 h-4" /> {params.temperature}°C
+
+                    <div className="bg-slate-900/80 rounded-xl p-6 border border-slate-700 h-full flex flex-col justify-center">
+                        <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-slate-700/50">
+                            <div className="text-center">
+                                <div className="text-xs font-bold text-orange-400 uppercase mb-1">Coste Térmico</div>
+                                <div className="text-2xl font-bold text-white">{formatMoney(costICE)}€</div>
+                                <div className="text-sm font-bold text-slate-400 font-mono mt-1">
+                                    {costs.gasConsumptionRef}L/100 @ {costs.gasPrice}€
+                                </div>
+                            </div>
+                            <div className="text-center">
+                                <div className="text-xs font-bold text-blue-400 uppercase mb-1">Coste Eléctrico</div>
+                                <div className="text-2xl font-bold text-white">{formatMoney(costEV)}€</div>
+                                <div className="text-sm font-bold text-slate-400 font-mono mt-1">
+                                    {params.electricConsumptionRef}kWh/100 @ {costs.electricityPrice}€
+                                </div>
+                            </div>
                         </div>
-                        <div className={`bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono flex items-center gap-2 ml-auto shadow-lg ${isHeadwind ? 'text-red-400' : 'text-cyan-400'}`}>
-                            <Icons.Wind className="w-4 h-4" /> {Math.abs(params.windSpeed)} km/h {isHeadwind ? 'Contra' : 'Favor'}
+
+                        <div className="bg-green-500/10 rounded-lg p-4 text-center border border-green-500/20">
+                            <div className="text-sm font-bold text-green-400 uppercase tracking-widest mb-1">Ahorro Total</div>
+                            <div className="text-4xl font-display font-bold text-white mb-1">+{formatMoney(savings)}€</div>
+                            <div className="text-sm font-bold text-green-300">
+                                {formatDecimal(percent, 1)}% más barato
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -731,8 +870,8 @@ const Icons = {
         );
       };
 
-
         
+    
       
       // --- CALCULADORA DE AMORTIZACIÓN (LETRAS MÁS GRANDES) ---
       const AmortizationCalculator = () => {
@@ -5950,17 +6089,19 @@ const Icons = {
                 case 'curve': return <ChargeCurveCalculator />;
                 case 'tariff': return <TariffComparator />;
                 case 'drain': return <DrainCalculator />;
-                case 'simulator': return (
+               case 'simulator': return (
                     <>
                         <Visualizer params={simParams} />
                         
-                        <ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
+                        <SimulationControls params={simParams} setParams={setSimParams} />
 
                         <ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} />
+                        
+                        <AdvancedConfig params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
+                        
                         <SimpleSavingsSimulator params={simParams} costs={simCosts} />
                     </>
                 );
-
                 case 'amortization': return <AmortizationCalculator />;
                 case 'calculator': return <ChargingCalculator />;
                 case 'tirelab': return <TirePressureLab />;   
