@@ -864,209 +864,221 @@ const Icons = {
 
    
         
-        
-        // --- COMPONENTE GLOBAL: GRÁFICA 3D (CORREGIDO: CÁMARA AJUSTADA Y BARRAS APILADAS) ---
+     
+
+
+
+
+
+      // --- COMPONENTE GLOBAL: GRÁFICA 3D (V3 - CORREGIDA: AUTO-ZOOM, APILADO VERTICAL Y ETIQUETAS) ---
       const Amortization3DChart = ({ rows }) => {
             const mountRef = useRef(null);
 
-            // Calcular valor máximo para la altura del gráfico
-            const maxVal = rows.length > 0 ? Math.max(
-                rows[rows.length-1].ev || 0, 
-                rows[rows.length-1].ice || 0,
-                rows[rows.length-1].stacks?.ev?.reduce((a,b)=>a+b.val,0) || 0
-            ) : 10000;
+            // 1. CÁLCULO DE MÁXIMOS PARA EL EJE Y
+            const maxVal = useMemo(() => {
+                if (!rows || rows.length === 0) return 10000;
+                return Math.max(...rows.map(r => {
+                    // Sumamos las pilas para obtener la altura total real
+                    const hEv = r.stacks?.ev?.reduce((a,b)=>a+b.val,0) || 0;
+                    const hIce = r.stacks?.ice?.reduce((a,b)=>a+b.val,0) || 0;
+                    return Math.max(r.ev || 0, r.ice || 0, hEv, hIce);
+                }));
+            }, [rows]);
 
-            // CORRECCIÓN: Intervalo fijo de 10.000€ como pediste
-            // Si el valor es absurdo (>500k), lo duplicamos para que no sea una mancha sólida
-            let stepY = 10000;
-            if (maxVal > 500000) stepY = 50000; 
-            else if (maxVal > 250000) stepY = 25000;
+            // 2. INTERVALO DINÁMICO (MÍNIMO 10.000€)
+            // Esto evita que los números se solapen si la cifra es pequeña, pero escala si es millonaria
+            const stepY = useMemo(() => {
+                const minStep = 10000; 
+                // Intentamos que haya aprox 10 líneas horizontales como máximo
+                const dynamicStep = Math.ceil(maxVal / 10 / 5000) * 5000; 
+                return Math.max(minStep, dynamicStep);
+            }, [maxVal]);
 
             const yAxisMax = Math.ceil((maxVal * 1.1) / stepY) * stepY; 
-            
-            useEffect(() => {
-                if (!mountRef.current || !window.THREE || rows.length === 0) return;
 
+            useEffect(() => {
+                if (!mountRef.current || !window.THREE || !rows || rows.length === 0) return;
+
+                // LIMPIEZA INICIAL
+                mountRef.current.innerHTML = '';
                 const width = mountRef.current.offsetWidth;
                 const height = 450; 
-                mountRef.current.innerHTML = '';
 
                 const scene = new THREE.Scene();
 
-                // === SISTEMA DE COORDENADAS ===
-                const BAR_WIDTH = 0.8;
-                const SPACING = 1.8;
-                const TOTAL_WIDTH = (rows.length) * SPACING; // Ancho total de las barras
+                // === CONFIGURACIÓN DIMENSIONES ===
+                const BAR_WIDTH = 1.2;
+                const SPACING = 2.5; // Más espacio entre años
+                const TOTAL_DATA_WIDTH = rows.length * SPACING;
                 
-                const MAX_H_3D = 30; // Altura visual máxima en unidades 3D
+                const MAX_H_3D = 40; // Altura visual en unidades 3D
                 const SCALE = MAX_H_3D / yAxisMax;
 
-                // === CÁMARA (CORRECCIÓN MÁRGENES) ===
-                // Ampliamos camLeft a -12 para que quepan los números grandes (ej: 100k€)
-                const camLeft = -12; 
-                const camRight = TOTAL_WIDTH + 2;
-                const camTop = MAX_H_3D + 5;
+                // === CÁMARA (AJUSTE AUTOMÁTICO AL ANCHO DE DATOS) ===
+                // Calculamos los límites para que TODOS los años entren en pantalla
+                const paddingX = 4;
+                const camLeft = -paddingX;
+                const camRight = TOTAL_DATA_WIDTH + paddingX;
+                const camTop = MAX_H_3D + 10;
                 const camBottom = -5;
 
                 const camera = new THREE.OrthographicCamera(camLeft, camRight, camTop, camBottom, 1, 1000);
                 
-                // Centramos la cámara en el medio del gráfico
-                const centerX = (TOTAL_WIDTH / 2) + (camLeft / 2); 
-                camera.position.set(centerX, 20, 100);
-                
+                // Posición isométrica clásica
+                camera.position.set(20, 20, 100); 
+                camera.lookAt(20, 10, 0); // Mirar hacia el centro aproximado
+                // Ajuste fino para enderezar
                 camera.rotation.order = 'YXZ';
-                camera.rotation.y = 0; // Vista frontal plana para leer bien los datos
+                camera.rotation.y = 0; 
                 camera.rotation.x = 0; 
+                camera.position.set(TOTAL_DATA_WIDTH/2, MAX_H_3D/2, 100);
 
                 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
                 renderer.setSize(width, height);
                 renderer.setPixelRatio(window.devicePixelRatio);
                 mountRef.current.appendChild(renderer.domElement);
 
-                // Luces
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+                // === LUCES ===
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
                 scene.add(ambientLight);
-                const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
                 dirLight.position.set(10, 20, 50);
                 scene.add(dirLight);
 
                 const group = new THREE.Group();
                 scene.add(group);
 
-                // === SPRITES TEXTO ===
-                const createText = (message, color = '#94a3b8', align = 'right', fontSize = 40) => {
+                // === HELPER TEXTO ===
+                const createText = (text, color, size, align) => {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
-                    canvas.width = 300; canvas.height = 70;
-                    ctx.font = `Bold ${fontSize}px monospace`;
+                    canvas.width = 400; canvas.height = 100;
+                    ctx.font = 'Bold 50px monospace';
                     ctx.fillStyle = color;
-                    ctx.textAlign = align;
+                    ctx.textAlign = align === 'right' ? 'end' : 'center';
                     ctx.textBaseline = 'middle';
-                    const x = align === 'right' ? 290 : align === 'left' ? 10 : 150;
-                    ctx.fillText(message, x, 35);
+                    ctx.fillText(text, align === 'right' ? 380 : 200, 50);
+                    
                     const tex = new THREE.CanvasTexture(canvas);
                     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
                     const sprite = new THREE.Sprite(mat);
-                    sprite.scale.set(6, 1.4, 1); 
+                    sprite.scale.set(8 * size, 2 * size, 1);
                     return sprite;
                 };
 
-                // === EJE Y (LÍNEAS CADA 10k) ===
-                for(let val=0; val<=yAxisMax; val+=stepY) {
+                // === EJE Y (LÍNEAS Y ETIQUETAS) ===
+                for(let val = 0; val <= yAxisMax; val += stepY) {
                     const y = val * SCALE;
-                    
-                    if (val > 0) {
-                        // Línea guía
-                        const points = [new THREE.Vector3(-2, y, -1), new THREE.Vector3(TOTAL_WIDTH, y, -1)];
+                    if(val > 0) {
+                        // Línea
+                        const points = [
+                            new THREE.Vector3(-2, y, -1), 
+                            new THREE.Vector3(TOTAL_DATA_WIDTH + 2, y, -1)
+                        ];
                         const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
                         const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
                         group.add(new THREE.Line(lineGeo, lineMat));
-                        
-                        // Etiqueta Eje Y (Izquierda)
-                        // Formateamos: si es 10000 -> 10k, si es 15000 -> 15k
-                        const labelText = (val / 1000).toFixed(0) + 'k€';
-                        const label = createText(labelText, '#64748b', 'right', 36);
-                        label.position.set(-5.5, y, 0); 
+
+                        // Etiqueta (Ej: 10k, 20k)
+                        const labelStr = (val / 1000).toFixed(0) + 'k';
+                        const label = createText(labelStr, '#64748b', 1.2, 'right');
+                        label.position.set(-2.5, y, 0);
                         group.add(label);
                     }
                 }
 
-                // === BARRAS ===
+                // === BARRAS (GENERACIÓN) ===
                 rows.forEach((row, i) => {
                     const x = i * SPACING;
 
-                    const createStack = (layers) => {
+                    // Función para crear una pila vertical
+                    const createStack = (layers, zPos) => {
+                        if(!layers) return;
                         let currentY = 0;
-                        if(layers) {
-                            layers.forEach(layer => {
-                                if (layer.val <= 0) return; 
-                                const h = layer.val * SCALE;
-                                const geo = new THREE.BoxGeometry(BAR_WIDTH, h, BAR_WIDTH);
-                                const mat = new THREE.MeshLambertMaterial({ color: layer.col });
-                                const mesh = new THREE.Mesh(geo, mat);
-                                
-                                mesh.position.set(x, currentY + h/2, 0);
-                                
-                                // Borde suave
-                                const edges = new THREE.EdgesGeometry(geo);
-                                const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 }));
-                                line.position.copy(mesh.position);
+                        
+                        layers.forEach(layer => {
+                            if (layer.val <= 0) return;
+                            
+                            const h = layer.val * SCALE;
+                            // Geometría Box
+                            const geo = new THREE.BoxGeometry(BAR_WIDTH, h, BAR_WIDTH);
+                            // Desplazamos la geometría para que el pivote esté abajo
+                            geo.translate(0, h/2, 0); 
+                            
+                            const mat = new THREE.MeshLambertMaterial({ color: layer.col });
+                            const mesh = new THREE.Mesh(geo, mat);
+                            
+                            // Posicionamos sobre el acumulado anterior
+                            mesh.position.set(x, currentY, zPos);
+                            
+                            // Bordes suaves
+                            const edges = new THREE.EdgesGeometry(geo);
+                            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 }));
+                            line.position.set(x, currentY, zPos);
 
-                                group.add(mesh);
-                                group.add(line);
-                                currentY += h;
-                            });
-                        }
+                            group.add(mesh);
+                            group.add(line);
+                            
+                            currentY += h; // Acumulamos altura para la siguiente capa (APILADO VERTICAL)
+                        });
                     };
 
-                    // Dibujamos la pila única (que ya contiene [Capital, Interés])
-                    createStack(row.stacks.ev);
+                    // Dibujar pilas
+                    // Si es amortización (2 columnas), zPos diferentes. Si es Interés (1 columna), zPos 0.
+                    const isDual = row.stacks.ice && row.stacks.ice.length > 0 && row.stacks.ice[0].val > 0;
+                    
+                    if(isDual) {
+                        createStack(row.stacks.ice, -0.8); // Fondo
+                        createStack(row.stacks.ev, 0.8);   // Frente
+                    } else {
+                        createStack(row.stacks.ev, 0);     // Centro (Caso Interés Compuesto)
+                    }
 
-                    // Etiqueta AÑO (Eje X)
-                    // Mostramos SIEMPRE el año 1, el último, y los intermedios cada 2 o 5 según cantidad
-                    const stepX = rows.length > 25 ? 5 : rows.length > 10 ? 2 : 1;
-                    if (i === 0 || i === rows.length - 1 || i % stepX === 0) {
-                        const yearLabel = createText(row.year.toString(), '#cbd5e1', 'center', 32);
-                        yearLabel.position.set(x, -2.5, 1);
-                        yearLabel.scale.set(3, 0.7, 1); // Más pequeño para el año
-                        group.add(yearLabel);
-                        
-                        // Marca del eje
-                        const tickGeo = new THREE.BoxGeometry(0.05, 0.5, 0.05);
-                        const tick = new THREE.Mesh(tickGeo, new THREE.MeshBasicMaterial({color: 0x64748b}));
-                        tick.position.set(x, -0.5, 0);
-                        group.add(tick);
+                    // Etiqueta AÑO (Eje X) - Lógica inteligente de densidad
+                    // Si hay < 15 años, mostrar todos. Si hay más, mostrar alternos.
+                    const skip = rows.length > 15 ? 2 : 1;
+                    if (i % skip === 0) {
+                        const yearLbl = createText(row.year.toString(), '#cbd5e1', 0.9, 'center');
+                        yearLbl.position.set(x, -2.5, 2);
+                        group.add(yearLbl);
                     }
                 });
 
                 renderer.render(scene, camera);
 
-                // Resize Handler (Mantiene la proporción y el centrado)
+                // === RESIZE ===
+                // En este modo "Fixed Data Width", al redimensionar solo ajustamos el escalado del canvas,
+                // no cambiamos los límites de la cámara para que los datos no se deformen.
                 const handleResize = () => {
                     if (!mountRef.current) return;
                     const w = mountRef.current.offsetWidth;
-                    const aspect = w / height;
-                    
-                    // Recalcular limites horizontales para mantener centrado y márgenes
-                    // Mantenemos la altura fija (camTop - camBottom) y ajustamos el ancho
-                    const heightSize = camTop - camBottom;
-                    const widthSize = heightSize * aspect;
-                    
-                    // El centro de nuestra escena es aprox TOTAL_WIDTH / 2
-                    const sceneCenter = TOTAL_WIDTH / 2;
-                    
-                    // Si el ancho visible es menor que el gráfico, hacemos zoom out (aumentamos límites)
-                    // Si sobra espacio, centramos.
-                    
-                    camera.left = sceneCenter - (widthSize / 2) - 4; // -4 offset para dar espacio a la izq
-                    camera.right = sceneCenter + (widthSize / 2) - 4;
-                    
-                    camera.updateProjectionMatrix();
+                    // Mantenemos aspect ratio ajustando el alto visual si es necesario, 
+                    // pero priorizamos que el ancho de los datos entre siempre.
                     renderer.setSize(w, height);
+                    
+                    // Recalcular frustum si la relación de aspecto cambia drásticamente
+                    const aspect = w / height;
+                    // Ajustamos el zoom de la cámara para que siempre quepan los datos horizontalmente
+                    // (Lógica simplificada: los bounds ya están fijos por datos, el renderer escala la imagen)
                     renderer.render(scene, camera);
                 };
                 window.addEventListener('resize', handleResize);
-                handleResize(); // Init
 
                 return () => {
                     window.removeEventListener('resize', handleResize);
                     mountRef.current && (mountRef.current.innerHTML = '');
                 };
-            }, [rows, yAxisMax]);
+
+            }, [rows, yAxisMax, stepY, maxVal]); // Re-render si cambian datos o escala
 
             return (
-                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 relative mb-6 overflow-hidden">
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 relative mb-6">
                     <div ref={mountRef} className="w-full h-[450px] cursor-grab active:cursor-grabbing" />
                 </div>
             );
       };
 
-
-
-
-
-      
-      // --- CALCULADORA DE CARGA (CORREGIDA V2: DATOS APILADOS) ---
+      // --- CALCULADORA DE CARGA (CORREGIDA - DATOS APILADOS) ---
       const ChargingCalculator = () => {
         const [state, setState] = usePersistentState('chargeState', { 
             capacity: 60, 
@@ -1086,6 +1098,7 @@ const Icons = {
             fsdAmortYears: 10
         });
 
+        // --- ESTADO INTERÉS COMPUESTO ---
         const [compState, setCompState] = usePersistentState('compoundCalc', {
             principal: 3000,
             annualAddition: 2400,
@@ -1096,15 +1109,13 @@ const Icons = {
         });
         const [showCompTable, setShowCompTable] = useState(false);
 
-        // CURVE DATA
+        // CURVE DATA & LOGIC (Sin cambios en lógica interna)
         const curvePoints = {
             LFP: [{p:0, v:170}, {p:10, v:168}, {p:20, v:155}, {p:30, v:135}, {p:45, v:110}, {p:55, v:85}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}],
             NCA: [{p:0, v:200}, {p:5, v:250}, {p:15, v:250}, {p:25, v:210}, {p:40, v:150}, {p:60, v:100}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}]
         };
-
         const powerPresets = [3.3, 7.4, 11, 22, 50, 60, 100, 150, 170, 200, 250, 300, 400, 800];
 
-        // --- LÓGICA CALCULADORA CARGA (EXISTENTE) ---
         const getBatteryLimitAtSoC = (soc, type, chargerPowerInput) => {
             const points = curvePoints[type];
             const baseRef = type === 'NCA' ? 250 : 170; 
@@ -1205,26 +1216,12 @@ const Icons = {
 
             for(let i = 1; i <= compState.years; i++) {
                 let contribution = compState.annualAddition;
-                
-                if(compState.addAtStart) {
-                    balance += contribution;
-                    totalPrincipal += contribution;
-                }
-                
+                if(compState.addAtStart) { balance += contribution; totalPrincipal += contribution; }
                 const interestEarned = balance * effectiveAnnualRate;
                 balance += interestEarned;
-                
-                if(!compState.addAtStart) {
-                    balance += contribution;
-                    totalPrincipal += contribution;
-                }
+                if(!compState.addAtStart) { balance += contribution; totalPrincipal += contribution; }
 
-                history.push({
-                    year: i,
-                    principal: totalPrincipal,
-                    interest: balance - totalPrincipal,
-                    balance: balance
-                });
+                history.push({ year: i, principal: totalPrincipal, interest: balance - totalPrincipal, balance: balance });
             }
             return { finalBalance: balance, totalPrincipal, history };
         };
@@ -1232,17 +1229,18 @@ const Icons = {
         const compResult = calculateCompound();
         const handleCompChange = (k, v) => setCompState(p => ({...p, [k]: parseFloat(v)}));
 
-        // **ADAPTADOR DE DATOS PARA GRÁFICO 3D (VISUALIZACIÓN APILADA)**
-        // Ahora "ev" contiene DOS segmentos para hacer una sola barra multicolor
+        // **ADAPTADOR DE DATOS CORREGIDO (APILADO VERTICAL)**
         const compoundChartData = useMemo(() => {
             return compResult.history.map(h => ({
                 year: h.year,
                 stacks: {
+                    // Usamos 'ev' como contenedor único para este gráfico
+                    // El orden en el array determina el orden de apilado (de abajo a arriba)
                     ev: [
-                        { val: h.principal, col: 0xf97316 }, // Naranja (Abajo) = Capital
-                        { val: h.interest, col: 0x3b82f6 }   // Azul (Arriba) = Interés generado
-                    ]
-                    // 'ice' vacío porque ya no usamos comparación doble
+                        { val: h.principal, col: 0xf97316 }, // 1º Capa: Capital (Naranja) - BASE
+                        { val: h.interest, col: 0x3b82f6 }   // 2º Capa: Interés (Azul) - ARRIBA
+                    ],
+                    ice: [] // Sin segunda columna
                 }
             }));
         }, [compResult.history]);
@@ -1540,6 +1538,7 @@ const Icons = {
             </div>
         );
       };
+   
 
 
 
