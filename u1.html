@@ -862,63 +862,68 @@ const Icons = {
 
 
 
-      // --- COMPONENTE GLOBAL: GRÁFICA 3D (V3 - AJUSTE AUTOMÁTICO ANCHO Y ALTURA) ---
+   
+        
+        
+        // --- COMPONENTE GLOBAL: GRÁFICA 3D (CORREGIDO: CÁMARA AJUSTADA Y BARRAS APILADAS) ---
       const Amortization3DChart = ({ rows }) => {
             const mountRef = useRef(null);
 
-            // 1. CÁLCULO DE LÍMITES Y ESCALA
-            // Obtenemos el valor más alto de todo el conjunto para ajustar el techo de la gráfica
+            // Calcular valor máximo para la altura del gráfico
             const maxVal = rows.length > 0 ? Math.max(
                 rows[rows.length-1].ev || 0, 
                 rows[rows.length-1].ice || 0,
-                // Soporte para estructura de ChargingCalculator
-                rows[rows.length-1].stacks?.ev?.[0]?.val || 0
+                rows[rows.length-1].stacks?.ev?.reduce((a,b)=>a+b.val,0) || 0
             ) : 10000;
 
-            // Intervalo fijo de 10.000€ como solicitado
-            const stepY = 10000;
-            // El tope del eje Y es el múltiplo de 10k superior al valor máximo
-            const yAxisMax = Math.ceil((maxVal * 1.05) / stepY) * stepY; 
+            // CORRECCIÓN: Intervalo fijo de 10.000€ como pediste
+            // Si el valor es absurdo (>500k), lo duplicamos para que no sea una mancha sólida
+            let stepY = 10000;
+            if (maxVal > 500000) stepY = 50000; 
+            else if (maxVal > 250000) stepY = 25000;
+
+            const yAxisMax = Math.ceil((maxVal * 1.1) / stepY) * stepY; 
             
             useEffect(() => {
                 if (!mountRef.current || !window.THREE || rows.length === 0) return;
 
                 const width = mountRef.current.offsetWidth;
-                const height = 380; // Reducido de 450 a 380 para quitar espacio vacío
+                const height = 450; 
                 mountRef.current.innerHTML = '';
 
                 const scene = new THREE.Scene();
 
-                // === DIMENSIONES ===
-                const BAR_WIDTH = 0.6;
-                const SPACING = 1.2; // Espaciado entre años
-                const TOTAL_WIDTH = rows.length * SPACING; // Ancho total real de los datos
-                const MAX_H_3D = 25; // Altura visual en unidades 3D
-                const SCALE = MAX_H_3D / yAxisMax; // Factor de conversión € -> 3D units
-
-                // === CÁMARA (AJUSTE DINÁMICO) ===
-                // Calculamos los bordes para que entren exactamente todas las barras + margen izq para números
-                const marginLeft = 6;  // Espacio para textos "100k"
-                const marginRight = 1; 
+                // === SISTEMA DE COORDENADAS ===
+                const BAR_WIDTH = 0.8;
+                const SPACING = 1.8;
+                const TOTAL_WIDTH = (rows.length) * SPACING; // Ancho total de las barras
                 
-                const camLeft = -marginLeft;
-                const camRight = TOTAL_WIDTH + marginRight;
-                const camTop = MAX_H_3D + 2; // Poco margen arriba
-                const camBottom = -3; // Poco margen abajo para años
+                const MAX_H_3D = 30; // Altura visual máxima en unidades 3D
+                const SCALE = MAX_H_3D / yAxisMax;
+
+                // === CÁMARA (CORRECCIÓN MÁRGENES) ===
+                // Ampliamos camLeft a -12 para que quepan los números grandes (ej: 100k€)
+                const camLeft = -12; 
+                const camRight = TOTAL_WIDTH + 2;
+                const camTop = MAX_H_3D + 5;
+                const camBottom = -5;
 
                 const camera = new THREE.OrthographicCamera(camLeft, camRight, camTop, camBottom, 1, 1000);
                 
-                // Posición isométrica ligera para ver volumen
-                camera.position.set(TOTAL_WIDTH / 2, 15, 100);
-                camera.rotation.x = -0.05; // Inclinación mínima para que no se corte la base
+                // Centramos la cámara en el medio del gráfico
+                const centerX = (TOTAL_WIDTH / 2) + (camLeft / 2); 
+                camera.position.set(centerX, 20, 100);
                 
+                camera.rotation.order = 'YXZ';
+                camera.rotation.y = 0; // Vista frontal plana para leer bien los datos
+                camera.rotation.x = 0; 
+
                 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
                 renderer.setSize(width, height);
-                // Pixel ratio alto para textos nítidos
-                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); 
+                renderer.setPixelRatio(window.devicePixelRatio);
                 mountRef.current.appendChild(renderer.domElement);
 
-                // Luces para resaltar colores planos
+                // Luces
                 const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
                 scene.add(ambientLight);
                 const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
@@ -928,147 +933,120 @@ const Icons = {
                 const group = new THREE.Group();
                 scene.add(group);
 
-                // === GENERADOR DE TEXTO (OPTIMIZADO) ===
-                const createText = (message, color = '#64748b', scale = 1, align = 'right') => {
+                // === SPRITES TEXTO ===
+                const createText = (message, color = '#94a3b8', align = 'right', fontSize = 40) => {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
-                    const fontSize = 48; // Alta resolución interna
-                    canvas.width = 300; 
-                    canvas.height = 80;
-                    ctx.font = `bold ${fontSize}px monospace`;
+                    canvas.width = 300; canvas.height = 70;
+                    ctx.font = `Bold ${fontSize}px monospace`;
                     ctx.fillStyle = color;
                     ctx.textAlign = align;
                     ctx.textBaseline = 'middle';
-                    
-                    const x = align === 'right' ? 290 : 10;
-                    ctx.fillText(message, x, 40);
-                    
+                    const x = align === 'right' ? 290 : align === 'left' ? 10 : 150;
+                    ctx.fillText(message, x, 35);
                     const tex = new THREE.CanvasTexture(canvas);
-                    tex.minFilter = THREE.LinearFilter;
-                    
                     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
                     const sprite = new THREE.Sprite(mat);
-                    // Ajuste de aspecto del sprite para que no se deforme
-                    sprite.scale.set(6 * scale, 1.6 * scale, 1);
+                    sprite.scale.set(6, 1.4, 1); 
                     return sprite;
                 };
 
-                // === LÍNEAS DE CUADRÍCULA (EJE Y) ===
+                // === EJE Y (LÍNEAS CADA 10k) ===
                 for(let val=0; val<=yAxisMax; val+=stepY) {
                     const y = val * SCALE;
                     
                     if (val > 0) {
-                        // Línea sutil
-                        const points = [
-                            new THREE.Vector3(-1, y, -1), 
-                            new THREE.Vector3(TOTAL_WIDTH, y, -1)
-                        ];
+                        // Línea guía
+                        const points = [new THREE.Vector3(-2, y, -1), new THREE.Vector3(TOTAL_WIDTH, y, -1)];
                         const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
-                        const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.1 });
+                        const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
                         group.add(new THREE.Line(lineGeo, lineMat));
                         
-                        // Etiqueta Numérica (10k, 20k...)
-                        const kVal = Math.round(val / 1000);
-                        // Solo mostramos etiqueta cada 2 saltos si hay mucha densidad, o siempre si hay espacio
-                        const skipLabel = (yAxisMax > 200000 && kVal % 20 !== 0); 
-                        
-                        if (!skipLabel) {
-                            const label = createText(`${kVal}k`, '#94a3b8', 0.9);
-                            label.position.set(-3.5, y, 0);
-                            group.add(label);
-                        }
+                        // Etiqueta Eje Y (Izquierda)
+                        // Formateamos: si es 10000 -> 10k, si es 15000 -> 15k
+                        const labelText = (val / 1000).toFixed(0) + 'k€';
+                        const label = createText(labelText, '#64748b', 'right', 36);
+                        label.position.set(-5.5, y, 0); 
+                        group.add(label);
                     }
                 }
 
-                // === DIBUJADO DE BARRAS ===
+                // === BARRAS ===
                 rows.forEach((row, i) => {
                     const x = i * SPACING;
 
-                    // Función auxiliar para crear barras
-                    const drawBar = (val, color, zIndex, isWire = false) => {
-                        if (val <= 0) return;
-                        const h = val * SCALE;
-                        const geo = new THREE.BoxGeometry(BAR_WIDTH, h, BAR_WIDTH);
-                        
-                        // Desplazar geometría para que crezca desde abajo (pivot en Y=0)
-                        geo.translate(0, h / 2, 0);
+                    const createStack = (layers) => {
+                        let currentY = 0;
+                        if(layers) {
+                            layers.forEach(layer => {
+                                if (layer.val <= 0) return; 
+                                const h = layer.val * SCALE;
+                                const geo = new THREE.BoxGeometry(BAR_WIDTH, h, BAR_WIDTH);
+                                const mat = new THREE.MeshLambertMaterial({ color: layer.col });
+                                const mesh = new THREE.Mesh(geo, mat);
+                                
+                                mesh.position.set(x, currentY + h/2, 0);
+                                
+                                // Borde suave
+                                const edges = new THREE.EdgesGeometry(geo);
+                                const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 }));
+                                line.position.copy(mesh.position);
 
-                        const mat = new THREE.MeshLambertMaterial({ color: color });
-                        const mesh = new THREE.Mesh(geo, mat);
-                        mesh.position.set(x, 0, zIndex);
-                        group.add(mesh);
-
-                        // Borde suave para definición
-                        if (isWire) {
-                            const edges = new THREE.EdgesGeometry(geo);
-                            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 }));
-                            line.position.set(x, 0, zIndex);
-                            group.add(line);
+                                group.add(mesh);
+                                group.add(line);
+                                currentY += h;
+                            });
                         }
                     };
 
-                    // DIBUJAR BARRAS (Ordenadas por Z para visibilidad)
-                    
-                    // 1. Barra TOTAL (Azul) - Al fondo
-                    if (row.stacks?.ev) {
-                        // En ChargingCalculator, ev es el total.
-                        const totalVal = row.stacks.ev[0].val; 
-                        drawBar(totalVal, 0x3b82f6, 0, true);
-                    }
+                    // Dibujamos la pila única (que ya contiene [Capital, Interés])
+                    createStack(row.stacks.ev);
 
-                    // 2. Barra CAPITAL (Naranja) - Al frente
-                    if (row.stacks?.ice) {
-                        const capitalVal = row.stacks.ice[0].val;
-                        // Dibujamos ligeramente desplazada en Z (1.0) para que sobresalga
-                        drawBar(capitalVal, 0xf97316, 1.0, true);
-                    } else if (row.ev && row.ice) {
-                        // Soporte Legacy para AmortizationCalculator (Comparativa EV vs ICE)
-                        drawBar(row.ice, 0xf97316, -0.5, true); // ICE fondo
-                        drawBar(row.ev, 0x3b82f6, 0.5, true);   // EV frente
-                    }
-
-                    // === ETIQUETAS EJE X (AÑOS) ===
-                    // Lógica para no solapar años:
-                    // Si son muchos datos (>15), mostrar solo pares. Si son muchísimos (>30), cada 5.
-                    let showYear = true;
-                    if (rows.length > 30) showYear = (row.year % 5 === 0);
-                    else if (rows.length > 15) showYear = (row.year % 2 === 0);
-
-                    if (showYear || i === 0 || i === rows.length - 1) {
-                        const yearLabel = createText(row.year.toString(), '#cbd5e1', 0.7, 'center');
-                        yearLabel.position.set(x, -2, 2); 
+                    // Etiqueta AÑO (Eje X)
+                    // Mostramos SIEMPRE el año 1, el último, y los intermedios cada 2 o 5 según cantidad
+                    const stepX = rows.length > 25 ? 5 : rows.length > 10 ? 2 : 1;
+                    if (i === 0 || i === rows.length - 1 || i % stepX === 0) {
+                        const yearLabel = createText(row.year.toString(), '#cbd5e1', 'center', 32);
+                        yearLabel.position.set(x, -2.5, 1);
+                        yearLabel.scale.set(3, 0.7, 1); // Más pequeño para el año
                         group.add(yearLabel);
+                        
+                        // Marca del eje
+                        const tickGeo = new THREE.BoxGeometry(0.05, 0.5, 0.05);
+                        const tick = new THREE.Mesh(tickGeo, new THREE.MeshBasicMaterial({color: 0x64748b}));
+                        tick.position.set(x, -0.5, 0);
+                        group.add(tick);
                     }
                 });
 
                 renderer.render(scene, camera);
 
-                // Función de redimensionado simple (mantiene el aspect ratio lógico)
+                // Resize Handler (Mantiene la proporción y el centrado)
                 const handleResize = () => {
                     if (!mountRef.current) return;
                     const w = mountRef.current.offsetWidth;
-                    // Ajustamos el ancho de la cámara para que cubra más o menos área horizontal
-                    // pero manteniendo la escala vertical fija
                     const aspect = w / height;
-                    const frustumHeight = camTop - camBottom;
-                    const frustumWidth = frustumHeight * aspect;
                     
-                    // Centramos la vista en los datos
-                    const centerX = (TOTAL_WIDTH - marginLeft) / 2;
+                    // Recalcular limites horizontales para mantener centrado y márgenes
+                    // Mantenemos la altura fija (camTop - camBottom) y ajustamos el ancho
+                    const heightSize = camTop - camBottom;
+                    const widthSize = heightSize * aspect;
                     
-                    // Si el ancho de pantalla es muy estrecho, hacemos zoom out (aumentamos frustum)
-                    // Si es ancho, dejamos que se vea
-                    camera.left = centerX - (frustumWidth / 2);
-                    camera.right = centerX + (frustumWidth / 2);
+                    // El centro de nuestra escena es aprox TOTAL_WIDTH / 2
+                    const sceneCenter = TOTAL_WIDTH / 2;
+                    
+                    // Si el ancho visible es menor que el gráfico, hacemos zoom out (aumentamos límites)
+                    // Si sobra espacio, centramos.
+                    
+                    camera.left = sceneCenter - (widthSize / 2) - 4; // -4 offset para dar espacio a la izq
+                    camera.right = sceneCenter + (widthSize / 2) - 4;
                     
                     camera.updateProjectionMatrix();
                     renderer.setSize(w, height);
                     renderer.render(scene, camera);
                 };
-                
                 window.addEventListener('resize', handleResize);
-                // Trigger inicial para encajar
-                handleResize();
+                handleResize(); // Init
 
                 return () => {
                     window.removeEventListener('resize', handleResize);
@@ -1078,18 +1056,17 @@ const Icons = {
 
             return (
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 relative mb-6 overflow-hidden">
-                    <div ref={mountRef} className="w-full h-[380px] cursor-grab active:cursor-grabbing" />
+                    <div ref={mountRef} className="w-full h-[450px] cursor-grab active:cursor-grabbing" />
                 </div>
             );
       };
 
-        
+
+
+
 
       
-      
-      
-      
-      // --- CALCULADORA DE CARGA (CORREGIDA) ---
+      // --- CALCULADORA DE CARGA (CORREGIDA V2: DATOS APILADOS) ---
       const ChargingCalculator = () => {
         const [state, setState] = usePersistentState('chargeState', { 
             capacity: 60, 
@@ -1222,7 +1199,6 @@ const Icons = {
             let totalPrincipal = compState.principal;
             const history = [];
             
-            // Tasa Efectiva Anual (EAR) basada en la frecuencia de capitalización
             const r = compState.rate / 100;
             const n = compState.compoundsPerYear;
             const effectiveAnnualRate = Math.pow(1 + (r/n), n) - 1;
@@ -1230,17 +1206,14 @@ const Icons = {
             for(let i = 1; i <= compState.years; i++) {
                 let contribution = compState.annualAddition;
                 
-                // Si se añade al principio
                 if(compState.addAtStart) {
                     balance += contribution;
                     totalPrincipal += contribution;
                 }
                 
-                // Aplicar Interés (sobre el balance acumulado)
                 const interestEarned = balance * effectiveAnnualRate;
                 balance += interestEarned;
                 
-                // Si se añade al final
                 if(!compState.addAtStart) {
                     balance += contribution;
                     totalPrincipal += contribution;
@@ -1259,20 +1232,17 @@ const Icons = {
         const compResult = calculateCompound();
         const handleCompChange = (k, v) => setCompState(p => ({...p, [k]: parseFloat(v)}));
 
-        // **ADAPTADOR DE DATOS PARA GRÁFICO 3D (VISUALIZACIÓN)**
+        // **ADAPTADOR DE DATOS PARA GRÁFICO 3D (VISUALIZACIÓN APILADA)**
+        // Ahora "ev" contiene DOS segmentos para hacer una sola barra multicolor
         const compoundChartData = useMemo(() => {
             return compResult.history.map(h => ({
                 year: h.year,
                 stacks: {
-                    // 'ev': BALANCE TOTAL (Azul) - Se dibujará en el FONDO (Z=-0.5)
-                    // Tiene que ser la barra completa
                     ev: [
-                        { val: h.balance, col: 0x3b82f6 } 
-                    ],
-                    // 'ice': CAPITAL APORTADO (Naranja) - Se dibujará al FRENTE (Z=1.5)
-                    ice: [
-                        { val: h.principal, col: 0xf97316 }
+                        { val: h.principal, col: 0xf97316 }, // Naranja (Abajo) = Capital
+                        { val: h.interest, col: 0x3b82f6 }   // Azul (Arriba) = Interés generado
                     ]
+                    // 'ice' vacío porque ya no usamos comparación doble
                 }
             }));
         }, [compResult.history]);
@@ -1571,7 +1541,6 @@ const Icons = {
         );
       };
 
-   
 
 
 
