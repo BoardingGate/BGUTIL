@@ -485,213 +485,182 @@ const Icons = {
         );
       };
 
-      
-      // --- VISUALIZADOR 3D (MANTIENE IMAGEN ORIGINAL + ENTORNO 3D) ---
-      const Visualizer3D = ({ params }) => {
-        const mountRef = useRef(null);
-        const sceneRef = useRef(null);
-        const roadRef = useRef(null);
-        const particlesRef = useRef(null);
-        const carMeshRef = useRef(null);
-        const wheelsRef = useRef([]);
-
-        useEffect(() => {
-            if (!mountRef.current || !window.THREE) return;
-
-            const width = mountRef.current.offsetWidth;
-            const height = 320;
-            const scene = new THREE.Scene();
-            scene.fog = new THREE.FogExp2(0x0a0a0a, 0.02); // Niebla para fundir el horizonte
-            sceneRef.current = scene;
-
-            const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
-            camera.position.set(0, 1.5, 6); // Posición lateral/trasera
-
-            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(width, height);
-            renderer.setPixelRatio(window.devicePixelRatio);
-            
-            while (mountRef.current.firstChild) {
-                mountRef.current.removeChild(mountRef.current.firstChild);
-            }
-            mountRef.current.appendChild(renderer.domElement);
-
-            const ambientLight = new THREE.AmbientLight(0xffffff, 1);
-            scene.add(ambientLight);
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
-            dirLight.position.set(5, 10, 7);
-            scene.add(dirLight);
-
-            const canvasSize = 512;
-            const canvas = document.createElement('canvas');
-            canvas.width = canvasSize;
-            canvas.height = canvasSize;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#111'; // Asfalto oscuro
-            ctx.fillRect(0, 0, canvasSize, canvasSize);
-            ctx.strokeStyle = '#334155'; // Líneas gris azulado
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            // Dibujar rejilla
-            for(let i=0; i<=canvasSize; i+=64) {
-                ctx.moveTo(i, 0); ctx.lineTo(i, canvasSize);
-                ctx.moveTo(0, i); ctx.lineTo(canvasSize, i);
-            }
-            ctx.stroke();
-            
-            const gridTexture = new THREE.CanvasTexture(canvas);
-            gridTexture.wrapS = THREE.RepeatWrapping;
-            gridTexture.wrapT = THREE.RepeatWrapping;
-            gridTexture.repeat.set(20, 20); // Repeticiones iniciales
-            // Filtrado anisotrópico para que se vea bien a lo lejos
-            if(renderer.capabilities.getMaxAnisotropy()) {
-                gridTexture.anisotropy = renderer.capabilities.getMaxAnisotropy();
-            }
-
-            const roadGeo = new THREE.PlaneGeometry(100, 100);
-            const roadMat = new THREE.MeshBasicMaterial({ map: gridTexture });
-            const road = new THREE.Mesh(roadGeo, roadMat);
-            road.rotation.x = -Math.PI / 2;
-            road.position.y = -1.1; // Suelo un poco más abajo del centro
-            scene.add(road);
-            roadRef.current = road; // Guardar referencia para mover la textura
-
-            const loader = new THREE.TextureLoader();
-            loader.load('tesla_model_3.png', (texture) => {
-                const aspect = texture.image.width / texture.image.height;
-                const carHeight = 2.5; 
-                const carWidth = carHeight * aspect;
-                
-                const carGeo = new THREE.PlaneGeometry(carWidth, carHeight);
-                const carMat = new THREE.MeshBasicMaterial({ 
-                    map: texture, 
-                    transparent: true, 
-                    side: THREE.DoubleSide 
-                });
-                const carMesh = new THREE.Mesh(carGeo, carMat);
-                carMesh.position.y = 0.2; // Ajuste fino altura
-                scene.add(carMesh);
-                carMeshRef.current = carMesh;
-            });
-
-            const particleCount = 200;
-            const particlesGeo = new THREE.BufferGeometry();
-            const posArray = new Float32Array(particleCount * 3);
-            for(let i=0; i<particleCount*3; i++) {
-                posArray[i] = (Math.random() - 0.5) * 30; // Dispersión
-            }
-            particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-            const particlesMat = new THREE.PointsMaterial({
-                size: 0.1,
-                color: 0x60a5fa, // Azul
-                transparent: true,
-                opacity: 0.6
-            });
-            const particles = new THREE.Points(particlesGeo, particlesMat);
-            scene.add(particles);
-            particlesRef.current = particles;
-
-            let frameId;
-            const animate = () => {
-                frameId = requestAnimationFrame(animate);
-                
-                const currentParams = mountRef.current.userData || { speed: 0, gradient: 0, windSpeed: 0 };
-                
-                if(roadRef.current) {
-                    const speedFactor = currentParams.speed * 0.001; 
-                    roadRef.current.material.map.offset.y -= speedFactor;
-                }
-
-                const gradientRad = THREE.MathUtils.degToRad(currentParams.gradient);
-                if(carMeshRef.current) {
-                    carMeshRef.current.rotation.z = gradientRad; // Rotar sobre eje Z local (en 2D es como caballito)
-                }
-                
-                camera.position.y = 1.5 + (currentParams.gradient * 0.05);
-                camera.lookAt(0, 0 + (currentParams.gradient * 0.05), 0);
-
-                if(particlesRef.current) {
-                    const positions = particlesRef.current.geometry.attributes.position.array;
-                    const relativeSpeed = (currentParams.speed - currentParams.windSpeed) * 0.1;
-                    
-                    for(let i=2; i<positions.length; i+=3) {
-                        positions[i] += relativeSpeed; 
-                        if(positions[i] > 10) {
-                            positions[i] = -20; // Reset al fondo
-                        }
-                    }
-                    particlesRef.current.geometry.attributes.position.needsUpdate = true;
-                    
-                    const drag = currentParams.speed - currentParams.windSpeed;
-                    if(drag > 130) particlesRef.current.material.color.setHex(0xef4444); // Rojo (Mucha resistencia)
-                    else if(drag > 90) particlesRef.current.material.color.setHex(0xeab308); // Amarillo
-                    else particlesRef.current.material.color.setHex(0x60a5fa); // Azul
-                }
-
-                renderer.render(scene, camera);
-            };
-            animate();
-
-            const handleResize = () => {
-                if(!mountRef.current) return;
-                const w = mountRef.current.offsetWidth;
-                camera.aspect = w / height;
-                camera.updateProjectionMatrix();
-                renderer.setSize(w, height);
-            };
-            window.addEventListener('resize', handleResize);
-
-            return () => {
-                window.removeEventListener('resize', handleResize);
-                cancelAnimationFrame(frameId);
-                if(mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
-            };
-        }, []); // Solo al montar, los updates van por ref
-
-        // Actualizar datos para el loop de animación sin desmontar
-        useEffect(() => {
-            if(mountRef.current) {
-                mountRef.current.userData = params;
-            }
-        }, [params]);
-
-        // Datos para el HUD superpuesto
+      const Visualizer = ({ params }) => {
+        const isMoving = params.speed > 0;
         const isHeadwind = params.windSpeed < 0;
+        const windParticles = Array.from({ length: Math.abs(params.windSpeed) * 1.5 }).map((_, i) => ({
+            id: i, top: Math.random() * 100 + '%', delay: Math.random() * 2 + 's',
+        }));
 
         return (
-            <div className="relative w-full rounded-3xl overflow-hidden border border-slate-800 shadow-2xl mb-8 bg-gradient-to-b from-slate-900 to-black">
-                {/* CANVAS 3D */}
-                <div ref={mountRef} className="w-full h-[320px]" />
-                
-                {/* HUD SUPERPUESTO (DATOS) */}
-                <div className="absolute top-4 left-4 right-4 flex justify-between z-10 pointer-events-none">
+            <div className="relative h-80 w-full bg-gradient-to-b from-[#2a0808] to-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl mb-8">
+                 <div className="absolute top-4 left-4 right-4 flex justify-between z-20">
                     <div className="space-y-2">
-                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-blue-400 flex items-center gap-2 shadow-lg">
-                            <Icons.Gauge className="w-4 h-4" /> {params.speed} km/h
-                        </div>
-                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-green-400 flex items-center gap-2 shadow-lg">
-                            <Icons.TrendingUp className="w-4 h-4" /> {params.gradient}% Desnivel
-                        </div>
+                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-blue-400 flex items-center gap-2"><Icons.Gauge className="w-4 h-4" /> {params.speed} km/h</div>
+                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-green-400 flex items-center gap-2"><Icons.TrendingUp className="w-4 h-4" /> {params.gradient}% Desnivel</div>
                     </div>
                     <div className="space-y-2 text-right">
-                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-orange-400 flex items-center gap-2 ml-auto shadow-lg">
-                            <Icons.Thermometer className="w-4 h-4" /> {params.temperature}°C
-                        </div>
-                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-cyan-400 flex items-center gap-2 ml-auto shadow-lg">
-                            <Icons.Wind className="w-4 h-4" /> {Math.abs(params.windSpeed)} km/h {isHeadwind ? 'Contra' : 'Favor'}
-                        </div>
+                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-orange-400 flex items-center gap-2 ml-auto"><Icons.Thermometer className="w-4 h-4" /> {params.temperature}°C</div>
+                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-cyan-400 flex items-center gap-2 ml-auto"><Icons.Wind className="w-4 h-4" /> {Math.abs(params.windSpeed)} km/h {isHeadwind ? 'Contra' : 'Favor'}</div>
                     </div>
                 </div>
-
-                {/* EFECTO SUELO ESTÁTICO (DEGRADADO PARA INTEGRAR EL 3D) */}
-                <div className="absolute bottom-0 w-full h-12 bg-gradient-to-t from-black to-transparent pointer-events-none"></div>
+                <div className="absolute inset-0 bg-red-900/10"></div>
+                {params.windSpeed !== 0 && (
+                    <div className="absolute inset-0 pointer-events-none z-10">
+                        {windParticles.map(p => (
+                            <div key={p.id} className={`absolute h-0.5 bg-white/20 rounded-full ${isHeadwind ? 'wind-particle-head' : 'wind-particle-tail'}`}
+                                style={{ top: p.top, left: isHeadwind ? '100%' : '-10%', width: Math.random() * 50 + 50 + 'px', animationDuration: '0.8s', animationDelay: p.delay }} />
+                        ))}
+                    </div>
+                )}
+                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[400px] h-[200px] z-20 transition-transform duration-300" style={{ transform: `translateX(-50%) rotate(${-params.gradient}deg)` }}>
+                    <img src="tesla_model_3.png" alt="Tesla Model 3" className="w-full h-full object-contain relative z-10 filter drop-shadow-2xl contrast-125 brightness-90" />
+                    <div className={`absolute bottom-[20.5%] left-[12.8%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
+                    <div className={`absolute bottom-[20.5%] right-[13%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
+                </div>
+                <div className="absolute bottom-0 w-full h-24 bg-slate-800 overflow-hidden transform perspective-xl rotate-x-60">
+                     <div className={`absolute top-10 left-0 right-0 h-1 w-full ${isMoving ? 'animate-road-move' : ''}`} 
+                        style={{ backgroundImage: 'linear-gradient(90deg, rgba(100,116,139,1) 50%, transparent 50%)', backgroundSize: '60px 100%', animationDuration: isMoving && params.speed > 0 ? `${200 / params.speed}s` : '0s' }}></div>
+                </div>
             </div>
         );
       };
 
-
-
+      // --- CALCULADORA DE AMORTIZACIÓN (LETRAS MÁS GRANDES) ---
+      const AmortizationCalculator = () => {
+        const [data, setData] = usePersistentState('amortData', {
+            priceEV: 43000, priceICE: 45000, moves: 8500, aidICE: 2200,
+            kmPerYear: 20000, consumptionEV: 16.0, consumptionICE: 6.0,
+            priceElec: 0.10, priceFuel: 1.45, 
+            yearsToProject: 20,
+            maintenanceEV: 60, maintenanceICE: 300,
+            breakdownRateEV: 25, breakdownRateICE: 10,
+            taxSavingsEV: 50, taxSavingsICE: 0
+        });
         
+        const [showTable, setShowTable] = useState(true);
+
+        const handleChange = (field, value) => setData({...data, [field]: parseFloat(value) || 0});
+
+        // Cálculos
+        const netPriceEV = data.priceEV - data.moves;
+        const netPriceICE = data.priceICE - data.aidICE;
+        const initialDifference = netPriceEV - netPriceICE;
+        
+        const totalBreakdownEV = data.priceEV * (data.breakdownRateEV / 100);
+        const totalBreakdownICE = data.priceICE * (data.breakdownRateICE / 100);
+        const annualBreakdownEV = totalBreakdownEV / data.yearsToProject;
+        const annualBreakdownICE = totalBreakdownICE / data.yearsToProject;
+
+        const annualFuelCost = (data.kmPerYear / 100) * data.consumptionICE * data.priceFuel;
+        const annualElecCost = (data.kmPerYear / 100) * data.consumptionEV * data.priceElec;
+        
+        const totalAnnualCostEV = annualElecCost + data.maintenanceEV + annualBreakdownEV - data.taxSavingsEV;
+        const totalAnnualCostICE = annualFuelCost + data.maintenanceICE + annualBreakdownICE - data.taxSavingsICE;
+
+        const totalAnnualSavings = totalAnnualCostICE - totalAnnualCostEV;
+
+        const breakEvenYears = initialDifference > 0 ? (initialDifference / totalAnnualSavings) : 0;
+        const breakEvenKm = initialDifference > 0 ? (breakEvenYears * data.kmPerYear) : 0;
+        
+        const totalSavingsProjected = (totalAnnualSavings * data.yearsToProject) - initialDifference;
+        const effectiveCost = netPriceEV - (totalAnnualSavings * data.yearsToProject);
+
+        const tableRows = [];
+        for (let i = 0; i <= data.yearsToProject; i++) {
+            const cumCostEV = netPriceEV + (totalAnnualCostEV * i);
+            const cumCostICE = netPriceICE + (totalAnnualCostICE * i);
+            const currentKm = data.kmPerYear * i;
+            tableRows.push({ year: i, km: currentKm, ev: cumCostEV, ice: cumCostICE, diff: cumCostICE - cumCostEV });
+        }
+
+        return (
+            <div className="space-y-6">
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-8 text-center shadow-2xl">
+                    <h3 className="text-slate-300 text-sm font-display uppercase tracking-widest mb-4 font-bold">Análisis de Rentabilidad</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 relative overflow-hidden">
+                            <div className="relative z-10">
+                                <div className="text-sm text-green-400 mb-2 uppercase font-bold">Ahorro Neto ({data.yearsToProject} años)</div>
+                                <div className={`text-5xl font-bold font-display ${totalSavingsProjected >= 0 ? 'text-green-400' : 'text-red-400'}`}>{totalSavingsProjected > 0 ? '+' : ''}{formatMoney(totalSavingsProjected)}€</div>
+                            </div>
+                        </div>
+                        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 relative overflow-hidden">
+                             <div className="relative z-10">
+                                <div className="text-sm text-blue-300 mb-2 uppercase font-bold">Coste Real vs Térmico</div>
+                                <div className="text-4xl font-bold font-display text-white">{formatMoney(effectiveCost)}€</div>
+                                <div className="text-xs font-bold text-slate-400 leading-tight mt-2">Precio EV menos ahorro generado</div>
+                            </div>
+                        </div>
+                         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 relative overflow-hidden">
+                            <div className="text-sm text-slate-300 mb-3 uppercase font-bold">Punto de Equilibrio</div>
+                            <div className="flex justify-around items-center">
+                                <div><div className={`text-3xl font-bold font-display ${initialDifference <= 0 ? 'text-green-400' : 'text-white'}`}>{initialDifference <= 0 ? "0" : breakEvenYears.toFixed(1)} <span className="text-sm font-sans font-normal text-slate-400">años</span></div></div>
+                                <div className="h-8 w-px bg-slate-700"></div>
+                                <div><div className={`text-3xl font-bold font-display ${initialDifference <= 0 ? 'text-green-400' : 'text-white'}`}>{initialDifference <= 0 ? "0" : formatMoney(breakEvenKm)} <span className="text-sm font-sans font-normal text-slate-400">km</span></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
+                        <h4 className="text-blue-400 font-display font-bold mb-4 flex items-center gap-2 text-lg"><Icons.Zap /> Vehículo Eléctrico</h4>
+                        <div className="space-y-4">
+                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Compra (€)</label><FormattedInput value={data.priceEV} onChange={val=>handleChange('priceEV', val)} /></div>
+                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Ayudas / MOVES (€)</label><FormattedInput value={data.moves} onChange={val=>handleChange('moves', val)} /></div>
+                            <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-4 h-4"/> Mantenimiento y Averías</h5><div className="grid grid-cols-3 gap-4"><div><label className="text-xs font-bold text-slate-400 block mb-1">Mtto. Anual</label><FormattedInput value={data.maintenanceEV} onChange={val=>handleChange('maintenanceEV', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1 whitespace-nowrap">% Averías <span className="text-slate-500 font-normal">[{formatMoney(totalBreakdownEV)}€]</span></label><FormattedInput decimals={1} value={data.breakdownRateEV} onChange={val=>handleChange('breakdownRateEV', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Ahorro Impuestos</label><FormattedInput value={data.taxSavingsEV} onChange={val=>handleChange('taxSavingsEV', val)} /></div></div></div>
+                            <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2">Consumo</h5><div className="grid grid-cols-2 gap-6"><div><label className="text-xs font-bold text-slate-400 block mb-1">kWh/100km</label><FormattedInput decimals={1} value={data.consumptionEV} onChange={val=>handleChange('consumptionEV', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Precio €/kWh</label><FormattedInput decimals={3} value={data.priceElec} onChange={val=>handleChange('priceElec', val)} /></div></div></div>
+                        </div>
+                    </div>
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
+                        <h4 className="text-orange-400 font-display font-bold mb-4 flex items-center gap-2 text-lg"><Icons.Fuel /> Vehículo Térmico</h4>
+                        <div className="space-y-4">
+                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Compra (€)</label><FormattedInput value={data.priceICE} onChange={val=>handleChange('priceICE', val)} /></div>
+                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Ayudas / Plan Renove (€)</label><FormattedInput value={data.aidICE} onChange={val=>handleChange('aidICE', val)} /></div>
+                            <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-4 h-4"/> Mantenimiento y Averías</h5><div className="grid grid-cols-3 gap-4"><div><label className="text-xs font-bold text-slate-400 block mb-1">Mtto. Anual</label><FormattedInput value={data.maintenanceICE} onChange={val=>handleChange('maintenanceICE', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1 whitespace-nowrap">% Averías <span className="text-slate-500 font-normal">[{formatMoney(totalBreakdownICE)}€]</span></label><FormattedInput decimals={1} value={data.breakdownRateICE} onChange={val=>handleChange('breakdownRateICE', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Ahorro Impuestos</label><FormattedInput value={data.taxSavingsICE} onChange={val=>handleChange('taxSavingsICE', val)} /></div></div></div>
+                            <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2">Consumo</h5><div className="grid grid-cols-2 gap-6"><div><label className="text-xs font-bold text-slate-400 block mb-1">L/100km</label><FormattedInput decimals={1} value={data.consumptionICE} onChange={val=>handleChange('consumptionICE', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Precio €/L</label><FormattedInput decimals={3} value={data.priceFuel} onChange={val=>handleChange('priceFuel', val)} /></div></div></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+                    <h4 className="text-slate-300 font-bold mb-4 text-base">Variables de Comparación</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Kilómetros Anuales</label><FormattedInput value={data.kmPerYear} onChange={val=>handleChange('kmPerYear', val)} /></div>
+                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Años a proyectar</label><FormattedInput value={data.yearsToProject} onChange={val=>handleChange('yearsToProject', val)} /></div>
+                    </div>
+                </div>
+                
+                <div className="mt-8">
+                    <button onClick={() => setShowTable(!showTable)} className="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-base font-medium text-slate-300 transition-colors flex items-center justify-center gap-2"><Icons.Table /> {showTable ? 'Ocultar Desglose' : 'Ver Desglose Detallado Año a Año'}</button>
+                    {showTable && (
+                        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800 animate-fade-in">
+                            <table className="w-full custom-table">
+                                <thead className="bg-slate-900"><tr><th>Año</th><th className="text-right">Kms Totales</th><th className="text-right">Coste Acumulado EV</th><th className="text-right">Coste Acumulado ICE</th><th className="text-right">Diferencia (Ahorro)</th></tr></thead>
+                                <tbody className="bg-slate-900/50">{tableRows.map((row) => (<tr key={row.year}><td className="font-bold text-slate-400">{row.year}</td><td className="text-slate-300">{formatMoney(row.km)}</td><td className="text-blue-300">{formatMoney(row.ev)}€</td><td className="text-orange-300">{formatMoney(row.ice)}€</td><td className={row.diff >= 0 ? 'text-green-400 font-bold' : 'text-red-400'}>{row.diff > 0 ? '+' : ''}{formatMoney(row.diff)}€</td></tr>))}</tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+                {/* FOOTER REFERIDO TESLA - MODIFICADO CON BOTÓN GRANDE */}
+                <div className="mt-8 p-6 bg-blue-900/20 border border-blue-500/30 rounded-xl flex flex-col items-center gap-4 text-center">
+                    <p className="text-sm font-bold text-slate-300 leading-relaxed max-w-4xl">
+                        (*) Si estás pensando en comprar un Tesla, utiliza mi enlace de referido para obtener beneficios exclusivos (descuentos o meses de carga gratuita según la promoción vigente).
+                    </p>
+                    <a 
+                        href="https://ts.la/juancarlos162231" 
+                        target="_blank" 
+                        className="bg-blue-600 hover:bg-blue-500 text-white text-lg md:text-xl font-bold px-8 py-4 rounded-xl transition-all shadow-lg hover:shadow-blue-500/20 transform hover:-translate-y-1 flex items-center gap-2"
+                    >
+                        CONSEGUIR BENEFICIOS AL COMPRAR UN TESLA
+                    </a>
+                </div>
+            </div>
+        );
+      };
+
+      
       // --- CALCULADORA DE CARGA (DISTRIBUCIÓN FULL WIDTH + INTERÉS COMPUESTO) ---
       const ChargingCalculator = () => {
         const [state, setState] = usePersistentState('chargeState', { 
@@ -5774,13 +5743,13 @@ const Icons = {
                 case 'tariff': return <TariffComparator />;
                 case 'drain': return <DrainCalculator />;
                 case 'simulator': return (
-                        <>
-                            <Visualizer3D params={simParams} />  <-- POR ESTO
-                            <ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} />
-                            <ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
-                            <SimpleSavingsSimulator params={simParams} costs={simCosts} />
-                        </>
-                );     
+                    <>
+                        <Visualizer params={simParams} />
+                        <ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} />
+                        <ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
+                        <SimpleSavingsSimulator params={simParams} costs={simCosts} />
+                    </>
+                );
                 case 'amortization': return <AmortizationCalculator />;
                 case 'calculator': return <ChargingCalculator />;
                 case 'tirelab': return <TirePressureLab />;   
