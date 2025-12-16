@@ -1,4 +1,5 @@
-        <!DOCTYPE html>
+V3
+<!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
@@ -260,7 +261,6 @@ const Icons = {
       };
 
 
-      // --- COMPONENTE PLACEHOLDER (TEXTO MÁS GRANDE Y CLARO) ---
       const PlaceholderTab = () => (
         <div className="flex flex-col items-center justify-center h-96 bg-slate-900/30 rounded-3xl border border-slate-800 border-dashed p-8 text-center">
             <div className="bg-slate-800 p-4 rounded-full mb-4 text-slate-400"><Icons.Construction className="w-8 h-8" /></div>
@@ -276,6 +276,7 @@ const Icons = {
          </div>
       );
 
+      
       // --- FÍSICA (Simulador) ---
       const calculateConsumption = (params) => {
         const mass = 1800; const cr = 0.006; const g = 9.81;
@@ -299,18 +300,134 @@ const Icons = {
         const scalar = params.electricConsumptionRef / BASE_PHYSICS_REF;
         consumption = consumption * scalar;
         return Math.max(consumption < -10 ? -10 : consumption, -10); 
-      };
+      };  
 
-      // --- COMPONENTES DEL SIMULADOR (LETRAS MÁS GRANDES) ---
-      const ControlPanel = ({ params, setParams, costs, setCosts }) => {
-        const handleChange = (key, value) => setParams(prev => ({ ...prev, [key]: parseFloat(value) }));
-        const handleCostChange = (key, value) => setCosts(prev => ({ ...prev, [key]: parseFloat(value) }));
+      
+    
+      // --- 1. VISUALIZADOR 3D (LIGERO Y CORREGIDO) ---
+      const Visualizer = ({ params }) => {
+        const mountRef = useRef(null);
+        const roadMatRef = useRef(null);
+        const windGeoRef = useRef(null);
+        // Guardamos params en ref para animación fluida sin re-render
+        const paramsRef = useRef(params);
+        useEffect(() => { paramsRef.current = params; }, [params]);
+
+        useEffect(() => {
+            if (!mountRef.current || !window.THREE) return;
+            
+            // Setup Básico
+            const w = mountRef.current.offsetWidth;
+            const h = 320;
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f172a); 
+            scene.fog = new THREE.Fog(0x0f172a, 10, 60); 
+            const camera = new THREE.PerspectiveCamera(45, w / h, 0.1, 1000);
+            camera.position.set(0, 3.5, 22); camera.lookAt(0, 1.5, 0);
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(w, h);
+            mountRef.current.innerHTML = ''; // Limpiar previo
+            mountRef.current.appendChild(renderer.domElement);
+
+            // Carretera (Textura generada por código)
+            const cvs = document.createElement('canvas'); cvs.width = 512; cvs.height = 512;
+            const ctx = cvs.getContext('2d');
+            ctx.fillStyle = '#1e293b'; ctx.fillRect(0,0,512,512); // Asfalto
+            ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth=15; ctx.setLineDash([80, 100]); // Línea central
+            ctx.beginPath(); ctx.moveTo(0, 256); ctx.lineTo(512, 256); ctx.stroke();
+            ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth=2; ctx.setLineDash([]); // Ruido
+            ctx.beginPath(); for(let i=0;i<512;i+=64){ctx.moveTo(0,i);ctx.lineTo(512,i);} ctx.stroke();
+            
+            const tex = new THREE.CanvasTexture(cvs);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping; tex.repeat.set(4, 1);
+            const roadMat = new THREE.MeshBasicMaterial({ map: tex });
+            const road = new THREE.Mesh(new THREE.PlaneGeometry(120, 30), roadMat);
+            road.rotation.x = -Math.PI / 2.05; road.position.y = -1.5; road.position.z = -2;
+            scene.add(road);
+            roadMatRef.current = roadMat;
+
+            // Viento (Líneas)
+            const count = 120;
+            const geo = new THREE.BufferGeometry();
+            const pos = []; const spd = [];
+            for(let i=0; i<count; i++) {
+                pos.push((Math.random()-0.5)*80, Math.random()*6-1, (Math.random()-0.5)*15+2); // A
+                pos.push(pos[i*3]+(Math.random()*5+3), pos[i*3+1], pos[i*3+2]); // B
+                spd.push(Math.random()*0.5+0.5);
+            }
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            const windLines = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0x60a5fa, transparent: true, opacity: 0.4 }));
+            scene.add(windLines);
+            windGeoRef.current = { geo, spd, count };
+
+            // Loop
+            const animate = () => {
+                requestAnimationFrame(animate);
+                const p = paramsRef.current;
+                
+                // Mover Carretera (Izquierda)
+                if (roadMatRef.current) roadMatRef.current.map.offset.x += p.speed * 0.0008;
+                
+                // Mover Viento (Izquierda)
+                if (windGeoRef.current) {
+                    const arr = windGeoRef.current.geo.attributes.position.array;
+                    const speedRel = Math.max(0.1, (p.speed - p.windSpeed) * 0.08);
+                    for(let i=0; i<windGeoRef.current.count; i++) {
+                        const idx = i*6;
+                        const s = windGeoRef.current.spd[i] * speedRel;
+                        arr[idx] -= s; arr[idx+3] -= s;
+                        if(arr[idx+3] < -40) { // Reset
+                            const nx = 40+Math.random()*10;
+                            const ny = arr[idx+1]; const nz = arr[idx+2];
+                            const nl = Math.random()*5+3;
+                            arr[idx]=nx; arr[idx+1]=ny; arr[idx+2]=nz;
+                            arr[idx+3]=nx+nl; arr[idx+4]=ny; arr[idx+5]=nz;
+                        }
+                    }
+                    windGeoRef.current.geo.attributes.position.needsUpdate = true;
+                }
+                
+                // Inclinación Física
+                camera.rotation.z = THREE.MathUtils.degToRad(-p.gradient * 0.8);
+                renderer.render(scene, camera);
+            };
+            animate();
+        }, []);
+
+        const isHeadwind = params.windSpeed < 0;
+        const isMoving = params.speed > 0;
 
         return (
-            <div className="bg-slate-900/50 backdrop-blur-lg border border-slate-800 rounded-2xl p-6 shadow-xl">
-                <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
-                    <Icons.Settings /> Parámetros de Simulación
-                </h2>
+            <div className="relative h-80 w-full rounded-3xl overflow-hidden border border-slate-800 shadow-2xl mb-8 bg-slate-900 group">
+                <div ref={mountRef} className="absolute inset-0 z-0" />
+                <div className="absolute inset-0 z-10 flex items-end justify-center pointer-events-none pb-12 transition-transform duration-300 ease-out"
+                    style={{ transform: `rotate(${-params.gradient}deg) translateY(${params.gradient * 3.5}px)` }}>
+                    <div className="relative w-[400px] h-[200px]">
+                        <img src="tesla_model_3.png" alt="Tesla Model 3" className="w-full h-full object-contain filter drop-shadow-2xl contrast-110 brightness-100" />
+                        <div className={`absolute bottom-[20.5%] left-[12.8%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`} style={{ animationDuration: isMoving && params.speed > 0 ? `${400/params.speed}s` : '0s' }}></div>
+                        <div className={`absolute bottom-[20.5%] right-[13%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`} style={{ animationDuration: isMoving && params.speed > 0 ? `${400/params.speed}s` : '0s' }}></div>
+                    </div>
+                </div>
+                <div className="absolute top-4 left-4 right-4 flex justify-between z-20 pointer-events-none">
+                    <div className="space-y-2">
+                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-blue-400 flex items-center gap-2 shadow-lg"><Icons.Gauge className="w-4 h-4" /> {params.speed} km/h</div>
+                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-green-400 flex items-center gap-2 shadow-lg"><Icons.TrendingUp className="w-4 h-4" /> {params.gradient}% Desnivel</div>
+                    </div>
+                    <div className="space-y-2 text-right">
+                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-orange-400 flex items-center gap-2 ml-auto shadow-lg"><Icons.Thermometer className="w-4 h-4" /> {params.temperature}°C</div>
+                        <div className={`bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono flex items-center gap-2 ml-auto shadow-lg ${isHeadwind ? 'text-red-400' : 'text-cyan-400'}`}><Icons.Wind className="w-4 h-4" /> {Math.abs(params.windSpeed)} km/h {isHeadwind ? 'Contra' : 'Favor'}</div>
+                    </div>
+                </div>
+            </div>
+        );
+      };
+
+      // --- 2. CONTROLES (SLIDERS) ---
+      const SimulationControls = ({ params, setParams }) => {
+        const handleChange = (key, value) => setParams(prev => ({ ...prev, [key]: parseFloat(value) }));
+        return (
+            <div className="bg-slate-900/50 backdrop-blur-lg border border-slate-800 rounded-2xl p-6 shadow-xl mb-6">
+                <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2"><Icons.Settings /> Parámetros de Simulación</h2>
                 <div className="space-y-6">
                     {[
                         { icon: Icons.Gauge, label: "Velocidad", key: "speed", min: 0, max: 200, unit: "km/h" },
@@ -319,213 +436,80 @@ const Icons = {
                         { icon: Icons.Wind, label: "Viento", key: "windSpeed", min: -50, max: 50, unit: "km/h", customLabel: val => `${Math.abs(val)} km/h ${val < 0 ? 'Contra' : val > 0 ? 'Favor' : ''}` }
                     ].map((item) => (
                         <div key={item.key}>
-                            <div className="flex justify-between mb-2 text-base">
-                                <span className="text-slate-300 font-bold flex items-center gap-1"><item.icon className="w-5 h-5"/> {item.label}</span>
-                                <span className="text-blue-400 font-mono font-bold text-lg">
-                                    {item.customLabel ? item.customLabel(params[item.key]) : `${params[item.key]} ${item.unit}`}
-                                </span>
-                            </div>
-                            <input type="range" min={item.min} max={item.max} value={params[item.key]} 
-                                onChange={(e) => handleChange(item.key, e.target.value)}
-                                className="w-full h-4 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500" />
+                            <div className="flex justify-between mb-2 text-base"><span className="text-slate-300 font-bold flex items-center gap-1"><item.icon className="w-5 h-5"/> {item.label}</span><span className="text-blue-400 font-mono font-bold text-lg">{item.customLabel ? item.customLabel(params[item.key]) : `${params[item.key]} ${item.unit}`}</span></div>
+                            <input type="range" min={item.min} max={item.max} value={params[item.key]} onChange={(e) => handleChange(item.key, e.target.value)} className="w-full h-4 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-blue-500" />
                         </div>
                     ))}
-
-                    <div className="pt-6 border-t border-slate-800">
-                        <h3 className="text-base font-bold text-slate-300 mb-4">Configuración Avanzada</h3>
-                        <div className="grid grid-cols-2 gap-6">
-                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Electricidad (€/kWh)</label><FormattedInput decimals={3} value={costs.electricityPrice} onChange={(val) => handleCostChange('electricityPrice', val)} /></div>
-                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Gasolina (€/L)</label><FormattedInput decimals={3} value={costs.gasPrice} onChange={(val) => handleCostChange('gasPrice', val)} /></div>
-                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo Gasolina (L/100)</label><FormattedInput decimals={1} value={costs.gasConsumptionRef} onChange={(val) => handleCostChange('gasConsumptionRef', val)} /></div>
-                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo EV (kWh/100)</label><FormattedInput decimals={1} value={params.electricConsumptionRef} onChange={(val) => handleChange('electricConsumptionRef', val)} /></div>
-                            <div className="col-span-2"><label className="text-sm font-bold text-slate-400 block mb-1">Batería (kWh)</label><FormattedInput value={params.batteryCapacity} onChange={(val) => handleChange('batteryCapacity', val)} /></div>
-                        </div>
-                    </div>
                 </div>
             </div>
         );
       };
 
-      // --- NUEVO COMPONENTE: SIMULADOR SIMPLE AHORRO ---
-      const SimpleSavingsSimulator = ({ params, costs }) => {
-        // Estado inicial cambiado a 400.000 como solicitado
-        const [distance, setDistance] = usePersistentState('simpleSimDistance', 400000);
-        
-        const presets = [
-            { label: "100", val: 100 },
-            { label: "1.000", val: 1000 },
-            { label: "10.000", val: 10000 },
-            { label: "20.000", val: 20000 },
-            { label: "50.000", val: 50000 },
-            { label: "100.000", val: 100000 },
-            { label: "200.000", val: 200000 },
-            { label: "300.000", val: 300000 },
-            { label: "400.000", val: 400000 },
-            { label: "500.000", val: 500000 }
-        ];
+      // --- 3. RESULTADOS (COSTES) ---
+      const ResultsDisplay = ({ consumption, params, costs }) => {
+        const costPer100Elec = consumption * costs.electricityPrice;
+        const costPer100Gas = costs.gasConsumptionRef * costs.gasPrice;
+        const savings = costPer100Gas - costPer100Elec;
+        const range = consumption > 0.1 ? ((params.batteryCapacity / consumption) * 100) : 0;
+        return (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center shadow-lg"><div className="text-slate-300 font-bold text-base mb-1 flex items-center gap-2"><Icons.Zap className="w-5 h-5"/> Consumo</div><div className="text-5xl font-display font-bold text-white tabular-nums">{formatDecimal(consumption)}<span className="text-xl text-slate-400 ml-2 font-sans font-normal">kWh/100</span></div><div className="text-base text-blue-400 mt-2 font-bold">Autonomía: {formatMoney(range)} km</div></div>
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-start shadow-lg"><div className="flex flex-col items-center w-full mb-4"><div className="text-slate-300 font-bold text-base mb-1 flex items-center gap-2"><Icons.Euro className="w-5 h-5"/> Coste Eléctrico</div><div className="text-5xl font-display font-bold text-green-400 tabular-nums">{formatDecimal(costPer100Elec)}€<span className="text-xl text-slate-400 ml-2 font-sans font-normal">/100km</span></div><div className="text-sm font-bold text-slate-400 mt-1">Ref: {costs.electricityPrice} €/kWh</div></div><div className="w-full h-px bg-slate-700 mb-3"></div><div className="w-full flex flex-col items-center"><div className="text-xs uppercase tracking-widest text-slate-300 font-bold mb-1">Ahorro vs Térmico</div><div className="text-xl font-bold text-white">+{formatDecimal(savings)}€</div><div className="text-xs font-bold text-slate-400 mt-0">por cada 100km</div></div></div>
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center shadow-lg"><div className="text-slate-300 font-bold text-base mb-1 flex items-center gap-2"><Icons.Fuel className="w-5 h-5"/> Consumo en Térmico</div><div className="text-5xl font-display font-bold text-orange-400 tabular-nums">{formatDecimal(costPer100Gas)}€<span className="text-xl text-slate-400 ml-2 font-sans font-normal">/100km</span></div><div className="text-sm font-bold text-slate-400 mt-4">Ref: {costs.gasConsumptionRef}L/100 a {costs.gasPrice}€/L</div></div>
+            </div>
+        );
+      };
 
-        // Cálculos usando los valores de Configuración Avanzada
+      // --- 4. CONFIGURACIÓN AVANZADA ---
+      const AdvancedConfig = ({ params, setParams, costs, setCosts }) => {
+        const hC = (k, v) => setCosts(p => ({ ...p, [k]: parseFloat(v) }));
+        const hP = (k, v) => setParams(p => ({ ...p, [k]: parseFloat(v) }));
+        return (
+            <div className="bg-slate-900/50 backdrop-blur-lg border border-slate-800 rounded-2xl p-6 shadow-xl mb-6">
+                <h3 className="text-lg font-bold text-slate-300 mb-4 flex items-center gap-2"><Icons.Wrench className="w-5 h-5"/> Configuración Avanzada</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div><label className="text-sm font-bold text-slate-400 block mb-1">Electricidad (€/kWh)</label><FormattedInput decimals={3} value={costs.electricityPrice} onChange={(v) => hC('electricityPrice', v)} /></div>
+                    <div><label className="text-sm font-bold text-slate-400 block mb-1">Gasolina (€/L)</label><FormattedInput decimals={3} value={costs.gasPrice} onChange={(v) => hC('gasPrice', v)} /></div>
+                    <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo Gasolina (L/100)</label><FormattedInput decimals={1} value={costs.gasConsumptionRef} onChange={(v) => hC('gasConsumptionRef', v)} /></div>
+                    <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo EV (kWh/100)</label><FormattedInput decimals={1} value={params.electricConsumptionRef} onChange={(v) => hP('electricConsumptionRef', v)} /></div>
+                    <div className="lg:col-span-4"><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={params.batteryCapacity} onChange={(v) => hP('batteryCapacity', v)} /></div>
+                </div>
+            </div>
+        );
+      };
+
+      // --- 5. SIMULADOR SIMPLE (500.000 KM Default) ---
+      const SimpleSavingsSimulator = ({ params, costs }) => {
+        const [distance, setDistance] = usePersistentState('simpleSimDistance', 500000);
+        const presets = [100, 1000, 10000, 20000, 50000, 100000, 200000, 300000, 400000, 500000];
         const costEV = (distance / 100) * params.electricConsumptionRef * costs.electricityPrice;
         const costICE = (distance / 100) * costs.gasConsumptionRef * costs.gasPrice;
         const savings = costICE - costEV;
         const percent = costICE > 0 ? (savings / costICE) * 100 : 0;
 
         return (
-            <div className="mt-6 bg-slate-900/50 backdrop-blur-lg border border-slate-800 rounded-2xl p-6 shadow-xl animate-fade-in">
-                <h3 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-4">
-                    <Icons.Piggy className="w-6 h-6 text-green-400" /> 
-                    SIMULADOR SIMPLE DE KM RECORRIDOS AHORRO VE / TÉRMICO
-                </h3>
-
+            <div className="bg-slate-900/50 backdrop-blur-lg border border-slate-800 rounded-2xl p-6 shadow-xl animate-fade-in">
+                <h3 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-4"><Icons.Piggy className="w-6 h-6 text-green-400" /> SIMULADOR SIMPLE DE KM RECORRIDOS AHORRO VE / TÉRMICO</h3>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                    {/* Columna Izquierda: Input y Botones */}
                     <div className="space-y-6">
-                        <div>
-                            <label className="text-sm font-bold text-slate-400 block mb-2">KM. REALIZADOS</label>
-                            {/* Usamos grouped={true} para forzar puntos de millar */}
-                            <FormattedInput value={distance} onChange={setDistance} grouped={true} />
-                        </div>
-                        
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 block mb-2 uppercase tracking-wider">Selección Rápida</label>
-                            <div className="flex flex-wrap gap-2">
-                                {presets.map((preset) => (
-                                    <button 
-                                        key={preset.val}
-                                        onClick={() => setDistance(preset.val)}
-                                        className={`px-3 py-2 text-xs font-bold rounded border transition-colors ${distance === preset.val ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'}`}
-                                    >
-                                        {preset.label} km
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                        <div><label className="text-sm font-bold text-slate-400 block mb-2">KM. REALIZADOS</label><FormattedInput value={distance} onChange={setDistance} grouped={true} /></div>
+                        <div><label className="text-xs font-bold text-slate-500 block mb-2 uppercase tracking-wider">Selección Rápida</label><div className="flex flex-wrap gap-2">{presets.map((val) => (<button key={val} onClick={() => setDistance(val)} className={`px-3 py-2 text-xs font-bold rounded border transition-colors ${distance === val ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>{formatMoney(val)} km</button>))}</div></div>
                     </div>
-
-                    {/* Columna Derecha: Resultados */}
                     <div className="bg-slate-900/80 rounded-xl p-6 border border-slate-700 h-full flex flex-col justify-center">
                         <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-slate-700/50">
-                            <div className="text-center">
-                                <div className="text-xs font-bold text-orange-400 uppercase mb-1">Coste Térmico</div>
-                                <div className="text-2xl font-bold text-white">{formatMoney(costICE)}€</div>
-                                {/* Fuente aumentada aquí */}
-                                <div className="text-sm font-bold text-slate-400 font-mono mt-1">
-                                    {costs.gasConsumptionRef}L/100 @ {costs.gasPrice}€
-                                </div>
-                            </div>
-                            <div className="text-center">
-                                <div className="text-xs font-bold text-blue-400 uppercase mb-1">Coste Eléctrico</div>
-                                <div className="text-2xl font-bold text-white">{formatMoney(costEV)}€</div>
-                                {/* Fuente aumentada aquí */}
-                                <div className="text-sm font-bold text-slate-400 font-mono mt-1">
-                                    {params.electricConsumptionRef}kWh/100 @ {costs.electricityPrice}€
-                                </div>
-                            </div>
+                            <div className="text-center"><div className="text-xs font-bold text-orange-400 uppercase mb-1">Coste Térmico</div><div className="text-2xl font-bold text-white">{formatMoney(costICE)}€</div><div className="text-sm font-bold text-slate-400 font-mono mt-1">{costs.gasConsumptionRef}L/100</div></div>
+                            <div className="text-center"><div className="text-xs font-bold text-blue-400 uppercase mb-1">Coste Eléctrico</div><div className="text-2xl font-bold text-white">{formatMoney(costEV)}€</div><div className="text-sm font-bold text-slate-400 font-mono mt-1">{params.electricConsumptionRef}kWh/100</div></div>
                         </div>
-
-                        <div className="bg-green-500/10 rounded-lg p-4 text-center border border-green-500/20">
-                            <div className="text-sm font-bold text-green-400 uppercase tracking-widest mb-1">Ahorro Total</div>
-                            <div className="text-4xl font-display font-bold text-white mb-1">+{formatMoney(savings)}€</div>
-                            <div className="text-sm font-bold text-green-300">
-                                {formatDecimal(percent, 1)}% más barato
-                            </div>
-                        </div>
+                        <div className="bg-green-500/10 rounded-lg p-4 text-center border border-green-500/20"><div className="text-sm font-bold text-green-400 uppercase tracking-widest mb-1">Ahorro Total</div><div className="text-4xl font-display font-bold text-white mb-1">+{formatMoney(savings)}€</div><div className="text-sm font-bold text-green-300">{formatDecimal(percent, 1)}% más barato</div></div>
                     </div>
                 </div>
             </div>
         );
       };
 
-      const ResultsDisplay = ({ consumption, params, costs }) => {
-        const costPer100ElecRaw = consumption * costs.electricityPrice;
-        const costPer100GasRaw = costs.gasConsumptionRef * costs.gasPrice;
-        const costPerKmElec = (costPer100ElecRaw / 100);
-        const costPerKmGas = (costPer100GasRaw / 100);
-        const savingsRaw = costPer100GasRaw - costPer100ElecRaw;
-        const extraKm = Math.max(0, (costPerKmElec > 0.0001 ? (savingsRaw / parseFloat(costPerKmElec)) : 0));
-        const range = consumption > 0.1 ? ((params.batteryCapacity / consumption) * 100) : 0;
-
-        return (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-                <div className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center shadow-lg group relative overflow-hidden">
-                    <div className="absolute inset-0 bg-blue-500/10 opacity-0 group-hover:opacity-100 transition duration-500"></div>
-                    <div className="text-slate-300 font-bold text-base mb-1 flex items-center gap-2"><Icons.Zap className="w-5 h-5"/> Consumo</div>
-                    <div className="text-5xl font-display font-bold text-white tabular-nums">{formatDecimal(consumption)}<span className="text-xl text-slate-400 ml-2 font-sans font-normal">kWh/100</span></div>
-                    <div className="text-base text-blue-400 mt-2 font-bold">Autonomía: {formatMoney(range)} km</div>
-                </div>
-
-                <div className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-start shadow-lg group relative overflow-hidden">
-                    <div className="absolute inset-0 bg-green-500/10 opacity-0 group-hover:opacity-100 transition duration-500"></div>
-                    <div className="flex flex-col items-center w-full mb-4">
-                        <div className="text-slate-300 font-bold text-base mb-1 flex items-center gap-2"><Icons.Euro className="w-5 h-5"/> Coste Eléctrico</div>
-                        <div className="text-5xl font-display font-bold text-green-400 tabular-nums">{formatDecimal(costPer100ElecRaw)}€<span className="text-xl text-slate-400 ml-2 font-sans font-normal">/100km</span></div>
-                        <div className="text-base text-green-300/70 mt-1 font-mono font-bold">{formatDecimal(costPerKmElec)} €/km</div>
-                        <div className="text-sm font-bold text-slate-400 mt-1">Ref: {costs.electricityPrice} €/kWh</div>
-                    </div>
-                    <div className="w-full h-px bg-slate-700 mb-3"></div>
-                    <div className="w-full flex flex-col items-center">
-                        <div className="text-xs uppercase tracking-widest text-slate-300 font-bold mb-1">Ahorro vs Térmico</div>
-                        <div className="flex items-baseline gap-3">
-                            <span className="text-xl font-bold text-white">+{formatDecimal(savingsRaw)}€</span>
-                            <span className="text-sm text-slate-400">➜</span>
-                            <span className="text-xl font-bold text-blue-400">+{formatMoney(extraKm)} km</span>
-                        </div>
-                        <div className="text-xs font-bold text-slate-400 mt-0">por cada 100km recorridos</div>
-                    </div>
-                </div>
-
-                <div className="bg-slate-900/50 backdrop-blur border border-slate-800 rounded-xl p-6 flex flex-col items-center justify-center shadow-lg group relative overflow-hidden">
-                    <div className="absolute inset-0 bg-orange-500/10 opacity-0 group-hover:opacity-100 transition duration-500"></div>
-                    <div className="text-slate-300 font-bold text-base mb-1 flex items-center gap-2"><Icons.Fuel className="w-5 h-5"/> Consumo en Térmico</div>
-                    <div className="text-5xl font-display font-bold text-orange-400 tabular-nums">{formatDecimal(costPer100GasRaw)}€<span className="text-xl text-slate-400 ml-2 font-sans font-normal">/100km</span></div>
-                    <div className="text-base text-orange-300/70 mt-2 font-mono font-bold">{formatDecimal(costPerKmGas)} €/km</div>
-                    <div className="text-sm font-bold text-slate-400 mt-4">Ref: {costs.gasConsumptionRef}L/100 a {costs.gasPrice}€/L</div>
-                </div>
-            </div>
-        );
-      };
-
-      const Visualizer = ({ params }) => {
-        const isMoving = params.speed > 0;
-        const isHeadwind = params.windSpeed < 0;
-        const windParticles = Array.from({ length: Math.abs(params.windSpeed) * 1.5 }).map((_, i) => ({
-            id: i, top: Math.random() * 100 + '%', delay: Math.random() * 2 + 's',
-        }));
-
-        return (
-            <div className="relative h-80 w-full bg-gradient-to-b from-[#2a0808] to-slate-950 rounded-3xl overflow-hidden border border-slate-800 shadow-2xl mb-8">
-                 <div className="absolute top-4 left-4 right-4 flex justify-between z-20">
-                    <div className="space-y-2">
-                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-blue-400 flex items-center gap-2"><Icons.Gauge className="w-4 h-4" /> {params.speed} km/h</div>
-                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-green-400 flex items-center gap-2"><Icons.TrendingUp className="w-4 h-4" /> {params.gradient}% Desnivel</div>
-                    </div>
-                    <div className="space-y-2 text-right">
-                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-orange-400 flex items-center gap-2 ml-auto"><Icons.Thermometer className="w-4 h-4" /> {params.temperature}°C</div>
-                        <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-cyan-400 flex items-center gap-2 ml-auto"><Icons.Wind className="w-4 h-4" /> {Math.abs(params.windSpeed)} km/h {isHeadwind ? 'Contra' : 'Favor'}</div>
-                    </div>
-                </div>
-                <div className="absolute inset-0 bg-red-900/10"></div>
-                {params.windSpeed !== 0 && (
-                    <div className="absolute inset-0 pointer-events-none z-10">
-                        {windParticles.map(p => (
-                            <div key={p.id} className={`absolute h-0.5 bg-white/20 rounded-full ${isHeadwind ? 'wind-particle-head' : 'wind-particle-tail'}`}
-                                style={{ top: p.top, left: isHeadwind ? '100%' : '-10%', width: Math.random() * 50 + 50 + 'px', animationDuration: '0.8s', animationDelay: p.delay }} />
-                        ))}
-                    </div>
-                )}
-                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[400px] h-[200px] z-20 transition-transform duration-300" style={{ transform: `translateX(-50%) rotate(${-params.gradient}deg)` }}>
-                    <img src="tesla_model_3.png" alt="Tesla Model 3" className="w-full h-full object-contain relative z-10 filter drop-shadow-2xl contrast-125 brightness-90" />
-                    <div className={`absolute bottom-[20.5%] left-[12.8%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
-                    <div className={`absolute bottom-[20.5%] right-[13%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}></div>
-                </div>
-                <div className="absolute bottom-0 w-full h-24 bg-slate-800 overflow-hidden transform perspective-xl rotate-x-60">
-                     <div className={`absolute top-10 left-0 right-0 h-1 w-full ${isMoving ? 'animate-road-move' : ''}`} 
-                        style={{ backgroundImage: 'linear-gradient(90deg, rgba(100,116,139,1) 50%, transparent 50%)', backgroundSize: '60px 100%', animationDuration: isMoving && params.speed > 0 ? `${200 / params.speed}s` : '0s' }}></div>
-                </div>
-            </div>
-        );
-      };
-
+    
+    
+      
       // --- CALCULADORA DE AMORTIZACIÓN (LETRAS MÁS GRANDES) ---
       const AmortizationCalculator = () => {
         const [data, setData] = usePersistentState('amortData', {
@@ -5744,12 +5728,22 @@ const Icons = {
                 case 'drain': return <DrainCalculator />;
                 case 'simulator': return (
                     <>
+                        {/* 1. VISUALIZADOR 3D */}
                         <Visualizer params={simParams} />
+                        
+                        {/* 2. PANEL DE CONTROL (Sliders) */}
+                        <SimulationControls params={simParams} setParams={setSimParams} />
+
+                        {/* 3. COSTES Y RESULTADOS */}
                         <ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} />
-                        <ControlPanel params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
+                        
+                        {/* 4. CONFIGURACIÓN AVANZADA */}
+                        <AdvancedConfig params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
+                        
+                        {/* 5. SIMULADOR SIMPLE (500k km default) */}
                         <SimpleSavingsSimulator params={simParams} costs={simCosts} />
                     </>
-                );
+                );      
                 case 'amortization': return <AmortizationCalculator />;
                 case 'calculator': return <ChargingCalculator />;
                 case 'tirelab': return <TirePressureLab />;   
