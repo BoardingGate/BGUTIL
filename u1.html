@@ -484,21 +484,17 @@ const Icons = {
 
 
         
-      // --- VISUALIZADOR HÍBRIDO (FONDO 3D + COCHE HTML) ---
+      // --- VISUALIZADOR LATERAL (SIDE-SCROLLER) V3 ---
       const Visualizer = ({ params }) => {
         const mountRef = useRef(null);
-        // Refs para objetos 3D
-        const sceneRef = useRef(null);
-        const roadRef = useRef(null);
-        const particlesRef = useRef(null);
         
-        // Ref para guardar los params actuales y usarlos dentro del loop de animación sin reiniciar el canvas
+        // Refs para animación
+        const roadMatRef = useRef(null);
+        const windGeoRef = useRef(null);
         const paramsRef = useRef(params);
 
-        // Actualizamos la referencia cada vez que cambian los params
-        useEffect(() => {
-            paramsRef.current = params;
-        }, [params]);
+        // Actualizar refs sin re-renderizar
+        useEffect(() => { paramsRef.current = params; }, [params]);
 
         useEffect(() => {
             if (!mountRef.current || !window.THREE) return;
@@ -507,110 +503,162 @@ const Icons = {
             const width = mountRef.current.offsetWidth;
             const height = 320;
             const scene = new THREE.Scene();
-            // Color de fondo que coincida con el CSS
-            scene.background = new THREE.Color(0x0f172a); 
-            scene.fog = new THREE.FogExp2(0x0f172a, 0.035); // Niebla densa para ocultar horizonte
-            sceneRef.current = scene;
+            scene.background = new THREE.Color(0x0f172a); // Fondo oscuro
+            // Niebla lateral para que carretera y viento aparezcan suavemente
+            scene.fog = new THREE.Fog(0x0f172a, 10, 50); 
 
-            const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1000);
-            camera.position.set(0, 2, 6); // Cámara ligeramente elevada
-            camera.lookAt(0, 1, 0);
+            // Cámara lateral pura (Side View)
+            const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+            camera.position.set(0, 3, 20); // Alejada en Z, centrada en X
+            camera.lookAt(0, 1.5, 0);
 
-            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(width, height);
-            renderer.setPixelRatio(window.devicePixelRatio);
             
-            // Limpieza
             while (mountRef.current.firstChild) {
                 mountRef.current.removeChild(mountRef.current.firstChild);
             }
             mountRef.current.appendChild(renderer.domElement);
 
-            // 2. CARRETERA (GRID PROCEDURAL)
-            const gridSize = 200;
-            const divisions = 200;
-            // GridHelper crea la rejilla estilo "Tron"
-            const gridHelper = new THREE.GridHelper(gridSize, divisions, 0x1e293b, 0x1e293b);
-            gridHelper.position.y = -1.5;
-            scene.add(gridHelper);
-            roadRef.current = gridHelper;
-
-            // Suelo negro debajo para tapar
-            const planeGeo = new THREE.PlaneGeometry(200, 200);
-            const planeMat = new THREE.MeshBasicMaterial({ color: 0x020617 });
-            const plane = new THREE.Mesh(planeGeo, planeMat);
-            plane.rotation.x = -Math.PI / 2;
-            plane.position.y = -1.51;
-            scene.add(plane);
-
-
-            // 3. VIENTO (PARTÍCULAS)
-            const particleCount = 150;
-            const particlesGeo = new THREE.BufferGeometry();
-            const posArray = new Float32Array(particleCount * 3);
+            // 2. CARRETERA (ASPHALT GRID TEXTURE)
+            // Creamos una textura procedural
+            const canvas = document.createElement('canvas');
+            canvas.width = 512; canvas.height = 512;
+            const ctx = canvas.getContext('2d');
             
-            for(let i=0; i<particleCount * 3; i+=3) {
-                posArray[i] = (Math.random() - 0.5) * 40;     // X: dispersión lateral
-                posArray[i+1] = (Math.random() * 10) - 2;     // Y: altura
-                posArray[i+2] = (Math.random() - 0.5) * 60;   // Z: profundidad
+            // Fondo asfalto
+            ctx.fillStyle = '#1e293b'; 
+            ctx.fillRect(0,0,512,512);
+            
+            // Líneas horizontales (carril) - Dan sensación de velocidad
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(0, 250, 512, 12); // Línea central
+            
+            // Ruido/Grid para referencia visual
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for(let i=0; i<=512; i+=64) {
+                ctx.moveTo(i, 0); ctx.lineTo(i, 512); // Verticales (se mueven)
             }
-            
-            particlesGeo.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
-            const particlesMat = new THREE.PointsMaterial({
-                size: 0.15,
-                color: 0x60a5fa, // Azul
-                transparent: true,
-                opacity: 0.8
-            });
-            const particles = new THREE.Points(particlesGeo, particlesMat);
-            scene.add(particles);
-            particlesRef.current = particles;
+            ctx.stroke();
 
-            // 4. LOOP DE ANIMACIÓN
+            const roadTexture = new THREE.CanvasTexture(canvas);
+            roadTexture.wrapS = THREE.RepeatWrapping;
+            roadTexture.wrapT = THREE.RepeatWrapping;
+            roadTexture.repeat.set(5, 1); // Repetir 5 veces en horizontal
+
+            const roadGeo = new THREE.PlaneGeometry(100, 20); // Plano muy ancho
+            const roadMat = new THREE.MeshBasicMaterial({ map: roadTexture });
+            const road = new THREE.Mesh(roadGeo, roadMat);
+            
+            // Rotamos el suelo para que quede plano pero visto ligeramente desde arriba
+            road.rotation.x = -Math.PI / 2.1; 
+            road.position.y = -1; 
+            road.position.z = -5; // Un poco al fondo
+            scene.add(road);
+            roadMatRef.current = roadMat;
+
+
+            // 3. VIENTO (LÍNEAS DE FLUJO / STREAKS)
+            const lineCount = 100;
+            const lineGeo = new THREE.BufferGeometry();
+            const positions = [];
+            const speeds = [];
+
+            // Generamos pares de vértices para cada línea (Inicio -> Fin)
+            for(let i=0; i<lineCount; i++) {
+                // X: dispersas a lo ancho
+                const x = (Math.random() - 0.5) * 60;
+                // Y: alrededor de la altura del coche
+                const y = Math.random() * 5 + 0.5; 
+                // Z: profundidad variada (delante y detrás del coche)
+                const z = (Math.random() - 0.5) * 10 + 2;
+
+                // Largo de la línea
+                const len = Math.random() * 3 + 1;
+
+                positions.push(x, y, z);      // Punto A
+                positions.push(x + len, y, z); // Punto B
+
+                // Velocidad individual aleatoria
+                speeds.push(Math.random() * 0.5 + 0.5);
+            }
+
+            lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            
+            const lineMat = new THREE.LineBasicMaterial({
+                color: 0x60a5fa, // Azul cian
+                transparent: true,
+                opacity: 0.4
+            });
+
+            const windLines = new THREE.LineSegments(lineGeo, lineMat);
+            scene.add(windLines);
+            windGeoRef.current = { geo: lineGeo, speeds: speeds, count: lineCount };
+
+
+            // 4. ANIMACIÓN
             let frameId;
             const animate = () => {
                 frameId = requestAnimationFrame(animate);
-                
-                const p = paramsRef.current; // Leer valores actuales
+                const p = paramsRef.current;
 
-                // A. Mover Carretera
-                if(roadRef.current) {
-                    // Movemos el grid en Z
-                    const speedZ = p.speed * 0.05; 
-                    roadRef.current.position.z += speedZ * 0.01;
-                    if(roadRef.current.position.z > 1) roadRef.current.position.z = 0; // Reset loop infinito
+                // A. CARRETERA (Texture Offset X)
+                if (roadMatRef.current) {
+                    // Si speed > 0, movemos la textura hacia la izquierda (offset positivo o negativo según mapping)
+                    // Para que parezca que vamos a la derecha, el suelo va a la izquierda.
+                    const speedFactor = p.speed * 0.0005;
+                    roadMatRef.current.map.offset.x += speedFactor;
                 }
 
-                // B. Cámara dinámica (Simular desnivel)
-                // En lugar de rotar el mundo, subimos/bajamos la cámara
-                // targetY es positivo si subimos cuesta, negativo si bajamos
-                const targetCamY = 2 + (p.gradient * 0.1); 
-                // Interpolación suave
-                camera.position.y += (targetCamY - camera.position.y) * 0.1;
-                camera.lookAt(0, 1 + (p.gradient * 0.05), 0);
+                // B. VIENTO (Mover Vértices en X)
+                if (windGeoRef.current) {
+                    const { geo, speeds, count } = windGeoRef.current;
+                    const posAttr = geo.attributes.position;
+                    const posArr = posAttr.array;
 
-                // C. Partículas de Viento
-                if(particlesRef.current) {
-                    const positions = particlesRef.current.geometry.attributes.position.array;
-                    // Velocidad partículas: Velocidad coche - Viento
-                    // Si viento en contra (negativo), sumamos valor (más rápido hacia la cámara)
-                    const windFactor = (p.speed - p.windSpeed) * 0.05; 
-                    const flySpeed = Math.max(0.1, windFactor * 0.5);
+                    // Velocidad relativa base
+                    const baseWindSpeed = (p.speed - p.windSpeed) * 0.05; 
+                    // Mínimo movimiento para que se vea vivo
+                    const finalSpeed = Math.max(0.1, baseWindSpeed);
 
-                    for(let i=2; i<positions.length; i+=3) {
-                        positions[i] += flySpeed; 
-                        if(positions[i] > 10) {
-                            positions[i] = -40; // Reset al fondo
+                    for (let i = 0; i < count; i++) {
+                        const idx = i * 6; // 2 vértices * 3 coords
+                        const spd = speeds[i] * finalSpeed;
+
+                        // Mover ambos puntos de la línea hacia la IZQUIERDA (negativo X)
+                        posArr[idx] -= spd;     // x1
+                        posArr[idx+3] -= spd;   // x2
+
+                        // Si la línea sale de la pantalla por la izquierda (< -30)
+                        if (posArr[idx+3] < -30) {
+                            // Reiniciar a la derecha
+                            const newX = 30 + Math.random() * 10;
+                            const len = Math.random() * 4 + 2; // Recalcular largo dinámico según velocidad
+                            
+                            // Mantener Y y Z
+                            const y = posArr[idx+1];
+                            const z = posArr[idx+2];
+
+                            posArr[idx] = newX;
+                            posArr[idx+1] = y;
+                            posArr[idx+2] = z;
+
+                            posArr[idx+3] = newX + len;
+                            posArr[idx+4] = y;
+                            posArr[idx+5] = z;
                         }
                     }
-                    particlesRef.current.geometry.attributes.position.needsUpdate = true;
-
-                    // Color dinámico según resistencia
-                    const drag = p.speed - p.windSpeed;
-                    if(drag > 140) particlesRef.current.material.color.setHex(0xef4444); // Rojo
-                    else if(drag > 100) particlesRef.current.material.color.setHex(0xeab308); // Amarillo
-                    else particlesRef.current.material.color.setHex(0x60a5fa); // Azul
+                    posAttr.needsUpdate = true;
                 }
+
+                // C. CÁMARA (Inclinación sutil)
+                // Rotar la cámara un poco en Z simula la inclinación del terreno en 2D side-scroller
+                // Desnivel positivo = Morro arriba = Rotar cámara antihorario (o mundo horario)
+                // Aquí movemos la cámara ligeramente para acompañar el efecto CSS del coche
+                const targetRotZ = THREE.MathUtils.degToRad(p.gradient * 0.5);
+                camera.rotation.z = targetRotZ;
 
                 renderer.render(scene, camera);
             };
@@ -630,45 +678,45 @@ const Icons = {
                 cancelAnimationFrame(frameId);
                 if(mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
             };
-        }, []); 
+        }, []);
 
-        // Cálculos para la UI superpuesta
+        // UI Helpers
         const isHeadwind = params.windSpeed < 0;
-        const isMoving = params.speed > 0;  
+        const isMoving = params.speed > 0;
 
         return (
             <div className="relative h-80 w-full rounded-3xl overflow-hidden border border-slate-800 shadow-2xl mb-8 bg-slate-900 group">
                 
-                {/* CAPA 1: CANVAS 3D (FONDO) */}
+                {/* 1. FONDO 3D (Carretera + Viento) */}
                 <div ref={mountRef} className="absolute inset-0 z-0" />
 
-                {/* CAPA 2: COCHE HTML (SUPERPUESTO) */}
-                {/* Rotamos el div contenedor según el gradiente para simular inclinación física */}
+                {/* 2. COCHE (Imagen HTML) */}
+                {/* El coche está fijo en el centro, rotado por CSS según gradiente */}
                 <div 
-                    className="absolute inset-0 z-10 flex items-end justify-center pointer-events-none pb-8 transition-transform duration-300 ease-out"
+                    className="absolute inset-0 z-10 flex items-end justify-center pointer-events-none pb-10 transition-transform duration-300 ease-out"
                     style={{ 
-                        transform: `rotate(${-params.gradient * 0.8}deg) translateY(${params.gradient * 2}px)` 
+                        // Rotación negativa en deg porque en CSS rotate positivo es horario (morro abajo)
+                        // Queremos: +Gradiente (subida) -> Morro arriba (antihorario)
+                        transform: `rotate(${-params.gradient}deg) translateY(${params.gradient * 3}px)` 
                     }}
                 >
                     <div className="relative w-[400px] h-[200px]">
-                        {/* IMAGEN DEL COCHE */}
                         <img 
                             src="tesla_model_3.png" 
                             alt="Tesla Model 3" 
                             className="w-full h-full object-contain filter drop-shadow-2xl contrast-110 brightness-100" 
                         />
-                        
-                        {/* RUEDAS GIRATORIAS (CSS) */}
+                        {/* Ruedas Girando (CSS) */}
                         <div className={`absolute bottom-[20.5%] left-[12.8%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}
-                             style={{ animationDuration: isMoving && params.speed > 0 ? `${500/params.speed}s` : '0s' }}>
+                             style={{ animationDuration: isMoving && params.speed > 0 ? `${400/params.speed}s` : '0s' }}>
                         </div>
                         <div className={`absolute bottom-[20.5%] right-[13%] w-[12.1%] aspect-square rounded-full border-2 border-slate-400/30 border-t-white/80 z-20 ${isMoving ? 'animate-spin-fast' : ''}`}
-                             style={{ animationDuration: isMoving && params.speed > 0 ? `${500/params.speed}s` : '0s' }}>
+                             style={{ animationDuration: isMoving && params.speed > 0 ? `${400/params.speed}s` : '0s' }}>
                         </div>
                     </div>
                 </div>
 
-                {/* CAPA 3: HUD / DATOS (SUPERIOR) */}
+                {/* 3. DATOS HUD */}
                 <div className="absolute top-4 left-4 right-4 flex justify-between z-20 pointer-events-none">
                     <div className="space-y-2">
                         <div className="bg-slate-900/80 backdrop-blur px-4 py-2 rounded-full border border-slate-700 text-sm font-bold font-mono text-blue-400 flex items-center gap-2 shadow-lg">
@@ -687,12 +735,10 @@ const Icons = {
                         </div>
                     </div>
                 </div>
-                
-                {/* SOMBRA SUELO INTEGRACIÓN */}
-                <div className="absolute bottom-0 w-full h-16 bg-gradient-to-t from-slate-900 to-transparent pointer-events-none z-10"></div>
             </div>
         );
       };
+   
 
 
 
