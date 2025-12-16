@@ -6123,13 +6123,22 @@ const Icons = {
                 case 'drain': return <DrainCalculator />;
                 case 'simulator': return (
                     <>
+                        {/* 1. VISUALIZADOR 3D */}
                         <Visualizer params={simParams} />
+                        
+                        {/* 2. PANEL DE CONTROL (Sliders) */}
                         <SimulationControls params={simParams} setParams={setSimParams} />
+
+                        {/* 3. COSTES Y RESULTADOS */}
                         <ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} />
+                        
+                        {/* 4. CONFIGURACIÓN AVANZADA */}
                         <AdvancedConfig params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
+                        
+                        {/* 5. SIMULADOR SIMPLE (500k km default) */}
                         <SimpleSavingsSimulator params={simParams} costs={simCosts} />
                     </>
-                );
+                );      
                 case 'amortization': return <AmortizationCalculator />;
                 case 'calculator': return <ChargingCalculator />;
                 case 'tirelab': return <TirePressureLab />;   
