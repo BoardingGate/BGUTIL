@@ -1,4 +1,4 @@
-M14
+M15
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -860,9 +860,184 @@ const Icons = {
 
     
 
-        
 
-      // --- CALCULADORA DE CARGA (DISTRIBUCIÓN FULL WIDTH + INTERÉS COMPUESTO) ---
+
+
+
+
+      // --- COMPONENTE GLOBAL: GRÁFICA 3D (EXTRAÍDO PARA USO COMPARTIDO) ---
+      const Amortization3DChart = ({ rows }) => {
+            const mountRef = useRef(null);
+
+            // Escala Y Dinámica (Intervalos fijos de 5.000€)
+            // Calculamos el máximo valor entre ambas columnas para la escala
+            const maxVal = rows.length > 0 ? Math.max(
+                rows[rows.length-1].ev || 0, 
+                rows[rows.length-1].ice || 0,
+                // Soporte para estructura de ChargingCalculator (balance vs principal)
+                rows[rows.length-1].stacks?.ev?.reduce((a,b)=>a+b.val,0) || 0
+            ) : 10000;
+
+            const stepY = 5000; // FIJO: 5k
+            const yAxisMax = Math.ceil((maxVal * 1.1) / stepY) * stepY; 
+            
+            useEffect(() => {
+                if (!mountRef.current || !window.THREE || rows.length === 0) return;
+
+                const width = mountRef.current.offsetWidth;
+                const height = 450; 
+                mountRef.current.innerHTML = '';
+
+                const scene = new THREE.Scene();
+
+                // === SISTEMA DE COORDENADAS ===
+                const BAR_WIDTH = 0.8;
+                const SPACING = 1.8;
+                const TOTAL_WIDTH = (rows.length - 1) * SPACING;
+                
+                const MAX_H_3D = 30;
+                const SCALE = MAX_H_3D / yAxisMax;
+
+                // === CÁMARA ===
+                const camLeft = -3;
+                const camRight = TOTAL_WIDTH + 3;
+                const camTop = MAX_H_3D + 5;
+                const camBottom = -5;
+
+                const camera = new THREE.OrthographicCamera(camLeft, camRight, camTop, camBottom, 1, 1000);
+                camera.position.set(TOTAL_WIDTH / 2, MAX_H_3D / 2, 100);
+                camera.rotation.order = 'YXZ';
+                camera.rotation.y = 0.2; 
+                camera.rotation.x = -0.05; 
+
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(width, height);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                mountRef.current.appendChild(renderer.domElement);
+
+                // Luces
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+                scene.add(ambientLight);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+                dirLight.position.set(10, 20, 50);
+                scene.add(dirLight);
+
+                const group = new THREE.Group();
+                scene.add(group);
+
+                // === SPRITES TEXTO ===
+                const createText = (message, color = '#64748b', size = 1, align = 'center') => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = 256; canvas.height = 64;
+                    ctx.font = 'Bold 40px monospace';
+                    ctx.fillStyle = color;
+                    ctx.textAlign = align;
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(message, align === 'left' ? 0 : 128, 32);
+                    const tex = new THREE.CanvasTexture(canvas);
+                    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+                    const sprite = new THREE.Sprite(mat);
+                    sprite.scale.set(4 * size, 1 * size, 1);
+                    return sprite;
+                };
+
+                // === EJE Y (LÍNEAS CADA 5k + TEXTO) ===
+                for(let val=0; val<=yAxisMax; val+=stepY) {
+                    const y = val * SCALE;
+                    
+                    if (val > 0) {
+                        // Línea
+                        const points = [new THREE.Vector3(-2, y, -2), new THREE.Vector3(TOTAL_WIDTH + 2, y, -2)];
+                        const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+                        const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 });
+                        group.add(new THREE.Line(lineGeo, lineMat));
+                        
+                        // Etiqueta
+                        const label = createText((val/1000).toFixed(0) + 'k', '#94a3b8', 1.2, 'right');
+                        label.position.set(-3.5, y, 0); 
+                        group.add(label);
+                    }
+                }
+
+                // === BARRAS ===
+                rows.forEach((row, i) => {
+                    const x = i * SPACING;
+
+                    const createStack = (layers, zPos) => {
+                        let currentY = 0;
+                        if(layers) {
+                            layers.forEach(layer => {
+                                if (layer.val <= 10) return; 
+                                const h = layer.val * SCALE;
+                                const geo = new THREE.BoxGeometry(BAR_WIDTH, h, BAR_WIDTH);
+                                const mat = new THREE.MeshLambertMaterial({ color: layer.col });
+                                const mesh = new THREE.Mesh(geo, mat);
+                                
+                                mesh.position.set(x, currentY + h/2, zPos);
+                                
+                                const edges = new THREE.EdgesGeometry(geo);
+                                const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 }));
+                                line.position.copy(mesh.position);
+
+                                group.add(mesh);
+                                group.add(line);
+                                currentY += h;
+                            });
+                        }
+                    };
+
+                    createStack(row.stacks.ev, 1.0);
+                    createStack(row.stacks.ice, -1.0);
+
+                    // Etiqueta AÑO
+                    if (i % 2 === 0 || i === rows.length - 1) {
+                        const yearLabel = createText(row.year.toString(), '#cbd5e1', 0.8);
+                        yearLabel.position.set(x, -2, 1.5);
+                        group.add(yearLabel);
+                        
+                        const tickGeo = new THREE.BoxGeometry(0.1, 0.5, 0.1);
+                        const tick = new THREE.Mesh(tickGeo, new THREE.MeshBasicMaterial({color: 0x64748b}));
+                        tick.position.set(x, -0.5, 1.5);
+                        group.add(tick);
+                    }
+                });
+
+                renderer.render(scene, camera);
+
+                const handleResize = () => {
+                    if (!mountRef.current) return;
+                    const w = mountRef.current.offsetWidth;
+                    // Ajustar aspect ratio
+                    const aspect = w / height;
+                    const viewHeight = camTop - camBottom;
+                    const viewWidth = viewHeight * aspect;
+                    
+                    camera.left = -viewWidth / 2 + (TOTAL_WIDTH/2); 
+                    camera.right = viewWidth / 2 + (TOTAL_WIDTH/2);
+                    camera.updateProjectionMatrix();
+                    
+                    renderer.setSize(w, height);
+                    renderer.render(scene, camera);
+                };
+                window.addEventListener('resize', handleResize);
+                // Resize inicial para centrar
+                handleResize();
+
+                return () => {
+                    window.removeEventListener('resize', handleResize);
+                    mountRef.current && (mountRef.current.innerHTML = '');
+                };
+            }, [rows, yAxisMax]);
+
+            return (
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 relative mb-6">
+                    <div ref={mountRef} className="w-full h-[450px] cursor-grab active:cursor-grabbing" />
+                </div>
+            );
+      };
+
+      // --- CALCULADORA DE CARGA (CORREGIDA) ---
       const ChargingCalculator = () => {
         const [state, setState] = usePersistentState('chargeState', { 
             capacity: 60, 
@@ -1032,6 +1207,26 @@ const Icons = {
 
         const compResult = calculateCompound();
         const handleCompChange = (k, v) => setCompState(p => ({...p, [k]: parseFloat(v)}));
+
+        // **ADAPTADOR DE DATOS PARA GRÁFICO 3D**
+        // Mapeamos los datos de interés compuesto al formato que espera Amortization3DChart (stacks.ev y stacks.ice)
+        const compoundChartData = useMemo(() => {
+            return compResult.history.map(h => ({
+                year: h.year,
+                // Usamos 'ev' para el balance total (Azul)
+                // Usamos 'ice' para el capital aportado (Naranja - Fondo)
+                stacks: {
+                    ev: [
+                        { val: h.principal, col: 0x1e3a8a }, // Capital (Azul Oscuro)
+                        { val: h.interest, col: 0x3b82f6 }   // Interés (Azul Claro)
+                    ],
+                    ice: [
+                        { val: h.principal, col: 0xf97316 }, // Capital (Naranja)
+                        { val: 0, col: 0x0 }                 // Relleno
+                    ]
+                }
+            }));
+        }, [compResult.history]);
 
         const sliderStyle = `
             .range-slider-input { pointer-events: none; -webkit-appearance: none; z-index: 10; }
@@ -1268,9 +1463,22 @@ const Icons = {
                             </div>
                         </div>
 
-                        {/* TABLA DESPLEGABLE */}
+                        {/* TABLA DESPLEGABLE Y GRÁFICO 3D */}
                         <div className="mt-8">
-                            <Amortization3DChart data={tableRows} />
+                            {/* GRÁFICA 3D CON DATOS ADAPTADOS */}
+                            <div className="mb-6">
+                                <div className="flex justify-between items-center mb-2 px-1">
+                                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                                        <Icons.TrendingUp className="w-3 h-3 text-blue-400"/> Proyección Visual
+                                    </h4>
+                                    <div className="flex gap-4 text-[10px] font-bold uppercase">
+                                        <div className="flex items-center gap-1"><div className="w-2 h-2 bg-blue-600 rounded-full"></div> Capital + Interés</div>
+                                        <div className="flex items-center gap-1"><div className="w-2 h-2 bg-orange-500 rounded-full"></div> Capital Aportado</div>
+                                    </div>
+                                </div>
+                                <Amortization3DChart rows={compoundChartData} />
+                            </div>
+
                             <button 
                                 onClick={() => setShowCompTable(!showCompTable)} 
                                 className="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-base font-medium text-slate-300 transition-colors flex items-center justify-center gap-2"
@@ -1312,8 +1520,15 @@ const Icons = {
                 </div>
             </div>
         );
-      };  
+      };
+
+
+
+
+
         
+        
+
         
       
       // --- DRENAJE (LETRAS MÁS GRANDES) ---
