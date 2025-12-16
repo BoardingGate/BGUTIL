@@ -1,4 +1,4 @@
-V8
+l1
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -2822,7 +2822,8 @@ const Icons = {
             );
       };
 
-      // --- TARIFF COMPARATOR ---
+
+      // --- TARIFF COMPARATOR (UPDATED WITH 3D CHART) ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV5', {
             // Shared Data
@@ -2866,6 +2867,224 @@ const Icons = {
             } catch (e) { console.error(e); }
         }, []);
 
+        // --- SUB-COMPONENTE: GRÁFICO 3D COMPARATIVO ---
+        const Tariff3DChart = ({ billA, billB, nameA, nameB }) => {
+            const mountRef = useRef(null);
+
+            useEffect(() => {
+                if (!mountRef.current || !window.THREE) return;
+
+                // 1. SETUP
+                const width = mountRef.current.offsetWidth;
+                const height = 350;
+                const scene = new THREE.Scene();
+                scene.background = null; 
+
+                // Cámara isométrica para ver mejor las alturas
+                const aspect = width / height;
+                const d = 20;
+                const camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 1, 1000);
+                
+                // Posición isométrica
+                camera.position.set(20, 20, 20); 
+                camera.lookAt(0, 5, 0); 
+
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(width, height);
+                renderer.setPixelRatio(window.devicePixelRatio);
+                
+                while (mountRef.current.firstChild) {
+                    mountRef.current.removeChild(mountRef.current.firstChild);
+                }
+                mountRef.current.appendChild(renderer.domElement);
+
+                // 2. LUCES
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                scene.add(ambientLight);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+                dirLight.position.set(10, 20, 10);
+                scene.add(dirLight);
+                const fillLight = new THREE.DirectionalLight(0xffffff, 0.3);
+                fillLight.position.set(-10, 5, -10);
+                scene.add(fillLight);
+
+                // 3. DATOS Y ESCALA
+                // Estructura: [Potencia, Energía, Fijos, Impuestos]
+                // Colores: Verde (Pot), Azul (Ener), Gris (Fijos), Morado/Blanco (Imp)
+                const colors = [0x4ade80, 0x60a5fa, 0x94a3b8, 0xc084fc];
+                
+                const dataA = [billA.termPotDisc, billA.termEnNet, billA.fixedCosts, billA.taxes];
+                const dataB = [billB.termPotDisc, billB.termEnNet, billB.fixedCosts, billB.taxes];
+                
+                const totalA = dataA.reduce((a,b) => a+b, 0);
+                const totalB = dataB.reduce((a,b) => a+b, 0);
+                const maxVal = Math.max(totalA, totalB) * 1.1; // 10% margen
+                
+                const maxBarHeight = 16; // Altura máxima en unidades 3D
+                const scaleY = maxBarHeight / maxVal;
+                const barSize = 6; 
+                const spacing = 12;
+
+                const createStack = (data, xPos) => {
+                    const group = new THREE.Group();
+                    let currentY = 0;
+
+                    data.forEach((val, idx) => {
+                        if (val <= 0) return;
+                        
+                        const h = val * scaleY;
+                        const geo = new THREE.BoxGeometry(barSize, h, barSize);
+                        const mat = new THREE.MeshStandardMaterial({ 
+                            color: colors[idx], 
+                            roughness: 0.3, 
+                            metalness: 0.1 
+                        });
+                        const mesh = new THREE.Mesh(geo, mat);
+                        
+                        // Posicionar centro del cubo
+                        mesh.position.y = currentY + (h / 2);
+                        mesh.position.x = xPos;
+                        
+                        // Bordes para definición
+                        const edges = new THREE.EdgesGeometry(geo);
+                        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 }));
+                        line.position.copy(mesh.position);
+                        
+                        group.add(mesh);
+                        group.add(line);
+                        
+                        currentY += h;
+                    });
+                    
+                    // Sombra base
+                    const shadowGeo = new THREE.PlaneGeometry(barSize + 2, barSize + 2);
+                    const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 });
+                    const shadow = new THREE.Mesh(shadowGeo, shadowMat);
+                    shadow.rotation.x = -Math.PI / 2;
+                    shadow.position.set(xPos, 0.01, 0);
+                    group.add(shadow);
+
+                    return { group, finalHeight: currentY };
+                };
+
+                const stackA = createStack(dataA, -spacing/2);
+                const stackB = createStack(dataB, spacing/2);
+                
+                scene.add(stackA.group);
+                scene.add(stackB.group);
+
+                // Grid de fondo (Eje Y)
+                const gridGroup = new THREE.Group();
+                const gridSteps = 5;
+                const stepValue = maxVal / gridSteps;
+                
+                for(let i=0; i<=gridSteps; i++) {
+                    const y = (stepValue * i) * scaleY;
+                    const points = [];
+                    points.push(new THREE.Vector3(-15, y, -5));
+                    points.push(new THREE.Vector3(15, y, -5));
+                    const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+                    const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.1 });
+                    const line = new THREE.Line(lineGeo, lineMat);
+                    gridGroup.add(line);
+                }
+                scene.add(gridGroup);
+
+                // 4. ANIMACIÓN
+                let time = 0;
+                const animate = () => {
+                    requestAnimationFrame(animate);
+                    time += 0.02;
+                    
+                    // Sutil rotación de la escena completa
+                    scene.rotation.y = Math.sin(time * 0.5) * 0.05;
+                    
+                    renderer.render(scene, camera);
+                };
+                
+                // Animación de entrada (Escalado)
+                stackA.group.scale.y = 0;
+                stackB.group.scale.y = 0;
+                
+                const introAnim = () => {
+                    if (stackA.group.scale.y < 1) {
+                        stackA.group.scale.y += 0.05;
+                        stackB.group.scale.y += 0.05;
+                        requestAnimationFrame(introAnim);
+                    } else {
+                        stackA.group.scale.y = 1;
+                        stackB.group.scale.y = 1;
+                        animate();
+                    }
+                    renderer.render(scene, camera);
+                };
+                introAnim();
+
+                const handleResize = () => {
+                    if (!mountRef.current) return;
+                    const w = mountRef.current.offsetWidth;
+                    const aspect = w / height;
+                    
+                    camera.left = -d * aspect;
+                    camera.right = d * aspect;
+                    camera.top = d;
+                    camera.bottom = -d;
+                    
+                    camera.updateProjectionMatrix();
+                    renderer.setSize(w, height);
+                };
+                window.addEventListener('resize', handleResize);
+
+                return () => {
+                    window.removeEventListener('resize', handleResize);
+                    if (mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
+                };
+            }, [billA, billB]); // Re-render si cambian los datos
+
+            const maxTotal = Math.max(billA.total, billB.total);
+            const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => (maxTotal * 1.1 * t).toFixed(0));
+
+            return (
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 relative">
+                    <div className="flex justify-between items-center mb-4 border-b border-slate-700/50 pb-2">
+                        <h4 className="text-sm font-bold text-slate-300 uppercase flex items-center gap-2">
+                            <Icons.TrendingUp className="w-4 h-4"/> Comparativa Visual de Costes
+                        </h4>
+                        
+                        {/* LEYENDA */}
+                        <div className="flex gap-3 text-[10px] font-bold uppercase">
+                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-400"></div>Potencia</div>
+                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-400"></div>Energía</div>
+                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-slate-400"></div>Fijos</div>
+                            <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-400"></div>Impuestos</div>
+                        </div>
+                    </div>
+
+                    <div className="relative h-[350px]">
+                        {/* EJE Y (HTML Overlay) */}
+                        <div className="absolute top-0 bottom-0 left-0 w-8 flex flex-col justify-between text-[10px] text-slate-500 font-bold text-right py-4 z-10 pointer-events-none">
+                            {ticks.reverse().map(t => <span key={t}>{t}€</span>)}
+                        </div>
+                        
+                        {/* CANVAS 3D */}
+                        <div ref={mountRef} className="absolute inset-0 w-full h-full" />
+                        
+                        {/* ETIQUETAS EJE X (HTML Overlay) */}
+                        <div className="absolute bottom-2 left-0 w-full flex justify-around text-center pointer-events-none">
+                            <div className="translate-x-4">
+                                <div className="text-xs font-bold text-white mb-1">{nameA}</div>
+                                <div className="text-lg font-display font-bold text-slate-300">{formatDecimal(billA.total)}€</div>
+                            </div>
+                            <div className="-translate-x-4">
+                                <div className="text-xs font-bold text-white mb-1">{nameB}</div>
+                                <div className="text-lg font-display font-bold text-slate-300">{formatDecimal(billB.total)}€</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         // --- LÓGICA DE SNAPSHOT ---
         const handleSaveSnapshot = () => {
             try {
@@ -2873,7 +3092,6 @@ const Icons = {
                 localStorage.setItem('tariffCompSnapshot', JSON.stringify(tState));
                 localStorage.setItem('tariffCompSnapshotTime', now);
                 setSavedDate(now);
-                // Feedback visual simple (opcional, por ahora solo actualiza la fecha)
             } catch (error) {
                 console.error("Error guardando snapshot", error);
                 alert("No se pudo guardar la copia (espacio insuficiente o error local).");
@@ -3227,6 +3445,16 @@ const Icons = {
                     </div>
                 </div>
 
+                {/* --- NUEVO PANEL GRÁFICO 3D --- */}
+                <div className="lg:col-span-12">
+                    <Tariff3DChart 
+                        billA={billA} 
+                        billB={billB} 
+                        nameA={tState.propA.name} 
+                        nameB={tState.propB.name} 
+                    />
+                </div>
+
                 {/* BOTONES DE SNAPSHOT / COPIA DE SEGURIDAD */}
                 <div className="lg:col-span-12">
                     <div className="flex flex-col md:flex-row gap-6 justify-center items-center p-6 bg-slate-900/50 rounded-xl border border-slate-700/50">
@@ -3278,7 +3506,7 @@ const Icons = {
             </div>
         );
       };
-
+        
         
       // --- DECODIFICADOR VIN AVANZADO V2 (CORREGIDO) ---
       const VinDecoder = () => {
