@@ -1,4 +1,4 @@
-M15
+M16
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -863,22 +863,23 @@ const Icons = {
 
 
 
-
-
-      // --- COMPONENTE GLOBAL: GRÁFICA 3D (EXTRAÍDO PARA USO COMPARTIDO) ---
+      // --- COMPONENTE GLOBAL: GRÁFICA 3D (CORREGIDO: INTERVALOS 10K Y ORDEN Z) ---
       const Amortization3DChart = ({ rows }) => {
             const mountRef = useRef(null);
 
-            // Escala Y Dinámica (Intervalos fijos de 5.000€)
-            // Calculamos el máximo valor entre ambas columnas para la escala
+            // Escala Y Dinámica
             const maxVal = rows.length > 0 ? Math.max(
                 rows[rows.length-1].ev || 0, 
                 rows[rows.length-1].ice || 0,
-                // Soporte para estructura de ChargingCalculator (balance vs principal)
                 rows[rows.length-1].stacks?.ev?.reduce((a,b)=>a+b.val,0) || 0
             ) : 10000;
 
-            const stepY = 5000; // FIJO: 5k
+            // CORRECCIÓN 1: Intervalo mínimo de 10.000 para evitar solapamiento
+            // Si el valor es gigantesco (>300k), subimos el paso automáticamente para que no sea una mancha
+            const minStep = 10000;
+            const dynamicStep = Math.ceil(maxVal / 20 / 5000) * 5000; // Intenta mantener max 20 líneas
+            const stepY = Math.max(minStep, dynamicStep);
+            
             const yAxisMax = Math.ceil((maxVal * 1.1) / stepY) * stepY; 
             
             useEffect(() => {
@@ -898,9 +899,10 @@ const Icons = {
                 const MAX_H_3D = 30;
                 const SCALE = MAX_H_3D / yAxisMax;
 
-                // === CÁMARA ===
-                const camLeft = -3;
-                const camRight = TOTAL_WIDTH + 3;
+                // === CÁMARA (CORRECCIÓN MÁRGENES) ===
+                // Aumentamos camLeft a -8 para dar espacio a los números de la izquierda
+                const camLeft = -8; 
+                const camRight = TOTAL_WIDTH + 5;
                 const camTop = MAX_H_3D + 5;
                 const camBottom = -5;
 
@@ -929,20 +931,20 @@ const Icons = {
                 const createText = (message, color = '#64748b', size = 1, align = 'center') => {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
-                    canvas.width = 256; canvas.height = 64;
-                    ctx.font = 'Bold 40px monospace';
+                    canvas.width = 300; canvas.height = 64; // Canvas más ancho para números grandes
+                    ctx.font = 'Bold 36px monospace';
                     ctx.fillStyle = color;
                     ctx.textAlign = align;
                     ctx.textBaseline = 'middle';
-                    ctx.fillText(message, align === 'left' ? 0 : 128, 32);
+                    ctx.fillText(message, align === 'left' ? 0 : 290, 32);
                     const tex = new THREE.CanvasTexture(canvas);
                     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
                     const sprite = new THREE.Sprite(mat);
-                    sprite.scale.set(4 * size, 1 * size, 1);
+                    sprite.scale.set(6 * size, 1.2 * size, 1); // Escala ajustada
                     return sprite;
                 };
 
-                // === EJE Y (LÍNEAS CADA 5k + TEXTO) ===
+                // === EJE Y (LÍNEAS CADA 10k + TEXTO) ===
                 for(let val=0; val<=yAxisMax; val+=stepY) {
                     const y = val * SCALE;
                     
@@ -950,12 +952,13 @@ const Icons = {
                         // Línea
                         const points = [new THREE.Vector3(-2, y, -2), new THREE.Vector3(TOTAL_WIDTH + 2, y, -2)];
                         const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
-                        const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.35 });
+                        const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 });
                         group.add(new THREE.Line(lineGeo, lineMat));
                         
-                        // Etiqueta
-                        const label = createText((val/1000).toFixed(0) + 'k', '#94a3b8', 1.2, 'right');
-                        label.position.set(-3.5, y, 0); 
+                        // Etiqueta (Formato '10k', '20k')
+                        const labelText = (val/1000).toFixed(0) + 'k';
+                        const label = createText(labelText, '#94a3b8', 1.0, 'right');
+                        label.position.set(-2.5, y, 0); 
                         group.add(label);
                     }
                 }
@@ -987,18 +990,25 @@ const Icons = {
                         }
                     };
 
-                    createStack(row.stacks.ev, 1.0);
-                    createStack(row.stacks.ice, -1.0);
+                    // CORRECCIÓN 2: ORDEN Z
+                    // 'ev' (Total/Azul) lo mandamos al fondo (Z = -0.5)
+                    // 'ice' (Capital/Naranja) lo traemos al frente (Z = 1.5)
+                    // Como el Total siempre es mayor que el Capital, el Azul asomará por detrás.
+                    createStack(row.stacks.ev, -0.5); 
+                    createStack(row.stacks.ice, 1.5);
 
-                    // Etiqueta AÑO
-                    if (i % 2 === 0 || i === rows.length - 1) {
+                    // Etiqueta AÑO (Solo mostramos pares o extremos para no saturar)
+                    // Ajustamos lógica para mostrar más años si hay pocos, o menos si hay muchos
+                    const showLabel = rows.length > 20 ? (i % 2 === 0 || i === rows.length - 1) : true;
+                    
+                    if (showLabel) {
                         const yearLabel = createText(row.year.toString(), '#cbd5e1', 0.8);
-                        yearLabel.position.set(x, -2, 1.5);
+                        yearLabel.position.set(x, -2, 2.0); // Z más alto para que esté delante
                         group.add(yearLabel);
                         
                         const tickGeo = new THREE.BoxGeometry(0.1, 0.5, 0.1);
                         const tick = new THREE.Mesh(tickGeo, new THREE.MeshBasicMaterial({color: 0x64748b}));
-                        tick.position.set(x, -0.5, 1.5);
+                        tick.position.set(x, -0.5, 2.0);
                         group.add(tick);
                     }
                 });
@@ -1013,15 +1023,16 @@ const Icons = {
                     const viewHeight = camTop - camBottom;
                     const viewWidth = viewHeight * aspect;
                     
-                    camera.left = -viewWidth / 2 + (TOTAL_WIDTH/2); 
-                    camera.right = viewWidth / 2 + (TOTAL_WIDTH/2);
+                    // Recalcular limites horizontales para mantener centrado
+                    const centerX = (camLeft + camRight) / 2;
+                    camera.left = centerX - (viewWidth / 2);
+                    camera.right = centerX + (viewWidth / 2);
                     camera.updateProjectionMatrix();
                     
                     renderer.setSize(w, height);
                     renderer.render(scene, camera);
                 };
                 window.addEventListener('resize', handleResize);
-                // Resize inicial para centrar
                 handleResize();
 
                 return () => {
@@ -1037,6 +1048,10 @@ const Icons = {
             );
       };
 
+      
+      
+      
+      
       // --- CALCULADORA DE CARGA (CORREGIDA) ---
       const ChargingCalculator = () => {
         const [state, setState] = usePersistentState('chargeState', { 
@@ -1057,7 +1072,6 @@ const Icons = {
             fsdAmortYears: 10
         });
 
-        // --- NUEVO ESTADO PARA INTERÉS COMPUESTO ---
         const [compState, setCompState] = usePersistentState('compoundCalc', {
             principal: 3000,
             annualAddition: 2400,
@@ -1208,21 +1222,19 @@ const Icons = {
         const compResult = calculateCompound();
         const handleCompChange = (k, v) => setCompState(p => ({...p, [k]: parseFloat(v)}));
 
-        // **ADAPTADOR DE DATOS PARA GRÁFICO 3D**
-        // Mapeamos los datos de interés compuesto al formato que espera Amortization3DChart (stacks.ev y stacks.ice)
+        // **ADAPTADOR DE DATOS PARA GRÁFICO 3D (VISUALIZACIÓN)**
         const compoundChartData = useMemo(() => {
             return compResult.history.map(h => ({
                 year: h.year,
-                // Usamos 'ev' para el balance total (Azul)
-                // Usamos 'ice' para el capital aportado (Naranja - Fondo)
                 stacks: {
+                    // 'ev': BALANCE TOTAL (Azul) - Se dibujará en el FONDO (Z=-0.5)
+                    // Tiene que ser la barra completa
                     ev: [
-                        { val: h.principal, col: 0x1e3a8a }, // Capital (Azul Oscuro)
-                        { val: h.interest, col: 0x3b82f6 }   // Interés (Azul Claro)
+                        { val: h.balance, col: 0x3b82f6 } 
                     ],
+                    // 'ice': CAPITAL APORTADO (Naranja) - Se dibujará al FRENTE (Z=1.5)
                     ice: [
-                        { val: h.principal, col: 0xf97316 }, // Capital (Naranja)
-                        { val: 0, col: 0x0 }                 // Relleno
+                        { val: h.principal, col: 0xf97316 }
                     ]
                 }
             }));
@@ -1522,7 +1534,7 @@ const Icons = {
         );
       };
 
-
+   
 
 
 
