@@ -1,4 +1,4 @@
-V3
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -1982,8 +1982,9 @@ const Icons = {
         );
       };
 
-      
-      // --- NUEVO COMPONENTE: ESCENA 3D BATERÍA (V2 - NÚCLEO SÓLIDO) ---
+
+  
+      // --- NUEVO COMPONENTE: ESCENA 3D BATERÍA (V4 - DESPLAZAMIENTO IZQUIERDO REAL) ---
       const Battery3DScene = ({ startPct, endPct, currentPower, maxPower }) => {
         const mountRef = useRef(null);
 
@@ -1995,16 +1996,15 @@ const Icons = {
             const height = 300;
             const scene = new THREE.Scene();
             
-            // Cámara ajustada para ver mejor el volumen (Isométrica-ish)
-            const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-            camera.position.set(0, 8, 26);
-            camera.lookAt(0, -1, 0);
+            // CÁMARA CENTRADA PERO ALEJADA
+            const camera = new THREE.PerspectiveCamera(35, width / height, 0.1, 100);
+            camera.position.set(0, 6, 32); 
+            camera.lookAt(0, 0, 0);
             
             const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(width, height);
             renderer.setPixelRatio(window.devicePixelRatio);
             
-            // Limpiar contenedor por si acaso
             while (mountRef.current.firstChild) {
                 mountRef.current.removeChild(mountRef.current.firstChild);
             }
@@ -2012,15 +2012,13 @@ const Icons = {
 
             // 2. OBJETOS
             const group = new THREE.Group();
+            // *** CLAVE: DESPLAZAMOS TODO EL GRUPO A LA IZQUIERDA ***
+            group.position.x = -6.5; 
             scene.add(group);
 
-            // A. TAPAS METÁLICAS (Estética Pila 4680)
+            // A. TAPAS METÁLICAS
             const capGeo = new THREE.CylinderGeometry(4.2, 4.2, 0.5, 32);
-            const capMat = new THREE.MeshStandardMaterial({ 
-                color: 0x64748b, // Gris metalizado
-                roughness: 0.3,
-                metalness: 0.8 
-            });
+            const capMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.3, metalness: 0.8 });
             const topCap = new THREE.Mesh(capGeo, capMat);
             topCap.position.y = 6.25;
             const botCap = new THREE.Mesh(capGeo, capMat);
@@ -2028,68 +2026,45 @@ const Icons = {
             group.add(topCap);
             group.add(botCap);
             
-            // Polo positivo (botón arriba)
             const nodeGeo = new THREE.CylinderGeometry(1.5, 1.5, 0.5, 32);
             const node = new THREE.Mesh(nodeGeo, capMat);
             node.position.y = 6.6;
             group.add(node);
 
-            // B. ESTRUCTURA DE ALAMBRE (El contenedor del 100%)
-            // Esto permite ver el volumen total aunque esté vacía
+            // B. ESTRUCTURA DE ALAMBRE
             const cageGeo = new THREE.CylinderGeometry(4, 4, 12, 16, 1, true);
-            const cageMat = new THREE.MeshBasicMaterial({ 
-                color: 0x475569, 
-                wireframe: true,
-                transparent: true,
-                opacity: 0.3
-            });
+            const cageMat = new THREE.MeshBasicMaterial({ color: 0x475569, wireframe: true, transparent: true, opacity: 0.2 });
             const cage = new THREE.Mesh(cageGeo, cageMat);
             group.add(cage);
 
-            // C. NÚCLEO DE ENERGÍA (El líquido que se llena)
-            // Usamos pivote desplazado para escalar desde abajo
+            // C. NÚCLEO DE ENERGÍA
             const coreGeo = new THREE.CylinderGeometry(3.6, 3.6, 12, 32);
-            coreGeo.translate(0, 6, 0); // Desplaza geometría hacia arriba 6 unidades
-            
-            const coreMat = new THREE.MeshBasicMaterial({ 
-                color: 0x22c55e, // Verde base
-                transparent: true,
-                opacity: 0.9
-            });
+            coreGeo.translate(0, 6, 0); 
+            const coreMat = new THREE.MeshBasicMaterial({ color: 0x22c55e, transparent: true, opacity: 0.9 });
             const core = new THREE.Mesh(coreGeo, coreMat);
-            core.position.y = -6; // Base del mesh en el fondo
-            core.scale.y = 0.01; // Empieza casi vacía
+            core.position.y = -6; 
+            core.scale.y = 0.01; 
             group.add(core);
 
-            // D. ANILLOS DE FLUJO (Partículas orbitando)
+            // D. ANILLOS DE FLUJO
             const ringCount = 80;
             const ringGeo = new THREE.BufferGeometry();
             const ringPos = new Float32Array(ringCount * 3);
-            const ringAng = new Float32Array(ringCount); // Para guardar ángulo actual
-            const ringRad = new Float32Array(ringCount); // Radio variable
-            const ringSpd = new Float32Array(ringCount); // Velocidad individual
+            const ringAng = new Float32Array(ringCount);
+            const ringRad = new Float32Array(ringCount);
+            const ringSpd = new Float32Array(ringCount);
 
             for(let i=0; i<ringCount; i++) {
                 ringAng[i] = Math.random() * Math.PI * 2;
-                ringRad[i] = 4.8 + Math.random() * 2.0; // Orbitan por fuera (Radio > 4.2)
+                ringRad[i] = 4.8 + Math.random() * 2.0; 
                 ringSpd[i] = 0.02 + Math.random() * 0.05;
-                
-                // Altura aleatoria a lo largo de la batería
                 const y = (Math.random() - 0.5) * 14;
-                
                 ringPos[i*3] = Math.cos(ringAng[i]) * ringRad[i];
                 ringPos[i*3+1] = y;
                 ringPos[i*3+2] = Math.sin(ringAng[i]) * ringRad[i];
             }
             ringGeo.setAttribute('position', new THREE.BufferAttribute(ringPos, 3));
-            
-            const ringMat = new THREE.PointsMaterial({
-                color: 0x60a5fa, // Azul eléctrico
-                size: 0.15,
-                transparent: true,
-                opacity: 0.6,
-                blending: THREE.AdditiveBlending
-            });
+            const ringMat = new THREE.PointsMaterial({ color: 0x60a5fa, size: 0.15, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending });
             const particles = new THREE.Points(ringGeo, ringMat);
             group.add(particles);
 
@@ -2100,7 +2075,7 @@ const Icons = {
             const ambLight = new THREE.AmbientLight(0xffffff, 0.4);
             scene.add(ambLight);
 
-            // 3. ANIMACIÓN LOOP
+            // 3. ANIMACIÓN
             let frameId;
             let time = 0;
 
@@ -2108,42 +2083,32 @@ const Icons = {
                 frameId = requestAnimationFrame(animate);
                 time += 0.01;
 
-                // Datos dinámicos desde ref
                 const data = mountRef.current.userData || { endPct: 0, powerRatio: 0 };
 
-                // 1. Escalar Núcleo (Nivel de carga)
+                // Escalar y Color
                 const targetScale = Math.max(0.01, data.endPct / 100);
-                core.scale.y += (targetScale - core.scale.y) * 0.05; // Lerp suave
+                core.scale.y += (targetScale - core.scale.y) * 0.05;
 
-                // 2. Color del Núcleo (Semáforo Dinámico)
                 const pct = core.scale.y;
                 let col = new THREE.Color();
-                if (pct < 0.2) col.setHex(0xef4444); // Rojo
-                else if (pct < 0.6) col.setHex(0xeab308); // Amarillo
-                else if (pct < 0.95) col.setHex(0x22c55e); // Verde
-                else col.setHex(0x3b82f6); // Azul tope (100%)
-
+                if (pct < 0.2) col.setHex(0xef4444); 
+                else if (pct < 0.6) col.setHex(0xeab308); 
+                else if (pct < 0.95) col.setHex(0x22c55e); 
+                else col.setHex(0x3b82f6); 
                 core.material.color.lerp(col, 0.1);
 
-                // 3. Partículas (Velocidad según potencia)
-                // Si la potencia cae (curva final), las partículas frenan visualmente
+                // Partículas
                 const globalSpeed = 0.2 + (data.powerRatio * 2.5); 
-                
                 const positions = particles.geometry.attributes.position.array;
                 for(let i=0; i<ringCount; i++) {
-                    // Actualizar ángulo
                     ringAng[i] += ringSpd[i] * globalSpeed;
-                    
-                    // Orbitar
                     positions[i*3] = Math.cos(ringAng[i]) * ringRad[i];
                     positions[i*3+2] = Math.sin(ringAng[i]) * ringRad[i];
-                    
-                    // Oscilación vertical leve
                     positions[i*3+1] += Math.sin(time + i) * 0.01; 
                 }
                 particles.geometry.attributes.position.needsUpdate = true;
 
-                // Rotación leve del grupo completo
+                // Rotación leve
                 group.rotation.y = Math.sin(time * 0.2) * 0.1;
                 group.rotation.x = 0.05;
 
@@ -2151,7 +2116,6 @@ const Icons = {
             };
             animate();
 
-            // Resize
             const handleResize = () => {
                 if (!mountRef.current) return;
                 const w = mountRef.current.offsetWidth;
@@ -2168,10 +2132,8 @@ const Icons = {
             };
         }, []);
 
-        // Actualización de props sin re-render completo
         useEffect(() => {
             if (mountRef.current) {
-                // powerRatio: 1 = velocidad máxima, 0 = parado
                 const powerRatio = maxPower > 0 ? currentPower / maxPower : 0;
                 mountRef.current.userData = { endPct, powerRatio };
             }
@@ -2181,7 +2143,7 @@ const Icons = {
       };
 
 
-      // --- COMPONENTE PRINCIPAL: CURVA DE CARGA ---
+      // --- COMPONENTE PRINCIPAL: CURVA DE CARGA (CORREGIDO LAYOUT + FUENTES) ---
       const ChargeCurveCalculator = () => {
         const [state, setState] = usePersistentState('curveState', { 
             batType: 'LFP', 
@@ -2206,23 +2168,18 @@ const Icons = {
         const getBatteryLimitAtSoC = (soc, type, chargerPowerInput) => {
             const safeType = curvePoints[type] ? type : 'LFP';
             const points = curvePoints[safeType];
-
             const baseRef = safeType === 'NCA' ? 250 : 170; 
             const techScaler = Math.max(baseRef, chargerPowerInput) / baseRef; 
             const scaleFactor = Math.max(1, techScaler);
-
             const p2Index = points.findIndex(pt => pt.p >= soc);
             if (p2Index === -1) return points[points.length-1].v * scaleFactor; 
             if (p2Index === 0) return points[0].v * scaleFactor;
-
             const p1 = points[p2Index - 1];
             const p2 = points[p2Index];
             const range = p2.p - p1.p;
             const dist = soc - p1.p;
             const ratio = dist / range;
-            const factor = p1.v + (ratio * (p2.v - p1.v));
-
-            return factor * scaleFactor;
+            return (p1.v + (ratio * (p2.v - p1.v))) * scaleFactor;
         };
 
         const calculateMetrics = (start, end) => {
@@ -2230,19 +2187,14 @@ const Icons = {
             const kwhPerPercent = state.capacity / 100;
             const safeStart = Math.min(start, end - 1);
             const safeEnd = Math.max(end, start + 1);
-
             for (let i = safeStart; i < safeEnd; i++) {
-                const batteryLimit = getBatteryLimitAtSoC(i, state.batType, state.chargerPower);
-                const realPower = Math.min(state.chargerPower, batteryLimit);
-                if (realPower > 0) {
-                    minutes += (kwhPerPercent / realPower) * 60;
-                }
+                const limit = getBatteryLimitAtSoC(i, state.batType, state.chargerPower);
+                const realPower = Math.min(state.chargerPower, limit);
+                if (realPower > 0) minutes += (kwhPerPercent / realPower) * 60;
             }
-            
             const totalEnergy = (safeEnd - safeStart) * kwhPerPercent;
             const rangeAdded = state.consumption > 0 ? (totalEnergy / state.consumption) * 100 : 0;
             const totalRange = state.consumption > 0 ? ((state.capacity * (safeEnd/100)) / state.consumption) * 100 : 0;
-
             return { minutes, rangeAdded, totalRange };
         };
 
@@ -2290,12 +2242,15 @@ const Icons = {
             #slider-end::-webkit-slider-thumb { border-color: #22c55e; }
         `;
 
+        // MÉTRICAS
         const metrics = calculateMetrics(state.startPct, state.endPct);
         const totalCost = ((state.endPct - state.startPct) / 100 * state.capacity) * state.costPerKwh;
         const maxPossibleRange = state.consumption > 0 ? (state.capacity / state.consumption) * 100 : 0;
+        
         const peakGraphHeight = Math.max(state.chargerPower, 250); 
         const gridLines = [];
         for(let p = 20; p < peakGraphHeight; p += 20) { gridLines.push(p); }
+        
         const chartBars = [];
         for (let i = 0; i <= 100; i++) {
             const batteryLimit = getBatteryLimitAtSoC(i, state.batType, state.chargerPower);
@@ -2304,8 +2259,9 @@ const Icons = {
             chartBars.push({ pct: i, power: realPower, active });
         }
 
-        // CÁLCULO DE POTENCIA ACTUAL EN EL PUNTO FINAL (Para controlar la velocidad del 3D)
+        // CÁLCULO DE POTENCIA y VELOCIDAD (KM/H) ACTUAL
         const powerAtEnd = Math.min(state.chargerPower, getBatteryLimitAtSoC(state.endPct, state.batType, state.chargerPower));
+        const speedAtEnd = state.consumption > 0 ? (powerAtEnd / state.consumption) * 100 : 0;
 
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
         const setLFP = () => setState(prev => ({...prev, batType: 'LFP', capacity: 60}));
@@ -2316,28 +2272,44 @@ const Icons = {
                 <style>{sliderStyle}</style>
                 <div className="lg:col-span-4 space-y-6">
                      
-                     {/* NUEVA VISUALIZACIÓN 3D: NÚCLEO ENERGÍA */}
-                     <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden relative shadow-lg">
+                     {/* 3D: DISEÑO LIMPIO (BATERÍA IZQ - DATOS DER) */}
+                     <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden relative shadow-lg h-[300px]">
                         <div className="absolute top-4 left-4 z-10 bg-black/40 px-3 py-1 rounded backdrop-blur border border-white/5">
                             <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                                <Icons.Zap className="w-3 h-3 text-cyan-400" /> Núcleo de Carga
+                                <Icons.Zap className="w-3 h-3 text-cyan-400" /> Simulación ({state.endPct}%)
                             </h4>
                         </div>
-                        {/* El componente 3D */}
-                        <Battery3DScene 
-                            startPct={state.startPct} 
-                            endPct={state.endPct} 
-                            currentPower={powerAtEnd} 
-                            maxPower={state.chargerPower} 
-                        />
-                        {/* Datos superpuestos al 3D */}
-                        <div className="absolute bottom-4 left-0 right-0 text-center pointer-events-none">
-                            <div className="text-[10px] font-bold text-slate-400 uppercase">Velocidad real en el {state.endPct}%</div>
-                            <div className={`text-3xl font-mono font-bold drop-shadow-lg ${powerAtEnd < 40 ? 'text-red-400' : 'text-cyan-400'}`}>
-                                {Math.round(powerAtEnd)} kW
+                        
+                        {/* 3D LAYER */}
+                        <div className="absolute inset-0">
+                            <Battery3DScene 
+                                startPct={state.startPct} 
+                                endPct={state.endPct} 
+                                currentPower={powerAtEnd} 
+                                maxPower={state.chargerPower} 
+                            />
+                        </div>
+                        
+                        {/* DATA LAYER (DERECHA, CENTRADO VERTICALMENTE) */}
+                        <div className="absolute top-0 right-0 bottom-0 w-1/2 flex flex-col justify-center items-end pr-6 gap-6 z-20">
+                            <div className="text-right">
+                                <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Potencia Real</div>
+                                <div className={`text-4xl font-mono font-bold drop-shadow-lg ${powerAtEnd < 40 ? 'text-red-400' : 'text-cyan-400'}`}>
+                                    {Math.round(powerAtEnd)}<span className="text-lg ml-1">kW</span>
+                                </div>
                             </div>
+                            
+                            <div className="text-right">
+                                <div className="text-[10px] font-bold text-slate-400 uppercase mb-1">Velocidad Carga</div>
+                                <div className={`text-3xl font-mono font-bold drop-shadow-lg ${speedAtEnd < 300 ? 'text-red-300' : 'text-green-400'}`}>
+                                    {Math.round(speedAtEnd)}<span className="text-base ml-1">km/h</span>
+                                </div>
+                            </div>
+
                             {powerAtEnd < 40 && state.endPct > 80 && (
-                                <div className="text-[9px] text-red-300 font-bold mt-1 bg-red-900/40 inline-block px-2 py-0.5 rounded">Carga de saturación (Lenta)</div>
+                                <div className="bg-red-900/60 border border-red-500/30 rounded px-2 py-1 text-[9px] font-bold text-red-200 uppercase text-right max-w-[120px]">
+                                    Zona Saturación (Ineficiente)
+                                </div>
                             )}
                         </div>
                      </div>
@@ -2362,26 +2334,26 @@ const Icons = {
                     {/* Tarjeta Gráfica y Sliders */}
                     <div className="h-auto bg-slate-900/50 border border-slate-800 rounded-xl p-6 flex flex-col relative shadow-2xl overflow-hidden">
                          
-                         {/* CAJA DE ESTADÍSTICAS */}
+                         {/* CAJA DE ESTADÍSTICAS - FUENTE REDUCIDA A 2XL */}
                          <div className="flex justify-center gap-8 mb-4 bg-slate-800/40 rounded-xl p-4 border border-slate-700/50 backdrop-blur-sm z-20 relative">
                              <div className="text-center">
                                  <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">+KM</div>
-                                 <div className="text-3xl font-bold text-green-400">+{Math.round(metrics.rangeAdded)}</div>
+                                 <div className="text-2xl font-bold text-green-400">+{Math.round(metrics.rangeAdded)}</div>
                              </div>
                              <div className="w-px bg-slate-600 h-10 self-center"></div>
                              <div className="text-center">
                                  <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">TOTAL</div>
-                                 <div className="text-3xl font-bold text-white">{Math.round(metrics.totalRange)} <span className="text-sm text-slate-500 font-normal">km</span></div>
+                                 <div className="text-2xl font-bold text-white">{Math.round(metrics.totalRange)} <span className="text-sm text-slate-500 font-normal">km</span></div>
                              </div>
                              <div className="w-px bg-slate-600 h-10 self-center"></div>
                              <div className="text-center">
                                  <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">TIEMPO</div>
-                                 <div className="text-3xl font-bold text-white">{formatTime(metrics.minutes)}</div>
+                                 <div className="text-2xl font-bold text-white">{formatTime(metrics.minutes)}</div>
                              </div>
                              <div className="w-px bg-slate-600 h-10 self-center"></div>
                              <div className="text-center">
                                  <div className="text-xs text-slate-400 uppercase tracking-wider font-bold mb-1">COSTE</div>
-                                 <div className="text-3xl font-bold text-blue-400">{formatDecimal(totalCost)}€</div>
+                                 <div className="text-2xl font-bold text-blue-400">{formatDecimal(totalCost)}€</div>
                              </div>
                          </div>
 
@@ -2519,7 +2491,7 @@ const Icons = {
             </div>
         );
       };
-
+ 
      
             
      
@@ -5728,19 +5700,10 @@ const Icons = {
                 case 'drain': return <DrainCalculator />;
                 case 'simulator': return (
                     <>
-                        {/* 1. VISUALIZADOR 3D */}
                         <Visualizer params={simParams} />
-                        
-                        {/* 2. PANEL DE CONTROL (Sliders) */}
                         <SimulationControls params={simParams} setParams={setSimParams} />
-
-                        {/* 3. COSTES Y RESULTADOS */}
                         <ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} />
-                        
-                        {/* 4. CONFIGURACIÓN AVANZADA */}
                         <AdvancedConfig params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
-                        
-                        {/* 5. SIMULADOR SIMPLE (500k km default) */}
                         <SimpleSavingsSimulator params={simParams} costs={simCosts} />
                     </>
                 );      
