@@ -1,4 +1,4 @@
-V
+V1
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -276,6 +276,8 @@ const Icons = {
          </div>
       );
 
+      
+      // --- FÍSICA (Simulador) ---
       const calculateConsumption = (params) => {
         const mass = 1800; const cr = 0.006; const g = 9.81;
         const rho = 1.225; const cd = 0.219; const area = 2.22; 
@@ -298,7 +300,7 @@ const Icons = {
         const scalar = params.electricConsumptionRef / BASE_PHYSICS_REF;
         consumption = consumption * scalar;
         return Math.max(consumption < -10 ? -10 : consumption, -10); 
-      };
+      };  
 
       // --- COMPONENTES DEL SIMULADOR (LETRAS MÁS GRANDES) ---
       const ControlPanel = ({ params, setParams, costs, setCosts }) => {
@@ -484,7 +486,8 @@ const Icons = {
       };
 
 
-      // --- VISUALIZADOR LATERAL V5 (FINAL: DIRECCIÓN, LÍNEAS Y VIENTO) ---
+        
+      // --- VISUALIZADOR 3D LATERAL (CORREGIDO: DIRECCIÓN, LÍNEAS Y VIENTO) ---
       const Visualizer = ({ params }) => {
         const mountRef = useRef(null);
         
@@ -598,14 +601,14 @@ const Icons = {
                 const p = paramsRef.current;
 
                 // A. MOVER CARRETERA 
-                // (Invertido: += mueve textura a izquierda, simulando avance a derecha)
+                // (Positivo = Mueve textura a la izquierda = Coche avanza a derecha)
                 if (roadMatRef.current) {
                     const speedFactor = p.speed * 0.0008;
                     roadMatRef.current.map.offset.x += speedFactor; 
                 }
 
                 // B. MOVER VIENTO 
-                // (Invertido: -= mueve vértices a izquierda)
+                // (Negativo = Mueve vértices a izquierda = Viento pasa hacia atrás)
                 if (windGeoRef.current) {
                     const { geo, speeds, count } = windGeoRef.current;
                     const posArr = geo.attributes.position.array;
@@ -899,7 +902,6 @@ const Icons = {
             </div>
         );
       };
-
         
     
       
