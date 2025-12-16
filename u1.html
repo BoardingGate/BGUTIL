@@ -1,4 +1,4 @@
-V
+V8
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -2140,8 +2140,7 @@ const Icons = {
         return <div ref={mountRef} className="w-full h-[300px] cursor-pointer" title="Visualización Núcleo Energía" />;
       };
 
-
-      // --- COMPONENTE PRINCIPAL: CURVA DE CARGA ---
+      // --- COMPONENTE PRINCIPAL: CURVA DE CARGA (CORREGIDO) ---
       const ChargeCurveCalculator = () => {
         const [state, setState] = usePersistentState('curveState', { 
             batType: 'LFP', 
@@ -2240,11 +2239,17 @@ const Icons = {
             #slider-end::-webkit-slider-thumb { border-color: #22c55e; }
         `;
 
+        // --- CÁLCULOS VISUALES Y MÉTRICAS ---
         const metrics = calculateMetrics(state.startPct, state.endPct);
         const totalCost = ((state.endPct - state.startPct) / 100 * state.capacity) * state.costPerKwh;
+        
+        // ESTA ES LA VARIABLE QUE FALTABA
+        const maxPossibleRange = state.consumption > 0 ? (state.capacity / state.consumption) * 100 : 0;
+        
         const peakGraphHeight = Math.max(state.chargerPower, 250); 
         const gridLines = [];
         for(let p = 20; p < peakGraphHeight; p += 20) { gridLines.push(p); }
+        
         const chartBars = [];
         for (let i = 0; i <= 100; i++) {
             const batteryLimit = getBatteryLimitAtSoC(i, state.batType, state.chargerPower);
@@ -2253,7 +2258,7 @@ const Icons = {
             chartBars.push({ pct: i, power: realPower, active });
         }
 
-        // CÁLCULO DE POTENCIA y VELOCIDAD (KM/H) ACTUAL
+        // CÁLCULO DE POTENCIA y VELOCIDAD (KM/H) ACTUAL PARA EL 3D
         const powerAtEnd = Math.min(state.chargerPower, getBatteryLimitAtSoC(state.endPct, state.batType, state.chargerPower));
         const speedAtEnd = state.consumption > 0 ? (powerAtEnd / state.consumption) * 100 : 0;
 
@@ -2482,7 +2487,9 @@ const Icons = {
                 </div>
             </div>
         );
-      };   
+      };
+
+    
       
      
             
