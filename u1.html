@@ -1,4 +1,4 @@
-l4
+l5
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -2823,7 +2823,7 @@ const Icons = {
       };
 
 
-      // --- TARIFF COMPARATOR (FIXED: VISIBLE GRID & COMPACT LAYOUT) ---
+      // --- TARIFF COMPARATOR (FIXED: PRECISION ALIGNMENT) ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV5', {
             // Shared Data
@@ -2835,7 +2835,7 @@ const Icons = {
             // Shared Consumption
             consTotal: 635,
             p1Kwh: 80, p2Kwh: 60, p3Kwh: 170, p3VeKwh: 325, p4Kwh: 0,
-            solarExp: 0, // Shared volume
+            solarExp: 0, 
 
             // Proposal A
             propA: {
@@ -2865,20 +2865,23 @@ const Icons = {
             } catch (e) { console.error(e); }
         }, []);
 
-        // --- SUB-COMPONENTE: GRÁFICO 3D (GRID MEJORADO) ---
+        // --- SUB-COMPONENTE: GRÁFICO 3D (ALINEACIÓN MATEMÁTICA ESTRICTA) ---
         const Tariff3DChart = ({ billA, billB, nameA, nameB }) => {
             const mountRef = useRef(null);
 
-            // 1. CÁLCULOS DE ESCALA
+            // 1. CÁLCULOS DE ESCALA Y GEOMETRÍA
             const maxTotal = Math.max(billA.total, billB.total);
-            const axisMax = Math.ceil((maxTotal * 1.15) / 10) * 10; 
+            const axisMax = Math.ceil((maxTotal * 1.1) / 10) * 10; // Margen superior del 10%
             const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => axisMax * t);
 
-            // Configuración Escena 3D
-            const viewSize = 50; 
-            const chartHeight3D = 40;
-            const startY = -20; // Suelo
-            const scaleY = chartHeight3D / axisMax;
+            // --- SISTEMA DE COORDENADAS 3D ---
+            // Definimos un espacio vertical de 100 unidades (-50 a +50)
+            const VIEW_HEIGHT = 100;
+            const BASE_Y = -40; // El suelo está en -40 (10% desde abajo)
+            const MAX_BAR_HEIGHT = 80; // Las barras pueden subir hasta +40 (dejando 10% margen arriba)
+            
+            // Factor: Euros -> Unidades 3D
+            const scaleY = MAX_BAR_HEIGHT / axisMax;
 
             useEffect(() => {
                 if (!mountRef.current || !window.THREE) return;
@@ -2887,11 +2890,11 @@ const Icons = {
                 const height = 350;
                 const scene = new THREE.Scene();
                 
-                // CÁMARA ORTOGRÁFICA
+                // CÁMARA ORTOGRÁFICA FIJA
                 const aspect = width / height;
                 const camera = new THREE.OrthographicCamera(
-                    -viewSize * aspect / 2, viewSize * aspect / 2, 
-                    viewSize / 2, -viewSize / 2, 
+                    -VIEW_HEIGHT * aspect / 2, VIEW_HEIGHT * aspect / 2, 
+                    VIEW_HEIGHT / 2, -VIEW_HEIGHT / 2, 
                     1, 1000
                 );
                 
@@ -2908,41 +2911,45 @@ const Icons = {
                 mountRef.current.appendChild(renderer.domElement);
 
                 // LUCES
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.95);
                 scene.add(ambientLight);
-                const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.3);
                 dirLight.position.set(20, 20, 50);
                 scene.add(dirLight);
 
                 // DATOS
-                const colors = [0x4ade80, 0x60a5fa, 0x94a3b8, 0xc084fc]; 
+                const colors = [0x4ade80, 0x60a5fa, 0x94a3b8, 0xc084fc]; // Pot, Ener, Fijos, Imp
                 const dataA = [billA.termPotDisc, billA.termEnNet, billA.fixedCosts, billA.taxes];
                 const dataB = [billB.termPotDisc, billB.termEnNet, billB.fixedCosts, billB.taxes];
                 
-                const barWidth = 12; // Barras un poco más anchas
-                const spacing = 20;  // Separación del centro
+                const barWidth = 14; 
+                // Movemos las barras un poco a la izquierda para acercarlas a la escala
+                const centerOffset = -10; 
+                const spacing = 22; 
 
-                // FUNCIÓN CREAR PILA
+                // FUNCIÓN PILA
                 const createStack = (data, xPos) => {
                     const group = new THREE.Group();
-                    let currentY = startY; 
+                    let currentY = BASE_Y; // IMPORTANTE: Empezamos estrictamente en la base definida
 
                     data.forEach((val, idx) => {
-                        if (val <= 0.01) return;
+                        if (val <= 0.01) return; // Evitar geometría vacía
                         
                         const h = val * scaleY;
                         const geo = new THREE.BoxGeometry(barWidth, h, barWidth);
                         const mat = new THREE.MeshStandardMaterial({ 
                             color: colors[idx], 
-                            roughness: 0.3, 
-                            metalness: 0.1 
+                            roughness: 0.2, 
+                            metalness: 0.0 
                         });
                         const mesh = new THREE.Mesh(geo, mat);
                         
-                        // Posicionar centro del cubo
+                        // En BoxGeometry, el pivote es el centro. 
+                        // Posición Y = base actual + mitad de la altura
                         mesh.position.y = currentY + (h / 2);
                         mesh.position.x = xPos;
                         
+                        // Bordes para definición
                         const edges = new THREE.EdgesGeometry(geo);
                         const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.15 }));
                         line.position.copy(mesh.position);
@@ -2952,36 +2959,27 @@ const Icons = {
                         
                         currentY += h;
                     });
-                    
-                    // Sombra base
-                    const shadowGeo = new THREE.PlaneGeometry(barWidth, 4);
-                    const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 });
-                    const shadow = new THREE.Mesh(shadowGeo, shadowMat);
-                    shadow.rotation.x = -Math.PI / 2;
-                    shadow.position.set(xPos, startY - 0.1, 0);
-                    group.add(shadow);
-
                     return group;
                 };
 
-                const stackA = createStack(dataA, -spacing/2);
-                const stackB = createStack(dataB, spacing/2);
+                const stackA = createStack(dataA, centerOffset - spacing);
+                const stackB = createStack(dataB, centerOffset + spacing);
                 scene.add(stackA);
                 scene.add(stackB);
 
-                // GRID DE LÍNEAS (Ahora más visibles y anchas)
+                // GRID DE LÍNEAS HORIZONTALES (Mejorada Visibilidad)
                 const gridGroup = new THREE.Group();
                 ticks.forEach((tickVal, i) => {
-                    const y = startY + (tickVal * scaleY);
+                    const y = BASE_Y + (tickVal * scaleY);
                     
                     const points = [];
-                    // Extendemos de -45 a 45 para llenar más ancho y tocar los textos
-                    points.push(new THREE.Vector3(-45, y, -5)); 
-                    points.push(new THREE.Vector3(45, y, -5));  
+                    // Extendemos la línea muy a la izquierda (-70) para tocar el eje HTML
+                    points.push(new THREE.Vector3(-70, y, -5)); 
+                    points.push(new THREE.Vector3(70, y, -5));  
                     
                     const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
-                    // Aumentamos opacidad y usamos un color grisáceo (slate-600) en vez de blanco puro
-                    const lineMat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: i === 0 ? 0.6 : 0.3 });
+                    // Color Slate-400 (0x94a3b8) y Opacidad 0.5 para que se vean bien
+                    const lineMat = new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.5 });
                     const line = new THREE.Line(lineGeo, lineMat);
                     gridGroup.add(line);
                 });
@@ -2990,22 +2988,24 @@ const Icons = {
                 // RENDER
                 renderer.render(scene, camera);
                 
-                // Animación simple
+                // Animación de entrada "Grow Up"
                 let s = 0;
                 const animate = () => {
                     if (s < 1) {
-                        s += 0.05;
-                        stackA.scale.y = s;
-                        stackB.scale.y = s;
-                        const offset = startY * (1 - s);
+                        s += 0.04;
+                        const scale = Math.min(1, s);
+                        stackA.scale.y = scale;
+                        stackB.scale.y = scale;
+                        
+                        // Corregir posición al escalar (Pivote en 0,0,0 vs Base en -40)
+                        // Si escalamos al 50%, la base visual sube. Tenemos que bajar el grupo.
+                        // Delta = BASE_Y * (1 - scale)
+                        const offset = BASE_Y * (1 - scale);
                         stackA.position.y = offset;
                         stackB.position.y = offset;
+                        
                         renderer.render(scene, camera);
                         requestAnimationFrame(animate);
-                    } else {
-                        stackA.position.y = 0;
-                        stackB.position.y = 0;
-                        renderer.render(scene, camera);
                     }
                 };
                 animate();
@@ -3015,10 +3015,10 @@ const Icons = {
                     const w = mountRef.current.offsetWidth;
                     const aspect = w / height;
                     
-                    camera.left = -viewSize * aspect / 2;
-                    camera.right = viewSize * aspect / 2;
-                    camera.top = viewSize / 2;
-                    camera.bottom = -viewSize / 2;
+                    camera.left = -VIEW_HEIGHT * aspect / 2;
+                    camera.right = VIEW_HEIGHT * aspect / 2;
+                    camera.top = VIEW_HEIGHT / 2;
+                    camera.bottom = -VIEW_HEIGHT / 2;
                     
                     camera.updateProjectionMatrix();
                     renderer.setSize(w, height);
@@ -3032,9 +3032,12 @@ const Icons = {
                 };
             }, [billA, billB]); 
 
-            // Cálculo posiciones
+            // CÁLCULO POSICIONES CSS (Sincronizado con constantes 3D)
+            // La cámara ve de -50 a +50 (Total 100).
+            // BASE_Y es -40. Distancia al fondo (-50) es 10 unidades. -> 10% desde abajo.
             const bottomPaddingPct = 10; 
-            const drawingAreaPct = (chartHeight3D / viewSize) * 100; // 80%
+            // MAX_BAR_HEIGHT es 80. Sobre 100 total -> 80% es el área de dibujo.
+            const drawingAreaPct = 80;
 
             return (
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 relative">
@@ -3051,28 +3054,29 @@ const Icons = {
                     </div>
 
                     <div className="relative h-[350px] w-full">
-                        {/* EJE Y (HTML Overlay) - Pegado a la izquierda (w-10) */}
-                        <div className="absolute top-0 bottom-0 left-0 w-10 flex flex-col justify-between text-[10px] text-slate-400 font-bold text-right py-0 z-10 pointer-events-none border-r border-slate-700/30">
-                            <div className="h-full flex flex-col-reverse justify-between">
-                                {ticks.map(t => (
-                                    // Alineación exacta con la línea 3D
-                                    <div key={t} className="h-0 flex items-center justify-end pr-2 translate-y-[5px]">
-                                        {t.toFixed(0)}€
+                        {/* EJE Y: Pegado a la izquierda, sin margen extra */}
+                        <div className="absolute top-0 bottom-0 left-0 w-10 z-20 pointer-events-none">
+                            {ticks.map((t) => {
+                                // Mapeo exacto: Valor 0 -> 10%. Valor Max -> 90%.
+                                const pct = bottomPaddingPct + ((t / axisMax) * drawingAreaPct);
+                                return (
+                                    <div key={t} className="absolute right-0 flex items-center justify-end w-full" style={{ bottom: `${pct}%`, transform: 'translateY(50%)' }}>
+                                        <span className="text-[10px] font-bold text-slate-400">{t.toFixed(0)}€</span>
                                     </div>
-                                ))}
-                            </div>
+                                );
+                            })}
                         </div>
                         
-                        {/* CANVAS 3D - Padding Left reducido (pl-10) para arrimarlo a la escala */}
-                        <div ref={mountRef} className="absolute inset-0 w-full h-full pl-10" /> 
+                        {/* CANVAS 3D: Padding izquierdo mínimo para dejar ver los números */}
+                        <div ref={mountRef} className="absolute inset-0 w-full h-full pl-8" /> 
 
-                        {/* ETIQUETAS EJE X - Ajustado padding (pl-14) para centrar debajo de columnas */}
-                        <div className="absolute bottom-2 left-0 w-full pl-14 pr-4 flex justify-between pointer-events-none">
-                            <div className="flex-1 text-center pr-10"> 
+                        {/* ETIQUETAS EJE X: Alineación ajustada a la nueva posición 3D (offset -10) */}
+                        <div className="absolute bottom-2 left-0 w-full pl-8 flex justify-center pointer-events-none gap-8">
+                            <div className="text-center w-32 -ml-8"> 
                                 <div className="text-xs font-bold text-white mb-1 truncate">{nameA}</div>
                                 <div className="text-xl font-display font-bold text-green-400">{formatDecimal(billA.total)}€</div>
                             </div>
-                            <div className="flex-1 text-center pl-10"> 
+                            <div className="text-center w-32 ml-4"> 
                                 <div className="text-xs font-bold text-white mb-1 truncate">{nameB}</div>
                                 <div className="text-xl font-display font-bold text-slate-300">{formatDecimal(billB.total)}€</div>
                             </div>
@@ -3228,7 +3232,7 @@ const Icons = {
             </div>
         );
       };
-
+ 
 
 
         
