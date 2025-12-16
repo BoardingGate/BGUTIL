@@ -1,4 +1,4 @@
-M08
+M09
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -509,7 +509,7 @@ const Icons = {
 
       
     
-      // --- CALCULADORA DE AMORTIZACIÓN (V4: CENTRADO ABSOLUTO Y COORDENADAS RELATIVAS) ---
+    // --- CALCULADORA DE AMORTIZACIÓN (V6: PRECISIÓN CONTABLE Y ALINEACIÓN PERFECTA) ---
       const AmortizationCalculator = () => {
         const [data, setData] = usePersistentState('amortData', {
             priceEV: 43000, priceICE: 45000, moves: 8500, aidICE: 2200,
@@ -523,41 +523,72 @@ const Icons = {
         
         const [showTable, setShowTable] = useState(true);
 
-        // --- CÁLCULOS CENTRALIZADOS ---
+        // --- 1. CÁLCULOS CENTRALIZADOS (Single Source of Truth) ---
+        // Estos valores alimentan tanto a la tabla como a la gráfica para que no haya descuadre.
+        
+        // A. Coste de Adquisición Neto
         const netPriceEV = data.priceEV - data.moves;
         const netPriceICE = data.priceICE - data.aidICE;
         
+        // B. Costes Anuales (Energía)
         const annFuel = (data.kmPerYear / 100) * data.consumptionICE * data.priceFuel;
         const annElec = (data.kmPerYear / 100) * data.consumptionEV * data.priceElec;
         
-        const annBrkEV = (data.priceEV * (data.breakdownRateEV / 100)) / data.yearsToProject;
-        const annBrkICE = (data.priceICE * (data.breakdownRateICE / 100)) / data.yearsToProject;
+        // C. Costes Anuales (Averías prorrateadas)
+        // Calculamos el total de averías en la vida del proyecto y lo dividimos por años para linealizarlo en la gráfica
+        const totalBreakdownEV = data.priceEV * (data.breakdownRateEV / 100);
+        const totalBreakdownICE = data.priceICE * (data.breakdownRateICE / 100);
+        const annBrkEV = totalBreakdownEV / data.yearsToProject;
+        const annBrkICE = totalBreakdownICE / data.yearsToProject;
         
-        const annOpEV = data.maintenanceEV + annBrkEV - data.taxSavingsEV;
-        const annOpICE = data.maintenanceICE + annBrkICE - data.taxSavingsICE;
+        // D. Costes Operativos Netos (Mantenimiento - Ahorro Impuestos)
+        // *CRÍTICO*: Para que la barra refleje el coste real, restamos el ahorro de impuestos de los costes de mantenimiento.
+        // Si no lo hacemos así, la barra visual sería más alta que el coste real del bolsillo.
+        const annOpNetEV = (data.maintenanceEV + annBrkEV) - data.taxSavingsEV;
+        const annOpNetICE = (data.maintenanceICE + annBrkICE) - data.taxSavingsICE;
 
-        const totalAnnualCostEV = annElec + annOpEV;
-        const totalAnnualCostICE = annFuel + annOpICE;
+        // Totales Anuales
+        const totalAnnualCostEV = annElec + annOpNetEV;
+        const totalAnnualCostICE = annFuel + annOpNetICE;
 
+        // Generación de Array de Datos
         const tableRows = useMemo(() => {
             const rows = [];
             for (let i = 0; i <= data.yearsToProject; i++) {
-                const totalEV = netPriceEV + (totalAnnualCostEV * i);
-                const totalICE = netPriceICE + (totalAnnualCostICE * i);
+                // Cálculos Acumulados
+                const accElec = annElec * i;
+                const accFuel = annFuel * i;
+                const accOpNetEV = annOpNetEV * i; // Mantenimiento + Averías - Impuestos
+                const accOpNetICE = annOpNetICE * i;
+
+                // Total Exacto
+                const totalEV = netPriceEV + accElec + accOpNetEV;
+                const totalICE = netPriceICE + accFuel + accOpNetICE;
+
                 rows.push({
                     year: i,
                     km: data.kmPerYear * i,
                     ev: totalEV,
                     ice: totalICE,
                     diff: totalICE - totalEV,
+                    // DESGLOSE VISUAL (4 Bloques)
+                    // Para que la suma de alturas sea EXACTAMENTE el total, usamos los valores netos.
                     stacks: {
-                        ev: { base: netPriceEV, energy: annElec * i, op: totalEV - netPriceEV - (annElec * i) },
-                        ice: { base: netPriceICE, fuel: annFuel * i, op: totalICE - netPriceICE - (annFuel * i) }
+                        ev: [
+                            { val: netPriceEV, col: 0x1e3a8a, label: 'Vehículo (Neto)' },
+                            { val: accElec, col: 0x3b82f6, label: 'Energía' },
+                            { val: accOpNetEV, col: 0x93c5fd, label: 'Mtto+Averías-Imp' }
+                        ],
+                        ice: [
+                            { val: netPriceICE, col: 0x7c2d12, label: 'Vehículo (Neto)' },
+                            { val: accFuel, col: 0xf97316, label: 'Combustible' },
+                            { val: accOpNetICE, col: 0xfed7aa, label: 'Mtto+Averías-Imp' }
+                        ]
                     }
                 });
             }
             return rows;
-        }, [data, netPriceEV, netPriceICE, totalAnnualCostEV, totalAnnualCostICE]);
+        }, [data, netPriceEV, netPriceICE, annElec, annFuel, annOpNetEV, annOpNetICE]);
 
         const totalSavingsProjected = tableRows[tableRows.length -1].diff;
         const effectiveCost = netPriceEV - totalSavingsProjected;
@@ -568,12 +599,14 @@ const Icons = {
         const Amortization3DChart = ({ rows }) => {
             const mountRef = useRef(null);
 
-            // Escala Y
+            // Escala Y Dinámica
             const maxVal = Math.max(rows[rows.length-1].ev, rows[rows.length-1].ice);
-            const stepY = maxVal > 60000 ? 20000 : 10000;
-            const yAxisMax = Math.ceil(maxVal / stepY) * stepY;
+            // Redondear al siguiente 10.000 o 5.000
+            const stepY = maxVal > 80000 ? 20000 : 10000;
+            const yAxisMax = Math.ceil((maxVal * 1.1) / stepY) * stepY;
+            
             const yTicks = [];
-            for(let i=stepY; i<=yAxisMax; i+=stepY) yTicks.push(i);
+            for(let i=0; i<=yAxisMax; i+=stepY) yTicks.push(i);
 
             useEffect(() => {
                 if (!mountRef.current || !window.THREE) return;
@@ -584,105 +617,81 @@ const Icons = {
 
                 const scene = new THREE.Scene();
 
-                // CONSTANTES DE DIBUJO
-                const BAR_WIDTH = 0.8; 
-                const SPACING = 1.5;   
-                const Z_OFFSET = 0.6;  
-                const TOTAL_WIDTH = (rows.length - 1) * SPACING; // Ancho total desde centro primera a centro última
+                // === SISTEMA DE COORDENADAS RÍGIDO ===
+                const BAR_WIDTH = 0.6;
+                const SPACING = 1.2;
+                const NUM_BARS = rows.length;
+                const TOTAL_WIDTH_3D = (NUM_BARS - 1) * SPACING; // Distancia exacta del centro de la primera al centro de la última
                 
-                // ALTURA VISUAL NORMALIZADA
-                // Mapeamos el valor máximo en euros a una altura fija en unidades 3D (ej: 25 unidades)
-                const MAX_VISUAL_HEIGHT = 25;
-                const SCALE_Y = MAX_VISUAL_HEIGHT / yAxisMax;
+                // Altura lógica en unidades 3D
+                const VIEW_HEIGHT = 30; 
+                const SCALE_Y = VIEW_HEIGHT / yAxisMax;
 
-                // CÁMARA ORTOGRÁFICA (ZOOM FIT)
-                // Calculamos el frustum para que cubra exactamente el ancho y alto del contenido
-                const aspect = width / height;
-                const frustumSize = 40; // Tamaño vertical de la ventana de visión
+                // === CÁMARA ORTOGRÁFICA FRONTAL ===
+                // Configuramos el frustum para que coincida exactamente con los datos
+                const marginX = 1;
+                const camLeft = -marginX;
+                const camRight = TOTAL_WIDTH_3D + marginX;
+                const camTop = VIEW_HEIGHT + 2; 
+                const camBottom = -3; // Espacio para la base
+
+                const camera = new THREE.OrthographicCamera(camLeft, camRight, camTop, camBottom, 1, 1000);
                 
-                const camera = new THREE.OrthographicCamera(
-                    -frustumSize * aspect / 2, 
-                    frustumSize * aspect / 2, 
-                    frustumSize / 2, 
-                    -frustumSize / 2, 
-                    1, 1000
-                );
-                
-                // Posición isométrica estándar centrada en 0,0,0
-                camera.position.set(20, 20, 20); 
-                camera.lookAt(0, 5, 0); // Mirar un poco hacia arriba para centrar verticalmente
+                // Posición: Centrada en X, Elevada en Y, Lejos en Z
+                // ROTACIÓN X = 0 (CLAVE): Esto hace que las líneas horizontales sean rectas perfectas en pantalla
+                // ROTACIÓN Y: Ligera para ver la segunda fila
+                camera.position.set(TOTAL_WIDTH_3D / 2, VIEW_HEIGHT / 2, 100);
+                camera.rotation.order = 'YXZ';
+                camera.rotation.y = 0.3; // Giro lateral para ver la fila de atrás
+                camera.rotation.x = 0;   // Cero inclinación vertical -> Precisión en eje Y
 
                 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
                 renderer.setSize(width, height);
                 renderer.setPixelRatio(window.devicePixelRatio);
                 mountRef.current.appendChild(renderer.domElement);
 
-                // ILUMINACIÓN
+                // Luces
                 const ambientLight = new THREE.AmbientLight(0xffffff, 0.9);
                 scene.add(ambientLight);
                 const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
-                dirLight.position.set(10, 20, 10);
+                dirLight.position.set(20, 20, 50);
                 scene.add(dirLight);
 
-                // GRUPO PRINCIPAL (CONTENEDOR)
                 const group = new THREE.Group();
                 scene.add(group);
 
-                // === IMPORTANTE: CENTRADO MATEMÁTICO ===
-                // Desplazamos el grupo hacia la izquierda la mitad de su ancho total.
-                // Así el centro del gráfico queda en X=0, alineado con la cámara.
-                const startX = -(TOTAL_WIDTH / 2);
-
-                // --- SPRITES DE TEXTO (Helper) ---
-                const createTextSprite = (text, color = '#94a3b8', size = 1) => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 128; canvas.height = 64;
-                    const ctx = canvas.getContext('2d');
-                    ctx.font = 'Bold 40px monospace'; // Fuente grande para nitidez
-                    ctx.fillStyle = color;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(text, 64, 32);
-                    const tex = new THREE.CanvasTexture(canvas);
-                    const mat = new THREE.SpriteMaterial({ map: tex });
-                    const sprite = new THREE.Sprite(mat);
-                    sprite.scale.set(2 * size, 1 * size, 1);
-                    return sprite;
-                };
-
-                // --- REJILLA Y (Líneas horizontales) ---
+                // === REJILLA EJE Y (LÍNEAS) ===
+                // Al tener rotación X=0, estas líneas coincidirán 100% con los divs HTML
                 yTicks.forEach(val => {
+                    if (val === 0) return;
                     const y = val * SCALE_Y;
-                    // Línea que atraviesa todo el ancho
                     const points = [
-                        new THREE.Vector3(startX - 2, y, -2), 
-                        new THREE.Vector3(startX + TOTAL_WIDTH + 2, y, -2)
+                        new THREE.Vector3(-5, y, 0), 
+                        new THREE.Vector3(TOTAL_WIDTH_3D + 5, y, 0)
                     ];
                     const geo = new THREE.BufferGeometry().setFromPoints(points);
+                    // Línea blanca sólida con opacidad para visibilidad garantizada
                     const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
                     group.add(new THREE.Line(geo, mat));
                 });
 
-                // --- BARRAS Y AÑOS ---
+                // === BARRAS ===
                 rows.forEach((row, i) => {
-                    const x = startX + (i * SPACING); // Posición X calculada desde el inicio desplazado
+                    const x = i * SPACING;
 
-                    const createStack = (stackData, z, colors) => {
+                    const createStack = (layers, zPos) => {
                         let currentY = 0;
-                        const segments = [
-                            { val: stackData.base, col: colors[0] }, 
-                            { val: stackData.energy || stackData.fuel, col: colors[1] }, 
-                            { val: stackData.op, col: colors[2] } 
-                        ];
-
-                        segments.forEach(seg => {
-                            if(seg.val <= 0) return;
-                            const h = seg.val * SCALE_Y;
+                        layers.forEach(layer => {
+                            if (layer.val <= 0) return;
+                            const h = layer.val * SCALE_Y;
                             const geo = new THREE.BoxGeometry(BAR_WIDTH, h, BAR_WIDTH);
-                            const mat = new THREE.MeshLambertMaterial({ color: seg.col });
+                            const mat = new THREE.MeshLambertMaterial({ color: layer.col });
                             const mesh = new THREE.Mesh(geo, mat);
-                            mesh.position.set(x, currentY + h/2, z);
                             
+                            // Posición
+                            mesh.position.set(x, currentY + h/2, zPos);
+                            
+                            // Bordes para definición
                             const edges = new THREE.EdgesGeometry(geo);
                             const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 }));
                             line.position.copy(mesh.position);
@@ -693,32 +702,21 @@ const Icons = {
                         });
                     };
 
-                    // EV (Frente)
-                    createStack(row.stacks.ev, Z_OFFSET, [0x1e3a8a, 0x3b82f6, 0x93c5fd]);
-                    // ICE (Fondo)
-                    createStack(row.stacks.ice, -Z_OFFSET, [0x7c2d12, 0xf97316, 0xfed7aa]);
+                    // Distancia Z entre filas (Para que se vea la de atrás con la rotación Y)
+                    const Z_GAP = 1.0;
 
-                    // ETIQUETA AÑO (Alineada en X con la barra)
-                    const label = createTextSprite(row.year.toString());
-                    label.position.set(x, -2, Z_OFFSET); // Un poco por debajo del suelo
-                    group.add(label);
+                    // EV (Frente)
+                    createStack(row.stacks.ev, Z_GAP);
+                    // ICE (Fondo)
+                    createStack(row.stacks.ice, -Z_GAP);
                 });
 
                 renderer.render(scene, camera);
 
-                // Resize handler
+                // Resize sencillo
                 const handleResize = () => {
                     if (!mountRef.current) return;
                     const w = mountRef.current.offsetWidth;
-                    const newAspect = w / height;
-                    
-                    // Actualizar frustum cámara para mantener escala
-                    camera.left = -frustumSize * newAspect / 2;
-                    camera.right = frustumSize * newAspect / 2;
-                    camera.top = frustumSize / 2;
-                    camera.bottom = -frustumSize / 2;
-                    camera.updateProjectionMatrix();
-                    
                     renderer.setSize(w, height);
                     renderer.render(scene, camera);
                 };
@@ -734,46 +732,77 @@ const Icons = {
 
             return (
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 relative mb-6">
-                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-2 gap-4">
+                    {/* CABECERA Y LEYENDA */}
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4">
                         <div className="bg-black/40 px-3 py-1 rounded backdrop-blur border border-white/5">
                             <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                                <Icons.TrendingUp className="w-3 h-3 text-cyan-400" /> Comparativa Costes Apilada
+                                <Icons.TrendingUp className="w-3 h-3 text-cyan-400" /> Comparativa Costes (Acumulado)
                             </h4>
                         </div>
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[9px] font-bold uppercase bg-black/40 p-2 rounded border border-white/5 w-full lg:w-auto">
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[9px] font-bold uppercase bg-black/40 p-2 rounded border border-white/5">
                             <div className="text-orange-400 text-center border-b border-white/10 pb-1">Térmico</div>
                             <div className="text-blue-400 text-center border-b border-white/10 pb-1">Eléctrico</div>
                             
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 bg-orange-200"></div> Mtto/Var</div>
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 bg-blue-200"></div> Mtto/Var</div>
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-orange-200"></div> Mtto+Averías (Neto)</div>
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-blue-200"></div> Mtto+Averías (Neto)</div>
                             
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 bg-orange-500"></div> Fuel</div>
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 bg-blue-500"></div> Luz</div>
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-orange-500"></div> Combustible</div>
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-blue-500"></div> Energía</div>
                             
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 bg-orange-900"></div> Coche</div>
-                            <div className="flex items-center gap-1"><div className="w-2 h-2 bg-blue-900"></div> Coche</div>
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-orange-900"></div> Vehículo (Neto)</div>
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-blue-900"></div> Vehículo (Neto)</div>
                         </div>
                     </div>
 
                     <div className="relative h-[400px] w-full flex">
-                        {/* EJE Y (HTML) - Posicionado para coincidir visualmente con las líneas 3D */}
-                        {/* Nota: La alineación vertical es manual porque depende de la proyección de la cámara */}
-                        <div className="absolute top-0 bottom-0 left-0 w-8 flex flex-col justify-end pointer-events-none z-10 pb-[23%]"> 
-                            {yTicks.map((tick) => {
-                                // Mapeo empírico basado en MAX_VISUAL_HEIGHT (25) y Camera Y (5)
-                                // Esto alinea los números HTML con las líneas blancas del canvas
-                                const pct = (tick / yAxisMax) * 63; // Factor de ajuste visual
+                        {/* EJE Y (HTML) - ALINEACIÓN PRECISA */}
+                        <div className="absolute top-0 bottom-0 left-0 w-8 flex flex-col justify-end pointer-events-none z-10 pb-[9%]"> 
+                            {yTicks.slice(1).map((tick) => {
+                                // Mapeo: El tick 0 está en bottom 0 (dentro del área de dibujo).
+                                // Altura Útil Cámara (VIEW_HEIGHT) = 30.
+                                // Bottom Margin Cámara = -3. Top Margin = 2. Total Range = 35.
+                                // La base (0) está a 3 unidades del fondo real del canvas (3/35 = 8.5%).
+                                // La altura del tick es (tick / yAxisMax) * 30.
+                                const val3D = (tick / yAxisMax) * 30;
+                                const pct = ((val3D) / 33) * 100; // 33 es el rango aproximado View+Bottom
                                 return (
                                     <div key={tick} className="absolute w-full text-right pr-2" style={{ bottom: `${pct}%` }}>
                                         <span className="text-[9px] font-mono font-bold text-slate-500">{fmtK(tick)}</span>
+                                        <div className="h-px w-[2000px] bg-slate-700/20 absolute right-0 top-1/2 -z-10 translate-x-full"></div>
                                     </div>
                                 )
                             })}
                         </div>
                         
                         {/* CANVAS 3D */}
-                        <div className="flex-1 relative h-full overflow-hidden ml-6">
+                        <div className="flex-1 relative h-full overflow-hidden ml-8">
                             <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
+                            
+                            {/* EJE X (HTML) - ALINEACIÓN POR PORCENTAJE */}
+                            <div className="absolute bottom-0 left-0 right-0 h-6 border-t border-slate-700/50">
+                                {rows.map((row, i) => {
+                                    if (i % 2 !== 0) return null; // Solo pares para limpieza
+                                    
+                                    // Cálculo de posición X
+                                    // Total barras: N. Espacio total: (N-1).
+                                    // Posición i: i / (N-1).
+                                    // Añadimos pequeño margen lateral para coincidir con la cámara (que tiene marginX=1)
+                                    const pct = (i / (rows.length - 1)) * 100;
+                                    
+                                    // Corrección de márgenes de cámara:
+                                    // La cámara ve de -1 a TotalW+1. El dato va de 0 a TotalW.
+                                    // El ancho visual es TotalW + 2. El dato empieza en 1.
+                                    // Ajuste visual simple: 
+                                    const renderPct = 2.5 + (pct * 0.95); 
+
+                                    return (
+                                        <div key={i} className="absolute flex flex-col items-center transform -translate-x-1/2" style={{ left: `${renderPct}%`, top: '-2px' }}>
+                                            <div className="h-1.5 w-px bg-slate-500 mb-1"></div>
+                                            <span className="text-[10px] font-bold text-slate-400 font-mono">{row.year}</span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -784,6 +813,7 @@ const Icons = {
 
         return (
             <div className="space-y-6">
+                {/* RESUMEN KPI */}
                 <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-8 text-center shadow-2xl">
                     <h3 className="text-slate-300 text-sm font-display uppercase tracking-widest mb-4 font-bold">Análisis de Rentabilidad</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
@@ -811,6 +841,7 @@ const Icons = {
                     </div>
                 </div>
                 
+                {/* INPUTS */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                         <h4 className="text-blue-400 font-display font-bold mb-4 flex items-center gap-2 text-lg"><Icons.Zap /> Vehículo Eléctrico</h4>
@@ -869,9 +900,7 @@ const Icons = {
             </div>
         );
       };
-
-        
-     
+ 
         
 
       // --- CALCULADORA DE CARGA (DISTRIBUCIÓN FULL WIDTH + INTERÉS COMPUESTO) ---
