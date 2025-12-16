@@ -1,4 +1,4 @@
-M19
+M20
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -868,130 +868,126 @@ const Icons = {
 
 
 
-
-
-      // --- COMPONENTE GLOBAL: GRÁFICA 3D (V3 - CORREGIDA: AUTO-ZOOM, APILADO VERTICAL Y ETIQUETAS) ---
+      // --- COMPONENTE GLOBAL: GRÁFICA 3D (V4 - CORREGIDO: EJE Y LIMPIO Y APILADO) ---
       const Amortization3DChart = ({ rows }) => {
             const mountRef = useRef(null);
 
-            // 1. CÁLCULO DE MÁXIMOS PARA EL EJE Y
+            // 1. CÁLCULO DE MÁXIMOS
             const maxVal = useMemo(() => {
                 if (!rows || rows.length === 0) return 10000;
                 return Math.max(...rows.map(r => {
-                    // Sumamos las pilas para obtener la altura total real
                     const hEv = r.stacks?.ev?.reduce((a,b)=>a+b.val,0) || 0;
                     const hIce = r.stacks?.ice?.reduce((a,b)=>a+b.val,0) || 0;
-                    return Math.max(r.ev || 0, r.ice || 0, hEv, hIce);
+                    return Math.max(hEv, hIce);
                 }));
             }, [rows]);
 
-            // 2. INTERVALO DINÁMICO (MÍNIMO 10.000€)
-            // Esto evita que los números se solapen si la cifra es pequeña, pero escala si es millonaria
+            // 2. INTERVALO INTELIGENTE (MAX 8 LÍNEAS)
+            // Esto soluciona el texto solapado. Calcula el paso para que nunca haya más de 8 líneas.
             const stepY = useMemo(() => {
-                const minStep = 10000; 
-                // Intentamos que haya aprox 10 líneas horizontales como máximo
-                const dynamicStep = Math.ceil(maxVal / 10 / 5000) * 5000; 
-                return Math.max(minStep, dynamicStep);
+                if (maxVal === 0) return 10000;
+                const targetLines = 6; 
+                const rawStep = maxVal / targetLines;
+                // Redondear a números limpios (10k, 25k, 50k, 100k...)
+                const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+                const normalized = rawStep / magnitude;
+                let multiplier = 1;
+                if (normalized > 5) multiplier = 10;
+                else if (normalized > 2) multiplier = 5;
+                else if (normalized > 1) multiplier = 2;
+                return multiplier * magnitude;
             }, [maxVal]);
 
-            const yAxisMax = Math.ceil((maxVal * 1.1) / stepY) * stepY; 
+            const yAxisMax = Math.ceil((maxVal * 1.05) / stepY) * stepY; 
 
             useEffect(() => {
                 if (!mountRef.current || !window.THREE || !rows || rows.length === 0) return;
 
-                // LIMPIEZA INICIAL
                 mountRef.current.innerHTML = '';
                 const width = mountRef.current.offsetWidth;
                 const height = 450; 
 
                 const scene = new THREE.Scene();
 
-                // === CONFIGURACIÓN DIMENSIONES ===
-                const BAR_WIDTH = 1.2;
-                const SPACING = 2.5; // Más espacio entre años
-                const TOTAL_DATA_WIDTH = rows.length * SPACING;
-                
-                const MAX_H_3D = 40; // Altura visual en unidades 3D
+                // === DIMENSIONES ===
+                const BAR_WIDTH = 1.0;
+                const SPACING = 2.2; 
+                const TOTAL_DATA_WIDTH = Math.max(10, rows.length * SPACING); // Ancho mínimo para evitar zoom excesivo
+                const MAX_H_3D = 35; 
                 const SCALE = MAX_H_3D / yAxisMax;
 
-                // === CÁMARA (AJUSTE AUTOMÁTICO AL ANCHO DE DATOS) ===
-                // Calculamos los límites para que TODOS los años entren en pantalla
-                const paddingX = 4;
-                const camLeft = -paddingX;
-                const camRight = TOTAL_DATA_WIDTH + paddingX;
-                const camTop = MAX_H_3D + 10;
-                const camBottom = -5;
+                // === CÁMARA ===
+                // Ajustamos los márgenes (left/right) para dar espacio a las etiquetas
+                const camLeft = -6; 
+                const camRight = TOTAL_DATA_WIDTH + 4;
+                const camTop = MAX_H_3D + 10; // Espacio arriba
+                const camBottom = -8; // Espacio para años
 
                 const camera = new THREE.OrthographicCamera(camLeft, camRight, camTop, camBottom, 1, 1000);
                 
-                // Posición isométrica clásica
+                // Posición isométrica fija para que no se deforme
                 camera.position.set(20, 20, 100); 
-                camera.lookAt(20, 10, 0); // Mirar hacia el centro aproximado
-                // Ajuste fino para enderezar
+                camera.lookAt(20, 10, 0); 
                 camera.rotation.order = 'YXZ';
-                camera.rotation.y = 0; 
-                camera.rotation.x = 0; 
-                camera.position.set(TOTAL_DATA_WIDTH/2, MAX_H_3D/2, 100);
-
+                camera.rotation.y = 0.15; // Leve giro para profundidad
+                camera.rotation.x = -0.1; // Leve inclinación
+                
+                // Recentrar cámara en los datos
+                camera.position.x = (TOTAL_DATA_WIDTH / 2);
+                
                 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
                 renderer.setSize(width, height);
                 renderer.setPixelRatio(window.devicePixelRatio);
                 mountRef.current.appendChild(renderer.domElement);
 
                 // === LUCES ===
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
                 scene.add(ambientLight);
-                const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-                dirLight.position.set(10, 20, 50);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
+                dirLight.position.set(10, 30, 20);
                 scene.add(dirLight);
 
                 const group = new THREE.Group();
                 scene.add(group);
 
-                // === HELPER TEXTO ===
-                const createText = (text, color, size, align) => {
+                // === EJE Y (GRID) ===
+                // Solo dibujamos las líneas calculadas por stepY (max 8)
+                const createLabel = (text, yPos) => {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
-                    canvas.width = 400; canvas.height = 100;
-                    ctx.font = 'Bold 50px monospace';
-                    ctx.fillStyle = color;
-                    ctx.textAlign = align === 'right' ? 'end' : 'center';
+                    canvas.width = 256; canvas.height = 64;
+                    ctx.font = 'Bold 42px monospace'; // Fuente más grande y legible
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.textAlign = 'right';
                     ctx.textBaseline = 'middle';
-                    ctx.fillText(text, align === 'right' ? 380 : 200, 50);
-                    
+                    ctx.fillText(text, 240, 32);
                     const tex = new THREE.CanvasTexture(canvas);
                     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
                     const sprite = new THREE.Sprite(mat);
-                    sprite.scale.set(8 * size, 2 * size, 1);
+                    sprite.scale.set(5, 1.25, 1);
+                    sprite.position.set(-3.5, yPos, 0);
                     return sprite;
                 };
 
-                // === EJE Y (LÍNEAS Y ETIQUETAS) ===
                 for(let val = 0; val <= yAxisMax; val += stepY) {
                     const y = val * SCALE;
-                    if(val > 0) {
-                        // Línea
-                        const points = [
-                            new THREE.Vector3(-2, y, -1), 
-                            new THREE.Vector3(TOTAL_DATA_WIDTH + 2, y, -1)
-                        ];
+                    if(val > 0) { // No dibujar línea en 0 para limpieza
+                        // Línea Grid
+                        const points = [new THREE.Vector3(-1, y, -2), new THREE.Vector3(TOTAL_DATA_WIDTH + 1, y, -2)];
                         const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
-                        const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 });
+                        const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.1 });
                         group.add(new THREE.Line(lineGeo, lineMat));
 
-                        // Etiqueta (Ej: 10k, 20k)
-                        const labelStr = (val / 1000).toFixed(0) + 'k';
-                        const label = createText(labelStr, '#64748b', 1.2, 'right');
-                        label.position.set(-2.5, y, 0);
-                        group.add(label);
+                        // Etiqueta (Formato '500k', '1.2M' o '10k')
+                        let txt = (val >= 1000000) ? (val/1000000).toFixed(1) + 'M' : (val/1000).toFixed(0) + 'k';
+                        group.add(createLabel(txt, y));
                     }
                 }
 
-                // === BARRAS (GENERACIÓN) ===
+                // === BARRAS APILADAS ===
                 rows.forEach((row, i) => {
                     const x = i * SPACING;
 
-                    // Función para crear una pila vertical
                     const createStack = (layers, zPos) => {
                         if(!layers) return;
                         let currentY = 0;
@@ -1000,76 +996,82 @@ const Icons = {
                             if (layer.val <= 0) return;
                             
                             const h = layer.val * SCALE;
-                            // Geometría Box
                             const geo = new THREE.BoxGeometry(BAR_WIDTH, h, BAR_WIDTH);
-                            // Desplazamos la geometría para que el pivote esté abajo
-                            geo.translate(0, h/2, 0); 
-                            
                             const mat = new THREE.MeshLambertMaterial({ color: layer.col });
                             const mesh = new THREE.Mesh(geo, mat);
                             
-                            // Posicionamos sobre el acumulado anterior
-                            mesh.position.set(x, currentY, zPos);
+                            // Importante: Posicionar basándonos en el centro geométrico
+                            mesh.position.set(x, currentY + (h/2), zPos);
                             
-                            // Bordes suaves
+                            // Bordes negros finos
                             const edges = new THREE.EdgesGeometry(geo);
-                            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 }));
-                            line.position.set(x, currentY, zPos);
+                            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.1 }));
+                            line.position.copy(mesh.position);
 
                             group.add(mesh);
                             group.add(line);
                             
-                            currentY += h; // Acumulamos altura para la siguiente capa (APILADO VERTICAL)
+                            currentY += h; // Incrementar altura para la siguiente capa
                         });
                     };
 
-                    // Dibujar pilas
-                    // Si es amortización (2 columnas), zPos diferentes. Si es Interés (1 columna), zPos 0.
-                    const isDual = row.stacks.ice && row.stacks.ice.length > 0 && row.stacks.ice[0].val > 0;
+                    // Detectar modo (2 columnas vs 1 columna)
+                    const hasIce = row.stacks.ice && row.stacks.ice.length > 0;
                     
-                    if(isDual) {
-                        createStack(row.stacks.ice, -0.8); // Fondo
-                        createStack(row.stacks.ev, 0.8);   // Frente
+                    if(hasIce) {
+                        createStack(row.stacks.ice, -0.6); // Fondo
+                        createStack(row.stacks.ev, 0.6);   // Frente
                     } else {
-                        createStack(row.stacks.ev, 0);     // Centro (Caso Interés Compuesto)
+                        createStack(row.stacks.ev, 0);     // Centro (Interés Compuesto)
                     }
 
-                    // Etiqueta AÑO (Eje X) - Lógica inteligente de densidad
-                    // Si hay < 15 años, mostrar todos. Si hay más, mostrar alternos.
-                    const skip = rows.length > 15 ? 2 : 1;
-                    if (i % skip === 0) {
-                        const yearLbl = createText(row.year.toString(), '#cbd5e1', 0.9, 'center');
-                        yearLbl.position.set(x, -2.5, 2);
-                        group.add(yearLbl);
+                    // Años (Eje X)
+                    // Mostrar años inteligentemente para que no se pisen
+                    const density = Math.ceil(rows.length / 15); // Si hay muchos, saltar
+                    if (i % density === 0 || i === rows.length - 1) {
+                        const cvs = document.createElement('canvas');
+                        const cx = cvs.getContext('2d');
+                        cvs.width = 128; cvs.height = 64;
+                        cx.font = 'Bold 36px sans-serif';
+                        cx.fillStyle = '#cbd5e1';
+                        cx.textAlign = 'center';
+                        cx.fillText(row.year.toString(), 64, 45);
+                        const tex = new THREE.CanvasTexture(cvs);
+                        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex }));
+                        sp.scale.set(3, 1.5, 1);
+                        sp.position.set(x, -2.5, 2);
+                        group.add(sp);
                     }
                 });
 
                 renderer.render(scene, camera);
 
-                // === RESIZE ===
-                // En este modo "Fixed Data Width", al redimensionar solo ajustamos el escalado del canvas,
-                // no cambiamos los límites de la cámara para que los datos no se deformen.
+                // Resize handler
                 const handleResize = () => {
                     if (!mountRef.current) return;
                     const w = mountRef.current.offsetWidth;
-                    // Mantenemos aspect ratio ajustando el alto visual si es necesario, 
-                    // pero priorizamos que el ancho de los datos entre siempre.
-                    renderer.setSize(w, height);
-                    
-                    // Recalcular frustum si la relación de aspecto cambia drásticamente
+                    // Mantener aspect ratio del canvas 3D recalculando proyección
                     const aspect = w / height;
-                    // Ajustamos el zoom de la cámara para que siempre quepan los datos horizontalmente
-                    // (Lógica simplificada: los bounds ya están fijos por datos, el renderer escala la imagen)
+                    const viewWidth = (camTop - camBottom) * aspect;
+                    
+                    // Centrar vista horizontalmente
+                    const center = (camLeft + camRight) / 2;
+                    camera.left = center - (viewWidth / 2);
+                    camera.right = center + (viewWidth / 2);
+                    camera.updateProjectionMatrix();
+                    
+                    renderer.setSize(w, height);
                     renderer.render(scene, camera);
                 };
                 window.addEventListener('resize', handleResize);
+                handleResize(); // Init
 
                 return () => {
                     window.removeEventListener('resize', handleResize);
                     mountRef.current && (mountRef.current.innerHTML = '');
                 };
 
-            }, [rows, yAxisMax, stepY, maxVal]); // Re-render si cambian datos o escala
+            }, [rows, yAxisMax, stepY]);
 
             return (
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 relative mb-6">
@@ -1078,7 +1080,10 @@ const Icons = {
             );
       };
 
-      // --- CALCULADORA DE CARGA (CORREGIDA - DATOS APILADOS) ---
+
+
+      
+      // --- CALCULADORA DE CARGA (DATOS CORREGIDOS PARA APILADO) ---
       const ChargingCalculator = () => {
         const [state, setState] = usePersistentState('chargeState', { 
             capacity: 60, 
@@ -1098,7 +1103,6 @@ const Icons = {
             fsdAmortYears: 10
         });
 
-        // --- ESTADO INTERÉS COMPUESTO ---
         const [compState, setCompState] = usePersistentState('compoundCalc', {
             principal: 3000,
             annualAddition: 2400,
@@ -1109,7 +1113,7 @@ const Icons = {
         });
         const [showCompTable, setShowCompTable] = useState(false);
 
-        // CURVE DATA & LOGIC (Sin cambios en lógica interna)
+        // CURVE DATA
         const curvePoints = {
             LFP: [{p:0, v:170}, {p:10, v:168}, {p:20, v:155}, {p:30, v:135}, {p:45, v:110}, {p:55, v:85}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}],
             NCA: [{p:0, v:200}, {p:5, v:250}, {p:15, v:250}, {p:25, v:210}, {p:40, v:150}, {p:60, v:100}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}]
@@ -1229,16 +1233,17 @@ const Icons = {
         const compResult = calculateCompound();
         const handleCompChange = (k, v) => setCompState(p => ({...p, [k]: parseFloat(v)}));
 
-        // **ADAPTADOR DE DATOS CORREGIDO (APILADO VERTICAL)**
+        // **ADAPTADOR DE DATOS PARA GRÁFICO 3D (SOLUCIÓN)**
+        // Ahora pasamos [Principal, Interés] en el mismo array.
+        // La gráfica los apilará: Principal abajo (Naranja) + Interés encima (Azul).
         const compoundChartData = useMemo(() => {
             return compResult.history.map(h => ({
                 year: h.year,
                 stacks: {
-                    // Usamos 'ev' como contenedor único para este gráfico
-                    // El orden en el array determina el orden de apilado (de abajo a arriba)
+                    // Usamos 'ev' para la columna única
                     ev: [
-                        { val: h.principal, col: 0xf97316 }, // 1º Capa: Capital (Naranja) - BASE
-                        { val: h.interest, col: 0x3b82f6 }   // 2º Capa: Interés (Azul) - ARRIBA
+                        { val: h.principal, col: 0xf97316 }, // BASE: Naranja (Capital)
+                        { val: h.interest, col: 0x3b82f6 }   // TOP: Azul (Intereses)
                     ],
                     ice: [] // Sin segunda columna
                 }
@@ -1538,7 +1543,7 @@ const Icons = {
             </div>
         );
       };
-   
+
 
 
 
