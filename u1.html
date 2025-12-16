@@ -1,4 +1,4 @@
-M02
+M03
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -509,7 +509,8 @@ const Icons = {
 
       
 
-      // --- CALCULADORA DE AMORTIZACIÓN CON GRÁFICA 3D ---
+      
+      // --- CALCULADORA DE AMORTIZACIÓN CON GRÁFICA 3D APILADA (STACKED) ---
       const AmortizationCalculator = () => {
         const [data, setData] = usePersistentState('amortData', {
             priceEV: 43000, priceICE: 45000, moves: 8500, aidICE: 2200,
@@ -523,20 +524,65 @@ const Icons = {
         
         const [showTable, setShowTable] = useState(true);
 
-        // --- SUB-COMPONENTE GRÁFICA 3D (DEFINIDO DENTRO PARA ACCESO FÁCIL) ---
-        const Amortization3DChart = ({ chartData }) => {
+        // --- SUB-COMPONENTE GRÁFICA 3D APILADA ---
+        const Amortization3DChart = ({ inputData, years }) => {
             const mountRef = useRef(null);
 
-            useEffect(() => {
-                if (!mountRef.current || !window.THREE || !chartData || chartData.length === 0) return;
+            // Pre-cálculo de datos para la gráfica (Desglose)
+            const chartData = useMemo(() => {
+                const rows = [];
+                // Costes fijos iniciales (Netos)
+                const baseEV = inputData.priceEV - inputData.moves;
+                const baseICE = inputData.priceICE - inputData.aidICE;
 
-                // 1. SETUP ESCENA
+                // Costes anuales variables
+                const annualFuel = (inputData.kmPerYear / 100) * inputData.consumptionICE * inputData.priceFuel;
+                const annualElec = (inputData.kmPerYear / 100) * inputData.consumptionEV * inputData.priceElec;
+                
+                // Costes anuales mantenimiento/otros
+                // (Sumamos averías prorrateadas y restamos ahorro impuestos para simplificar en un bloque "Otros")
+                const annualBreakdownEV = (inputData.priceEV * (inputData.breakdownRateEV / 100)) / years;
+                const annualBreakdownICE = (inputData.priceICE * (inputData.breakdownRateICE / 100)) / years;
+                
+                const annualOtherEV = inputData.maintenanceEV + annualBreakdownEV - inputData.taxSavingsEV;
+                const annualOtherICE = inputData.maintenanceICE + annualBreakdownICE - inputData.taxSavingsICE;
+
+                for (let i = 0; i <= years; i++) {
+                    rows.push({
+                        year: i,
+                        // EV Stack
+                        evBase: baseEV,
+                        evEnergy: annualElec * i,
+                        evOther: annualOtherEV * i,
+                        evTotal: baseEV + (annualElec * i) + (annualOtherEV * i),
+                        // ICE Stack
+                        iceBase: baseICE,
+                        iceFuel: annualFuel * i,
+                        iceOther: annualOtherICE * i,
+                        iceTotal: baseICE + (annualFuel * i) + (annualOtherICE * i)
+                    });
+                }
+                return rows;
+            }, [inputData, years]);
+
+            // Escala Y
+            const maxVal = Math.max(
+                chartData[chartData.length - 1].evTotal, 
+                chartData[chartData.length - 1].iceTotal
+            );
+            // Redondear al siguiente 10k para el eje
+            const yAxisMax = Math.ceil(maxVal / 10000) * 10000;
+            const yTicks = [0, yAxisMax*0.25, yAxisMax*0.5, yAxisMax*0.75, yAxisMax];
+
+            useEffect(() => {
+                if (!mountRef.current || !window.THREE) return;
+
                 const width = mountRef.current.offsetWidth;
-                const height = 320;
+                const height = 350;
                 const scene = new THREE.Scene();
                 
-                // Usamos OrthographicCamera para comparar alturas sin distorsión de perspectiva
-                const camSize = 40; 
+                // Cámara: Menos ángulo lateral para alinear mejor con el eje X HTML
+                const camSize = 45; 
                 const aspect = width / height;
                 const camera = new THREE.OrthographicCamera(
                     -camSize * aspect, camSize * aspect,
@@ -544,90 +590,109 @@ const Icons = {
                     1, 1000
                 );
                 
-                // Vista isométrica
-                camera.position.set(20, 20, 20); 
-                camera.lookAt(0, 5, 0); 
+                // Posición isométrica AJUSTADA (más frontal)
+                camera.position.set(20, 20, 40); 
+                camera.lookAt(0, 10, 0); 
 
                 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
                 renderer.setSize(width, height);
                 renderer.setPixelRatio(window.devicePixelRatio);
                 
-                // Limpiar anterior
                 mountRef.current.innerHTML = '';
                 mountRef.current.appendChild(renderer.domElement);
 
-                // 2. LUCES
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+                // LUCES
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
                 scene.add(ambientLight);
-                const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
-                dirLight.position.set(10, 20, 10);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+                dirLight.position.set(10, 40, 20);
                 scene.add(dirLight);
 
-                // 3. OBJETOS
+                // GRUPO PRINCIPAL
                 const group = new THREE.Group();
                 scene.add(group);
 
-                // Encontrar el valor máximo para escalar las barras
-                const maxVal = Math.max(
-                    chartData[chartData.length - 1].ev, 
-                    chartData[chartData.length - 1].ice
-                );
-
-                const barWidth = 2;
-                const spacing = 3;
-                const maxVisualHeight = 30; // Altura máxima en unidades 3D
-                const scaleY = maxVisualHeight / maxVal;
-
-                // Centrar grupo
+                const barWidth = 1.2;
+                const spacing = 2.8; 
+                const maxVisualHeight = 35; 
+                const scaleY = maxVisualHeight / yAxisMax;
                 const totalWidth = chartData.length * spacing;
-                group.position.x = -(totalWidth / 2);
-                group.position.y = -10;
 
+                // Centramos todo el grupo
+                group.position.x = -(totalWidth / 2) + (spacing/2);
+                group.position.y = -12; // Base suelo
+
+                // --- GENERACIÓN DE BARRAS APILADAS ---
                 chartData.forEach((row, i) => {
                     const x = i * spacing;
 
-                    // Barra EV (Azul - Fila Frontal)
-                    const hEv = row.ev * scaleY;
-                    const geoEv = new THREE.BoxGeometry(barWidth, hEv, barWidth);
-                    const matEv = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.2 });
-                    const meshEv = new THREE.Mesh(geoEv, matEv);
-                    meshEv.position.set(x, hEv / 2, 1.5);
-                    group.add(meshEv);
+                    // Función helper para crear segmentos
+                    const createSegment = (h, yStart, color, zPos) => {
+                        if (h <= 0.1) return;
+                        const geo = new THREE.BoxGeometry(barWidth, h, barWidth);
+                        const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.4 });
+                        const mesh = new THREE.Mesh(geo, mat);
+                        mesh.position.set(x, yStart + (h / 2), zPos);
+                        
+                        // Borde negro sutil para diferenciar stacks
+                        const edges = new THREE.EdgesGeometry(geo);
+                        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.2 }));
+                        line.position.copy(mesh.position);
+                        
+                        group.add(mesh);
+                        group.add(line);
+                    };
 
-                    // Barra ICE (Naranja - Fila Trasera)
-                    const hIce = row.ice * scaleY;
-                    const geoIce = new THREE.BoxGeometry(barWidth, hIce, barWidth);
-                    const matIce = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.2 });
-                    const meshIce = new THREE.Mesh(geoIce, matIce);
-                    meshIce.position.set(x, hIce / 2, -1.5);
-                    group.add(meshIce);
+                    // --- EV (Fila Frontal) ---
+                    const hEvBase = row.evBase * scaleY;
+                    const hEvEnergy = row.evEnergy * scaleY;
+                    const hEvOther = row.evOther * scaleY;
+                    
+                    createSegment(hEvBase, 0, 0x1e3a8a, 1.5); // Azul Oscuro (Coche)
+                    createSegment(hEvEnergy, hEvBase, 0x3b82f6, 1.5); // Azul Medio (Energía)
+                    createSegment(hEvOther, hEvBase + hEvEnergy, 0x93c5fd, 1.5); // Azul Claro (Mtto)
 
-                    // Marcas de año en el suelo (cada 2 años para no saturar)
-                    if (i % 2 === 0 || i === chartData.length - 1) {
-                         const markGeo = new THREE.BoxGeometry(0.5, 0.1, 5);
-                         const markMat = new THREE.MeshBasicMaterial({ color: 0x475569 });
-                         const mark = new THREE.Mesh(markGeo, markMat);
-                         mark.position.set(x, 0, 0);
-                         group.add(mark);
-                    }
+                    // --- ICE (Fila Trasera) ---
+                    const hIceBase = row.iceBase * scaleY;
+                    const hIceFuel = row.iceFuel * scaleY;
+                    const hIceOther = row.iceOther * scaleY;
+
+                    createSegment(hIceBase, 0, 0x7c2d12, -1.5); // Naranja Oscuro (Coche)
+                    createSegment(hIceFuel, hIceBase, 0xf97316, -1.5); // Naranja Vivo (Gasolina)
+                    createSegment(hIceOther, hIceBase + hIceFuel, 0xfdb_a74, -1.5); // Naranja Claro (Mtto)
                 });
 
-                // Grid Suelo
-                const grid = new THREE.GridHelper(totalWidth + 50, 20, 0x1e293b, 0x1e293b);
-                grid.position.set(0, -0.1, 0);
-                group.add(grid);
+                // --- LÍNEAS DE REJILLA HORIZONTALES (Eje Y) ---
+                yTicks.forEach(val => {
+                    if (val === 0) return;
+                    const y = val * scaleY;
+                    const points = [];
+                    points.push(new THREE.Vector3(-2, y, 0));
+                    points.push(new THREE.Vector3(totalWidth, y, 0));
+                    const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
+                    const lineMat = new THREE.LineBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.3 });
+                    const line = new THREE.Line(lineGeo, lineMat);
+                    group.add(line);
+                });
 
-                // 4. LOOP
+                // --- SUELO ---
+                const grid = new THREE.GridHelper(totalWidth + 20, 1, 0x334155, 0x334155);
+                grid.position.set(totalWidth/2 - spacing/2, 0, 0);
+                grid.scale.z = 0.5;
+                grid.visible = false; // Ocultamos grid genérico, usamos líneas custom
+                // Base lineal simple
+                const baseLinePoints = [new THREE.Vector3(-2, 0, 2), new THREE.Vector3(totalWidth, 0, 2)];
+                const baseLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(baseLinePoints), new THREE.LineBasicMaterial({ color: 0x94a3b8 }));
+                group.add(baseLine);
+
+                // RENDER LOOP
                 let frameId;
                 const animate = () => {
                     frameId = requestAnimationFrame(animate);
-                    // Rotación muy sutil para dar efecto 3D
-                    group.rotation.y = Math.sin(Date.now() * 0.0002) * 0.05;
                     renderer.render(scene, camera);
                 };
                 animate();
 
-                // Resize
                 const handleResize = () => {
                     if (!mountRef.current) return;
                     const w = mountRef.current.offsetWidth;
@@ -644,24 +709,61 @@ const Icons = {
                     cancelAnimationFrame(frameId);
                     if (mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
                 };
-            }, [chartData]);
+            }, [chartData, yAxisMax]);
+
+            // Formateador para Eje Y (ej: 20000 -> 20k)
+            const formatK = (val) => val >= 1000 ? `${(val/1000).toFixed(0)}k` : val;
 
             return (
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-4 relative mb-6 overflow-hidden">
-                    <div className="absolute top-4 left-4 z-10 bg-black/40 px-3 py-1 rounded backdrop-blur border border-white/5">
-                        <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
-                            <Icons.TrendingUp className="w-3 h-3 text-cyan-400" /> Evolución Coste Acumulado
-                        </h4>
+                    <div className="flex justify-between items-start mb-4 relative z-20">
+                        <div className="bg-black/40 px-3 py-1 rounded backdrop-blur border border-white/5">
+                            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                                <Icons.TrendingUp className="w-3 h-3 text-cyan-400" /> Comparativa Costes Apilada
+                            </h4>
+                        </div>
+                        
+                        {/* LEYENDA DETALLADA */}
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-[9px] font-bold uppercase bg-black/40 p-2 rounded border border-white/5">
+                            <div className="text-slate-400 border-b border-slate-700 pb-1 mb-1 col-span-1 text-center">Térmico (Fondo)</div>
+                            <div className="text-slate-400 border-b border-slate-700 pb-1 mb-1 col-span-1 text-center">Eléctrico (Frente)</div>
+                            
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-orange-200"></div> Mtto/Tax</div>
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-blue-200"></div> Mtto/Tax</div>
+                            
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-orange-500"></div> Combustible</div>
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-blue-500"></div> Electricidad</div>
+                            
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-orange-900"></div> Vehículo</div>
+                            <div className="flex items-center gap-2"><div className="w-2 h-2 bg-blue-900"></div> Vehículo</div>
+                        </div>
                     </div>
-                    <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-1 pointer-events-none">
-                        <div className="flex items-center gap-2"><span className="text-[10px] font-bold text-slate-400 uppercase">Térmico</span><div className="w-3 h-3 bg-orange-500 rounded-sm"></div></div>
-                        <div className="flex items-center gap-2"><span className="text-[10px] font-bold text-slate-400 uppercase">Eléctrico</span><div className="w-3 h-3 bg-blue-500 rounded-sm"></div></div>
+
+                    <div className="relative h-[350px]">
+                        {/* EJE Y (HTML Overlay) */}
+                        <div className="absolute top-0 left-0 h-full w-full pointer-events-none z-10">
+                            {yTicks.slice(1).map((tick, i) => {
+                                // Calculamos posición CSS aproximada basada en la lógica 3D
+                                // Nota: Esto requiere ajuste manual visual si se cambia la cámara
+                                const pct = (tick / yAxisMax) * 75; // 75% es el área "útil" aproximada de altura
+                                return (
+                                    <div key={tick} className="absolute w-full border-t border-dashed border-slate-700/0 flex items-center" style={{ bottom: `${pct + 12}%` }}>
+                                        <span className="bg-slate-900/80 px-1 text-[9px] font-mono font-bold text-slate-500 ml-1">{formatK(tick)}</span>
+                                    </div>
+                                )
+                            })}
+                        </div>
+                        
+                        <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
                     </div>
-                    <div ref={mountRef} className="w-full h-[320px] cursor-grab active:cursor-grabbing" />
-                    <div className="flex justify-between px-8 text-[10px] font-bold text-slate-500 uppercase mt-[-15px] relative z-20">
-                        <span>Inicio</span>
-                        <span>{Math.round(chartData.length / 2)} Años</span>
-                        <span>{chartData.length - 1} Años</span>
+                    
+                    {/* EJE X (Años - Intervalos de 2) */}
+                    <div className="flex justify-between px-10 text-[9px] font-bold text-slate-500 uppercase mt-[-20px] relative z-20 border-t border-slate-700 pt-1">
+                        {chartData.map((d, i) => (
+                            <div key={i} className="flex flex-col items-center" style={{ opacity: i % 2 === 0 ? 1 : 0 }}>
+                                <span className={i % 2 === 0 ? "block" : "hidden"}>A{d.year}</span>
+                            </div>
+                        ))}
                     </div>
                 </div>
             );
@@ -760,8 +862,8 @@ const Icons = {
                 </div>
                 
                 <div className="mt-8">
-                    {/* AQUÍ INVOCAMOS LA GRÁFICA NUEVA */}
-                    <Amortization3DChart chartData={tableRows} />
+                    {/* GRÁFICA NUEVA: Pasamos data (inputs) y years (duración) */}
+                    <Amortization3DChart inputData={data} years={data.yearsToProject} />
 
                     <button onClick={() => setShowTable(!showTable)} className="w-full py-4 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-base font-medium text-slate-300 transition-colors flex items-center justify-center gap-2"><Icons.Table /> {showTable ? 'Ocultar Desglose' : 'Ver Desglose Detallado Año a Año'}</button>
                     {showTable && (
@@ -789,8 +891,6 @@ const Icons = {
             </div>
         );
       };
-        
-
         
 
       // --- CALCULADORA DE CARGA (DISTRIBUCIÓN FULL WIDTH + INTERÉS COMPUESTO) ---
