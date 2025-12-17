@@ -5522,11 +5522,10 @@
       };
 
 
-
-       // --- CALCULADORA RENTING VS PROPIEDAD (V8 - MONTHLY/ANNUAL STATS & CHART BASE 0) ---
+      // --- CALCULADORA RENTING VS PROPIEDAD (V9 - HTML CHART & FIXED KPI) ---
       const RentingCalculator = () => {
         // Estado persistente
-        const [data, setData] = usePersistentState('rentingDataV8', {
+        const [data, setData] = usePersistentState('rentingDataV9', {
             // Comunes
             years: 15,
             kmPerYear: 20000,
@@ -5555,7 +5554,7 @@
         const num = (v) => parseFloat(v) || 0;
         const yearsProjected = Math.max(1, Math.round(num(data.years)));
 
-        // --- CÁLCULOS ANUALES ---
+        // --- CÁLCULOS ---
         const propAnnualEnergy = (num(data.kmPerYear) / 100) * num(data.propCons) * num(data.propEnergyPrice);
         const rentAnnualEnergy = (num(data.kmPerYear) / 100) * num(data.rentCons) * num(data.rentEnergyPrice);
 
@@ -5591,221 +5590,159 @@
             return rows;
         }, [data, yearsProjected, propInitialOut, propAnnualTotal, rentInitialOut, rentAnnualTotal, finalResidualValue]);
 
-        // --- CÁLCULO ESTADÍSTICAS ---
+        // --- ESTADÍSTICAS ---
         const finalRow = tableRows[tableRows.length - 1];
         const totalSavings = finalRow.diff;
         const winner = totalSavings > 0 ? "COMPRA" : "RENTING";
         
-        // Costes medios reales (Neto final / tiempo)
+        // Medias
         const totalMonths = yearsProjected * 12;
         const monthlyProp = finalRow.propVal / totalMonths;
         const monthlyRent = finalRow.rentVal / totalMonths;
         const annualProp = finalRow.propVal / yearsProjected;
         const annualRent = finalRow.rentVal / yearsProjected;
 
-        // Calcular Año de Corte (Crossover)
+        // Año de Corte
         let crossOverYear = "N/A";
         let crossOverWinner = "";
         
         for(let i = 1; i < tableRows.length; i++) {
             const prevRow = tableRows[i-1];
             const currRow = tableRows[i];
-            
             const prevWin = prevRow.rentVal < prevRow.propVal ? 'Renting' : 'Compra';
             const currWin = currRow.rentVal < currRow.propVal ? 'Renting' : 'Compra';
-            
-            if (prevWin !== currWin) {
-                crossOverYear = currRow.year;
-                crossOverWinner = currWin;
-                break;
-            }
+            if (prevWin !== currWin) { crossOverYear = currRow.year; crossOverWinner = currWin; break; }
         }
-        
         if (crossOverYear === "N/A") {
-            const alwaysWin = tableRows[0].rentVal < tableRows[0].propVal ? "Renting" : "Compra";
             crossOverYear = "Siempre";
-            crossOverWinner = alwaysWin;
+            crossOverWinner = tableRows[0].rentVal < tableRows[0].propVal ? "Renting" : "Compra";
         }
 
-        // --- GRÁFICO 3D (BASE 0 ASEGURADA) ---
-        const RentingSimpleChart = ({ rows }) => {
-            const mountRef = useRef(null);
-            
-            const maxVal = Math.max(rows[rows.length-1].propVal, rows[rows.length-1].rentVal);
-            const stepY = 5000; 
-            const yAxisMax = Math.ceil((maxVal * 1.1) / stepY) * stepY; 
-            
-            useEffect(() => {
-                if (!mountRef.current || !window.THREE) return;
-                
-                const width = mountRef.current.offsetWidth;
-                const height = 450; 
-                mountRef.current.innerHTML = '';
-                
-                const scene = new THREE.Scene();
-                
-                const BAR_WIDTH = 0.8; 
-                const SPACING = 2.2; 
-                const TOTAL_CHART_WIDTH = (rows.length - 1) * SPACING;
-                
-                const MAX_H_3D = 35; 
-                const SCALE = MAX_H_3D / yAxisMax;
+        // --- NUEVA GRÁFICA CSS (GARANTIZA ESCALA 0) ---
+        const RentingCSSChart = ({ rows }) => {
+            const maxVal = Math.max(...rows.map(r => Math.max(r.propVal, r.rentVal)));
+            // Redondear al alza al próximo 5000 para el tope del eje Y
+            const yMax = Math.ceil((maxVal * 1.1) / 5000) * 5000;
+            const ticks = [0, 0.25, 0.5, 0.75, 1];
 
-                const camera = new THREE.OrthographicCamera(
-                    -8, TOTAL_CHART_WIDTH + 8, 
-                    MAX_H_3D + 5, -5,          
-                    1, 1000
-                );
-                
-                camera.position.set(TOTAL_CHART_WIDTH / 2, MAX_H_3D / 2, 100);
-                camera.rotation.order = 'YXZ'; 
-                camera.rotation.y = 0.1; 
-                camera.rotation.x = -0.05; 
+            return (
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 relative h-[450px] flex flex-col">
+                    {/* Título Gráfica */}
+                    <div className="flex justify-between items-center mb-6 px-2">
+                        <div className="text-xs font-bold uppercase text-slate-400">Evolución Coste Acumulado (Escala Real)</div>
+                        <div className="flex gap-4 text-[10px] font-bold uppercase">
+                            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-600 rounded"></div> Compra</div>
+                            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-orange-600 rounded"></div> Renting</div>
+                        </div>
+                    </div>
 
-                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-                renderer.setSize(width, height);
-                mountRef.current.appendChild(renderer.domElement);
+                    <div className="flex-1 relative flex items-end ml-10 mb-6 border-l border-b border-slate-600">
+                        {/* EJE Y (Líneas y Etiquetas) */}
+                        <div className="absolute inset-0 pointer-events-none">
+                            {ticks.map((t, i) => (
+                                <div key={i} className="absolute w-full flex items-center" style={{ bottom: `${t * 100}%` }}>
+                                    <div className="w-full border-t border-slate-700/50"></div>
+                                    <span className="absolute -left-10 text-[10px] font-bold text-slate-400 w-8 text-right">
+                                        {(yMax * t / 1000).toFixed(0)}k
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
 
-                const ambientLight = new THREE.AmbientLight(0xffffff, 1.0); scene.add(ambientLight);
-                const dirLight = new THREE.DirectionalLight(0xffffff, 0.6); dirLight.position.set(10, 30, 50); scene.add(dirLight);
-                const group = new THREE.Group(); scene.add(group);
-
-                const createText = (message, color = '#ffffff', size = 1, align = 'center') => {
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    canvas.width = 512; canvas.height = 128;
-                    ctx.font = 'Bold 60px Arial';
-                    ctx.fillStyle = color;
-                    ctx.textAlign = align;
-                    ctx.textBaseline = 'middle';
-                    const x = align === 'left' ? 0 : align === 'right' ? 500 : 256;
-                    ctx.fillText(message, x, 64);
-                    const tex = new THREE.CanvasTexture(canvas);
-                    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
-                    const sprite = new THREE.Sprite(mat);
-                    sprite.scale.set(8 * size, 2 * size, 1);
-                    return sprite;
-                };
-
-                // EJE Y (Líneas + Texto)
-                // IMPORTANTE: Empezamos explícitamente en 0 y dibujamos la línea base
-                for(let val=0; val<=yAxisMax; val+=stepY) {
-                    const y = val * SCALE;
-                    
-                    const points = [new THREE.Vector3(-4, y, -2), new THREE.Vector3(TOTAL_CHART_WIDTH + 4, y, -2)];
-                    // Línea 0 más brillante
-                    const lineColor = val === 0 ? 0xffffff : 0xffffff;
-                    const lineOpacity = val === 0 ? 0.5 : 0.1;
-                    
-                    const line = new THREE.Line(
-                        new THREE.BufferGeometry().setFromPoints(points), 
-                        new THREE.LineBasicMaterial({ color: lineColor, transparent: true, opacity: lineOpacity })
-                    );
-                    group.add(line);
-                    
-                    const labelText = (val/1000).toFixed(0) + 'k';
-                    const label = createText(labelText, '#ffffff', 1.2, 'right');
-                    label.position.set(-5, y, 0); 
-                    group.add(label);
-                }
-
-                // BARRAS
-                rows.forEach((row, i) => {
-                    const x = i * SPACING;
-
-                    // Barra Propiedad (Azul)
-                    const hProp = Math.max(0.1, row.propVal * SCALE); 
-                    const geoProp = new THREE.BoxGeometry(BAR_WIDTH, hProp, BAR_WIDTH);
-                    const matProp = new THREE.MeshLambertMaterial({ color: 0x2563eb }); 
-                    const meshProp = new THREE.Mesh(geoProp, matProp);
-                    // IMPORTANTE: Posicionamos en h/2 para que la base esté en 0
-                    meshProp.position.set(x - 0.2, hProp / 2, 1);
-                    group.add(meshProp);
-
-                    // Barra Renting (Naranja)
-                    const hRent = Math.max(0.1, row.rentVal * SCALE);
-                    const geoRent = new THREE.BoxGeometry(BAR_WIDTH, hRent, BAR_WIDTH);
-                    const matRent = new THREE.MeshLambertMaterial({ color: 0xea580c }); 
-                    const meshRent = new THREE.Mesh(geoRent, matRent);
-                    meshRent.position.set(x + 0.2, hRent / 2, -0.5);
-                    group.add(meshRent);
-
-                    const yearLabel = createText(row.year.toString(), '#cbd5e1', 0.8);
-                    yearLabel.position.set(x, -3, 2);
-                    group.add(yearLabel);
-                });
-
-                renderer.render(scene, camera);
-
-                const handleResize = () => {
-                    if (!mountRef.current) return;
-                    const w = mountRef.current.offsetWidth;
-                    const aspect = w / height;
-                    const centerX = TOTAL_CHART_WIDTH / 2;
-                    const minWidth = TOTAL_CHART_WIDTH + 16; 
-                    const viewHeight = (MAX_H_3D + 10);
-                    const viewWidth = viewHeight * aspect;
-                    const finalWidth = Math.max(viewWidth, minWidth);
-                    
-                    camera.left = centerX - (finalWidth * 0.6);
-                    camera.right = centerX + (finalWidth * 0.4);
-                    camera.updateProjectionMatrix();
-                    renderer.setSize(w, height);
-                    renderer.render(scene, camera);
-                };
-                window.addEventListener('resize', handleResize);
-                handleResize();
-
-                return () => {
-                    window.removeEventListener('resize', handleResize);
-                    if (mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
-                };
-            }, [rows, yAxisMax]);
-            return <div ref={mountRef} className="w-full h-[450px] cursor-grab active:cursor-grabbing" />;
+                        {/* BARRAS */}
+                        <div className="w-full h-full flex items-end justify-between px-2 z-10">
+                            {rows.map((row) => (
+                                <div key={row.year} className="flex-1 flex flex-col justify-end items-center h-full group relative gap-1 mx-0.5">
+                                    <div className="w-full flex gap-0.5 items-end h-full justify-center">
+                                        {/* Barra Compra */}
+                                        <div 
+                                            className="w-1/2 bg-blue-600 rounded-t-sm transition-all duration-500 hover:bg-blue-500 relative min-h-[1px]"
+                                            style={{ height: `${(row.propVal / yMax) * 100}%` }}
+                                        >
+                                            {/* Tooltip Hover */}
+                                            <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-1 bg-black/90 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-20 pointer-events-none border border-blue-500/50">
+                                                Compra: {formatMoney(row.propVal)}€
+                                            </div>
+                                        </div>
+                                        {/* Barra Renting */}
+                                        <div 
+                                            className="w-1/2 bg-orange-600 rounded-t-sm transition-all duration-500 hover:bg-orange-500 relative min-h-[1px]"
+                                            style={{ height: `${(row.rentVal / yMax) * 100}%` }}
+                                        >
+                                            <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-8 bg-black/90 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-20 pointer-events-none border border-orange-500/50">
+                                                Renting: {formatMoney(row.rentVal)}€
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {/* Etiqueta Año */}
+                                    <div className="text-[10px] text-slate-500 font-bold absolute -bottom-6">{row.year}</div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            );
         };
 
         const handleChange = (field, value) => setData({...data, [field]: parseFloat(value) || 0});
 
         return (
             <div className="space-y-6">
-                {/* KPI HEADER - 4 COLUMNAS/TARJETAS */}
+                {/* KPI HEADER - ESTRUCTURA SOLICITADA */}
                 <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-6 text-center shadow-2xl">
-                    <h3 className="text-slate-300 text-sm font-display uppercase tracking-widest mb-6 font-bold">Resumen Económico ({data.years} años)</h3>
+                    <h3 className="text-slate-300 text-sm font-display uppercase tracking-widest mb-6 font-bold">Resumen Económico Final ({data.years} años)</h3>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
                         
-                        {/* 1. GANADOR */}
-                        <div className={`bg-slate-900/50 rounded-xl p-4 border-2 flex flex-col justify-center ${totalSavings > 0 ? 'border-blue-500/50' : 'border-orange-500/50'}`}>
-                             <div className="text-[10px] text-slate-300 mb-1 uppercase font-bold">Opción más rentable</div>
-                             <div className={`text-2xl lg:text-3xl font-bold font-display ${totalSavings > 0 ? 'text-blue-400' : 'text-orange-400'} mb-1`}>{winner}</div>
-                             <div className="text-sm font-bold text-white">Ahorro: {formatMoney(Math.abs(totalSavings))}€</div>
+                        {/* 1. OPCIÓN MÁS RENTABLE (DATOS COMBINADOS) */}
+                        <div className={`rounded-xl p-5 border-2 flex flex-col justify-center lg:col-span-1 shadow-lg ${totalSavings > 0 ? 'bg-blue-900/20 border-blue-500/50' : 'bg-orange-900/20 border-orange-500/50'}`}>
+                             <div className="text-xs text-slate-300 mb-2 uppercase font-bold tracking-wider">Mejor Opción: {winner}</div>
+                             
+                             <div className="text-4xl font-bold font-display text-white mb-1">
+                                Ahorro: {formatMoney(Math.abs(totalSavings))}€
+                             </div>
+                             
+                             <div className="w-full h-px bg-white/10 my-3"></div>
+                             
+                             <div className="flex justify-between w-full text-sm px-2">
+                                <div className="text-left">
+                                    <div className="text-[10px] text-blue-400 uppercase font-bold">Total Compra</div>
+                                    <div className="font-mono font-bold text-slate-200">{formatMoney(finalRow.propVal)}€</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-[10px] text-orange-400 uppercase font-bold">Total Renting</div>
+                                    <div className="font-mono font-bold text-slate-200">{formatMoney(finalRow.rentVal)}€</div>
+                                </div>
+                             </div>
                         </div>
                         
-                        {/* 2. PUNTO DE INFLEXIÓN */}
+                        {/* 2. COSTE MENSUAL / ANUAL (RECUPERADO) */}
                         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 flex flex-col justify-center">
-                            <div className="text-[10px] text-slate-300 mb-2 uppercase font-bold">Punto de Inflexión</div>
-                            <div className="text-2xl font-bold font-display text-white">
-                                {crossOverYear === "Siempre" ? "Sin cambios" : `Año ${crossOverYear}`}
-                            </div>
-                            <div className="text-[10px] font-bold text-slate-400 mt-1">
-                                {crossOverYear === "Siempre" ? `Gana siempre ${crossOverWinner}` : `Cambia a favor de ${crossOverWinner}`}
-                            </div>
-                        </div>
-
-                        {/* 3. COSTE MENSUAL / ANUAL (NUEVO) */}
-                        <div className="bg-slate-900/50 rounded-xl p-3 border border-slate-600 col-span-1 lg:col-span-2">
-                            <div className="text-[10px] text-slate-400 mb-3 uppercase font-bold tracking-wider text-center">Coste Real Prorrateado (Neto)</div>
-                            <div className="grid grid-cols-2 gap-2 text-center divide-x divide-slate-700">
+                            <div className="text-[10px] text-slate-400 mb-3 uppercase font-bold tracking-wider text-center">Coste Medio Prorrateado (Neto)</div>
+                            <div className="grid grid-cols-2 gap-4 text-center divide-x divide-slate-700">
                                 <div>
                                     <div className="text-blue-400 text-[10px] font-bold mb-1 uppercase">Compra</div>
-                                    <div className="text-lg font-bold text-white">{formatMoney(monthlyProp)}€<span className="text-[10px] text-slate-500">/mes</span></div>
-                                    <div className="text-xs text-slate-400">{formatMoney(annualProp)}€/año</div>
+                                    <div className="text-xl font-bold text-white">{formatMoney(monthlyProp)}€<span className="text-[10px] text-slate-500">/mes</span></div>
+                                    <div className="text-xs text-slate-400 mt-1 font-mono">{formatMoney(annualProp)}€/año</div>
                                 </div>
                                 <div>
                                     <div className="text-orange-400 text-[10px] font-bold mb-1 uppercase">Renting</div>
-                                    <div className="text-lg font-bold text-white">{formatMoney(monthlyRent)}€<span className="text-[10px] text-slate-500">/mes</span></div>
-                                    <div className="text-xs text-slate-400">{formatMoney(annualRent)}€/año</div>
+                                    <div className="text-xl font-bold text-white">{formatMoney(monthlyRent)}€<span className="text-[10px] text-slate-500">/mes</span></div>
+                                    <div className="text-xs text-slate-400 mt-1 font-mono">{formatMoney(annualRent)}€/año</div>
                                 </div>
+                            </div>
+                        </div>
+
+                        {/* 3. PUNTO DE INFLEXIÓN */}
+                        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 flex flex-col justify-center">
+                            <div className="text-[10px] text-slate-300 mb-2 uppercase font-bold">Punto de Inflexión (Cruce)</div>
+                            <div className="text-3xl font-bold font-display text-white">
+                                {crossOverYear === "Siempre" ? "Sin cambios" : `Año ${crossOverYear}`}
+                            </div>
+                            <div className="text-xs font-bold text-slate-400 mt-2 bg-black/20 px-3 py-1 rounded-full inline-block mx-auto">
+                                {crossOverYear === "Siempre" 
+                                    ? `Siempre es mejor ${crossOverWinner}` 
+                                    : `A partir de aquí gana ${crossOverWinner}`}
                             </div>
                         </div>
 
@@ -5886,16 +5823,9 @@
                     </div>
                 </div>
 
+                {/* GRÁFICA HTML/CSS */}
                 <div className="mt-8">
-                     <div className="flex justify-between items-center mb-2 px-2">
-                        <div className="text-xs font-bold uppercase text-slate-400">Evolución del Gasto Acumulado (Coste de Disfrute)</div>
-                        <div className="flex gap-4 text-[10px] font-bold uppercase">
-                            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-600 rounded"></div> Compra</div>
-                            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-orange-600 rounded"></div> Renting</div>
-                        </div>
-                    </div>
-                    
-                    <RentingSimpleChart rows={tableRows} />
+                    <RentingCSSChart rows={tableRows} />
 
                     <button onClick={() => setShowTable(!showTable)} className="w-full py-4 mt-6 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-base font-medium text-slate-300 transition-colors flex items-center justify-center gap-2"><Icons.Table /> {showTable ? 'Ocultar Tabla' : 'Ver Tabla Detallada'}</button>
                     {showTable && (
