@@ -5525,13 +5525,10 @@
      
       // --- CALCULADORA RENTING VS PROPIEDAD (V10 - FINAL 5K STEP AXIS) ---
       const RentingCalculator = () => {
-        // Estado persistente
         const [data, setData] = usePersistentState('rentingDataV10', {
-            // Comunes
             years: 15,
             kmPerYear: 20000,
 
-            // Propiedad (Compra)
             propPrice: 45000,
             propAid: 8500, 
             propResaleValuePct: 4, 
@@ -5542,7 +5539,6 @@
             propCons: 16.0, 
             propEnergyPrice: 0.10, 
             
-            // Renting
             rentMonthly: 400, 
             rentEntry: 1000, 
             rentExtraAnnual: 0, 
@@ -5555,7 +5551,6 @@
         const num = (v) => parseFloat(v) || 0;
         const yearsProjected = Math.max(1, Math.round(num(data.years)));
 
-        // --- CÁLCULOS ---
         const propAnnualEnergy = (num(data.kmPerYear) / 100) * num(data.propCons) * num(data.propEnergyPrice);
         const rentAnnualEnergy = (num(data.kmPerYear) / 100) * num(data.rentCons) * num(data.rentEnergyPrice);
 
@@ -5569,14 +5564,12 @@
         const rentInitialOut = num(data.rentEntry);
         const finalResidualValue = num(data.propPrice) * (num(data.propResaleValuePct) / 100);
 
-        // --- GENERACIÓN DE DATOS ---
         const tableRows = useMemo(() => {
             const rows = [];
             for (let i = 0; i <= yearsProjected; i++) {
                 const rentAccum = rentInitialOut + (rentAnnualTotal * i);
                 let propAccum = propInitialOut + (propAnnualTotal * i);
 
-                // Aplicar venta solo en el último año para la gráfica final
                 if (i === yearsProjected) {
                     propAccum = propAccum - finalResidualValue;
                 }
@@ -5591,19 +5584,16 @@
             return rows;
         }, [data, yearsProjected, propInitialOut, propAnnualTotal, rentInitialOut, rentAnnualTotal, finalResidualValue]);
 
-        // --- ESTADÍSTICAS ---
         const finalRow = tableRows[tableRows.length - 1];
         const totalSavings = finalRow.diff;
         const winner = totalSavings > 0 ? "COMPRA" : "RENTING";
         
-        // Medias
         const totalMonths = yearsProjected * 12;
         const monthlyProp = finalRow.propVal / totalMonths;
         const monthlyRent = finalRow.rentVal / totalMonths;
         const annualProp = finalRow.propVal / yearsProjected;
         const annualRent = finalRow.rentVal / yearsProjected;
 
-        // Año de Corte
         let crossOverYear = "N/A";
         let crossOverWinner = "";
         
@@ -5619,14 +5609,11 @@
             crossOverWinner = tableRows[0].rentVal < tableRows[0].propVal ? "Renting" : "Compra";
         }
 
-        // --- NUEVA GRÁFICA CSS (INTERVALOS EXACTOS DE 5000€) ---
         const RentingCSSChart = ({ rows }) => {
             const maxVal = Math.max(...rows.map(r => Math.max(r.propVal, r.rentVal)));
             const step = 5000; // INTERVALO FIJO
-            // Redondear al alza al próximo múltiplo de 5000 con un poco de margen (1.05)
             const yMax = Math.ceil((maxVal * 1.05) / step) * step;
             
-            // Generar array de ticks [0, 5000, 10000, ...]
             const ticks = [];
             for (let i = 0; i <= yMax; i += step) {
                 ticks.push(i);
@@ -5634,7 +5621,6 @@
 
             return (
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 relative h-[500px] flex flex-col">
-                    {/* Título Gráfica */}
                     <div className="flex justify-between items-center mb-6 px-2">
                         <div className="text-xs font-bold uppercase text-slate-400">Evolución Coste Acumulado</div>
                         <div className="flex gap-4 text-[10px] font-bold uppercase">
@@ -5644,13 +5630,10 @@
                     </div>
 
                     <div className="flex-1 relative flex items-end ml-10 mb-6 border-l border-b border-slate-600">
-                        {/* EJE Y (Líneas y Etiquetas cada 5k) */}
                         <div className="absolute inset-0 pointer-events-none">
                             {ticks.map((tickVal) => (
                                 <div key={tickVal} className="absolute w-full flex items-center" style={{ bottom: `${(tickVal / yMax) * 100}%` }}>
-                                    {/* Línea horizontal */}
                                     <div className={`w-full border-t ${tickVal === 0 ? 'border-slate-500' : 'border-slate-700/30'}`}></div>
-                                    {/* Etiqueta */}
                                     <span className="absolute -left-10 text-[9px] font-bold text-slate-400 w-8 text-right font-mono">
                                         {(tickVal / 1000).toFixed(0)}k
                                     </span>
@@ -5658,22 +5641,18 @@
                             ))}
                         </div>
 
-                        {/* BARRAS */}
                         <div className="w-full h-full flex items-end justify-between px-2 z-10">
                             {rows.map((row) => (
                                 <div key={row.year} className="flex-1 flex flex-col justify-end items-center h-full group relative gap-1 mx-0.5">
                                     <div className="w-full flex gap-0.5 items-end h-full justify-center">
-                                        {/* Barra Compra */}
                                         <div 
                                             className="w-1/2 bg-blue-600 rounded-t-sm transition-all duration-500 hover:bg-blue-500 relative min-h-[1px]"
                                             style={{ height: `${(row.propVal / yMax) * 100}%` }}
                                         >
-                                            {/* Tooltip Hover */}
                                             <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-1 bg-black/90 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-20 pointer-events-none border border-blue-500/50 shadow-xl">
                                                 Compra: {formatMoney(row.propVal)}€
                                             </div>
                                         </div>
-                                        {/* Barra Renting */}
                                         <div 
                                             className="w-1/2 bg-orange-600 rounded-t-sm transition-all duration-500 hover:bg-orange-500 relative min-h-[1px]"
                                             style={{ height: `${(row.rentVal / yMax) * 100}%` }}
@@ -5832,7 +5811,6 @@
                     </div>
                 </div>
 
-                {/* GRÁFICA HTML/CSS */}
                 <div className="mt-8">
                     <RentingCSSChart rows={tableRows} />
 
