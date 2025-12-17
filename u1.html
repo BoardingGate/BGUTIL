@@ -482,10 +482,11 @@
       };
 
 
-      // --- CALCULADORA DE AMORTIZACIÓN (V14 - FIXED CSS HEIGHTS) ---
+    
+  
+      // --- CALCULADORA DE AMORTIZACIÓN (V15 - INPUTS RESTORED & CSS CHART) ---
       const AmortizationCalculator = () => {
-        // Valores por defecto
-        const [data, setData] = usePersistentState('amortDataV14', {
+        const [data, setData] = usePersistentState('amortDataV15', {
             priceEV: 43000, priceICE: 45000, moves: 7000, aidICE: 0,
             kmPerYear: 20000, consumptionEV: 16.0, consumptionICE: 6.5,
             priceElec: 0.10, priceFuel: 1.50, 
@@ -500,25 +501,21 @@
         const num = (v) => parseFloat(v) || 0;
         const years = Math.max(1, Math.round(num(data.yearsToProject))); 
 
-        // --- CÁLCULOS ---
         const netPriceEV = Math.max(0, num(data.priceEV) - num(data.moves));
         const netPriceICE = Math.max(0, num(data.priceICE) - num(data.aidICE));
 
-        // Anuales
         const annFuel = (num(data.kmPerYear) / 100) * num(data.consumptionICE) * num(data.priceFuel);
         const annElec = (num(data.kmPerYear) / 100) * num(data.consumptionEV) * num(data.priceElec);
         
-        // Operativos (Mantenimiento + Averías prorrateadas - Impuestos)
-        const totalBrkEV = num(data.priceEV) * (num(data.breakdownRateEV) / 100);
-        const annualBrkEV = totalBrkEV / years;
-        
-        const totalBrkICE = num(data.priceICE) * (num(data.breakdownRateICE) / 100);
-        const annualBrkICE = totalBrkICE / years;
+        const totalBrkAmountEV = num(data.priceEV) * (num(data.breakdownRateEV) / 100);
+        const totalBrkAmountICE = num(data.priceICE) * (num(data.breakdownRateICE) / 100);
+
+        const annualBrkEV = totalBrkAmountEV / years;
+        const annualBrkICE = totalBrkAmountICE / years;
 
         const annOpEV = Math.max(0, num(data.maintenanceEV) + annualBrkEV - num(data.taxSavingsEV));
         const annOpICE = Math.max(0, num(data.maintenanceICE) + annualBrkICE - num(data.taxSavingsICE));
 
-        // Generar Datos con Desglose (Stacks)
         const tableRows = useMemo(() => {
             const rows = [];
             for (let i = 0; i <= years; i++) {
@@ -558,11 +555,10 @@
         const breakEvenRow = tableRows.find(r => r.diff >= 0);
         const breakEvenYear = breakEvenRow ? breakEvenRow.year : 0;
 
-        // --- GRÁFICA CSS APILADA (FIXED HEIGHTS) ---
+        // --- GRÁFICA CSS APILADA ---
         const AmortizationCSSChart = ({ rows }) => {
             const maxVal = Math.max(...rows.map(r => Math.max(r.ev, r.ice)));
             const step = 5000;
-            // Aseguramos que yMax sea al menos 5000 para evitar división por cero si todo es 0
             const yMax = Math.max(5000, Math.ceil((maxVal * 1.05) / step) * step);
             
             const ticks = [];
@@ -570,7 +566,6 @@
 
             return (
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 relative h-[500px] flex flex-col mb-6">
-                    {/* Header y Leyenda */}
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 px-2 gap-4">
                         <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                             <Icons.TrendingUp className="w-3 h-3 text-cyan-400" /> Comparativa Coste Acumulado (TCO)
@@ -610,23 +605,16 @@
                             ))}
                         </div>
 
-                        {/* BARRAS APILADAS */}
                         <div className="w-full h-full flex items-end justify-between px-2 z-10">
                             {rows.map((row) => (
                                 <div key={row.year} className="flex-1 flex flex-col justify-end items-center h-full group relative gap-1 mx-0.5">
                                     <div className="w-full flex gap-0.5 items-end h-full justify-center">
                                         
-                                        {/* Columna EV (Eléctrico) */}
-                                        {/* FIX: h-full añadido para que los hijos sepan calcular su % respecto al gráfico */}
                                         <div className="w-1/2 flex flex-col-reverse h-full relative transition-transform hover:scale-105 duration-200">
-                                            {/* Base (Coche) - Blue 900 */}
                                             <div className="w-full bg-blue-900 border-x border-t border-blue-800/50" style={{ height: `${(row.stacks.ev.base / yMax) * 100}%` }}></div>
-                                            {/* Energía - Blue 600 */}
                                             <div className="w-full bg-blue-600 border-x border-t border-blue-500/50" style={{ height: `${(row.stacks.ev.energy / yMax) * 100}%` }}></div>
-                                            {/* Operaciones - Blue 300 */}
                                             <div className="w-full bg-blue-300 rounded-t-sm border-x border-t border-blue-200/50" style={{ height: `${(row.stacks.ev.ops / yMax) * 100}%` }}></div>
                                             
-                                            {/* Tooltip EV */}
                                             <div className="opacity-0 group-hover:opacity-100 absolute bottom-1/2 left-1/2 -translate-x-1/2 mb-2 bg-slate-900/95 text-white text-[10px] p-2 rounded z-20 pointer-events-none border border-blue-500/50 shadow-xl w-32 backdrop-blur-sm">
                                                 <div className="font-bold text-blue-300 border-b border-blue-500/30 mb-1 pb-1">EV Año {row.year}: {formatMoney(row.ev)}€</div>
                                                 <div className="flex justify-between"><span>Coche:</span> <span>{formatMoney(row.stacks.ev.base)}</span></div>
@@ -635,17 +623,11 @@
                                             </div>
                                         </div>
 
-                                        {/* Columna ICE (Térmico) */}
-                                        {/* FIX: h-full añadido */}
-                                        <div className="w-1/2 flex flex-col-reverse h-full relative transition-transform hover:scale-105 duration-200">
-                                            {/* Base (Coche) - Orange 900 */}
+                                         <div className="w-1/2 flex flex-col-reverse h-full relative transition-transform hover:scale-105 duration-200">
                                             <div className="w-full bg-orange-900 border-x border-t border-orange-800/50" style={{ height: `${(row.stacks.ice.base / yMax) * 100}%` }}></div>
-                                            {/* Energía - Orange 600 */}
                                             <div className="w-full bg-orange-600 border-x border-t border-orange-500/50" style={{ height: `${(row.stacks.ice.energy / yMax) * 100}%` }}></div>
-                                            {/* Operaciones - Orange 200 */}
                                             <div className="w-full bg-orange-200 rounded-t-sm border-x border-t border-orange-100/50" style={{ height: `${(row.stacks.ice.ops / yMax) * 100}%` }}></div>
 
-                                            {/* Tooltip ICE */}
                                             <div className="opacity-0 group-hover:opacity-100 absolute bottom-1/2 left-1/2 -translate-x-1/2 mb-8 bg-slate-900/95 text-white text-[10px] p-2 rounded z-20 pointer-events-none border border-orange-500/50 shadow-xl w-32 backdrop-blur-sm">
                                                 <div className="font-bold text-orange-300 border-b border-orange-500/30 mb-1 pb-1">ICE Año {row.year}: {formatMoney(row.ice)}€</div>
                                                 <div className="flex justify-between"><span>Coche:</span> <span>{formatMoney(row.stacks.ice.base)}</span></div>
@@ -696,14 +678,30 @@
                     </div>
                 </div>
                 
-                {/* INPUTS */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                         <h4 className="text-blue-400 font-display font-bold mb-4 flex items-center gap-2 text-lg"><Icons.Zap /> Vehículo Eléctrico</h4>
                         <div className="space-y-4">
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Compra (€)</label><FormattedInput value={data.priceEV} onChange={val=>handleChange('priceEV', val)} /></div>
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Ayudas / MOVES (€)</label><FormattedInput value={data.moves} onChange={val=>handleChange('moves', val)} /></div>
-                            <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-4 h-4"/> Mantenimiento y Averías</h5><div className="grid grid-cols-3 gap-4"><div><label className="text-xs font-bold text-slate-400 block mb-1">Mtto. Anual</label><FormattedInput value={data.maintenanceEV} onChange={val=>handleChange('maintenanceEV', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">% Averías <span className="text-slate-500">(Total)</span></label><FormattedInput decimals={1} value={data.breakdownRateEV} onChange={val=>handleChange('breakdownRateEV', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Ahorro Impuestos</label><FormattedInput value={data.taxSavingsEV} onChange={val=>handleChange('taxSavingsEV', val)} /></div></div></div>
+                            
+                            <div className="pt-2 border-t border-slate-800">
+                                <h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-4 h-4"/> Mantenimiento y Averías</h5>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div><label className="text-xs font-bold text-slate-400 block mb-1">Mtto. Anual</label><FormattedInput value={data.maintenanceEV} onChange={val=>handleChange('maintenanceEV', val)} /></div>
+                                    
+                                    {/* CAMPO CORREGIDO CON DETALLE DE COSTE */}
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 block mb-1 whitespace-nowrap">
+                                            % Averías <span className="text-slate-500 font-normal">[{formatMoney(totalBrkAmountEV)}€]</span>
+                                        </label>
+                                        <FormattedInput decimals={1} value={data.breakdownRateEV} onChange={val=>handleChange('breakdownRateEV', val)} />
+                                    </div>
+                                    
+                                    <div><label className="text-xs font-bold text-slate-400 block mb-1">Ahorro Impuestos</label><FormattedInput value={data.taxSavingsEV} onChange={val=>handleChange('taxSavingsEV', val)} /></div>
+                                </div>
+                            </div>
+                            
                             <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2">Consumo</h5><div className="grid grid-cols-2 gap-6"><div><label className="text-xs font-bold text-slate-400 block mb-1">kWh/100km</label><FormattedInput decimals={1} value={data.consumptionEV} onChange={val=>handleChange('consumptionEV', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Precio €/kWh</label><FormattedInput decimals={3} value={data.priceElec} onChange={val=>handleChange('priceElec', val)} /></div></div></div>
                         </div>
                     </div>
@@ -712,7 +710,23 @@
                         <div className="space-y-4">
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Compra (€)</label><FormattedInput value={data.priceICE} onChange={val=>handleChange('priceICE', val)} /></div>
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Ayudas / Plan Renove (€)</label><FormattedInput value={data.aidICE} onChange={val=>handleChange('aidICE', val)} /></div>
-                            <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-4 h-4"/> Mantenimiento y Averías</h5><div className="grid grid-cols-3 gap-4"><div><label className="text-xs font-bold text-slate-400 block mb-1">Mtto. Anual</label><FormattedInput value={data.maintenanceICE} onChange={val=>handleChange('maintenanceICE', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">% Averías <span className="text-slate-500">(Total)</span></label><FormattedInput decimals={1} value={data.breakdownRateICE} onChange={val=>handleChange('breakdownRateICE', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Ahorro Impuestos</label><FormattedInput value={data.taxSavingsICE} onChange={val=>handleChange('taxSavingsICE', val)} /></div></div></div>
+                            
+                            <div className="pt-2 border-t border-slate-800">
+                                <h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-4 h-4"/> Mantenimiento y Averías</h5>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div><label className="text-xs font-bold text-slate-400 block mb-1">Mtto. Anual</label><FormattedInput value={data.maintenanceICE} onChange={val=>handleChange('maintenanceICE', val)} /></div>
+                                    
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-400 block mb-1 whitespace-nowrap">
+                                            % Averías <span className="text-slate-500 font-normal">[{formatMoney(totalBrkAmountICE)}€]</span>
+                                        </label>
+                                        <FormattedInput decimals={1} value={data.breakdownRateICE} onChange={val=>handleChange('breakdownRateICE', val)} />
+                                    </div>
+                                    
+                                    <div><label className="text-xs font-bold text-slate-400 block mb-1">Ahorro Impuestos</label><FormattedInput value={data.taxSavingsICE} onChange={val=>handleChange('taxSavingsICE', val)} /></div>
+                                </div>
+                            </div>
+                            
                             <div className="pt-2 border-t border-slate-800"><h5 className="text-sm font-bold text-slate-300 mb-2">Consumo</h5><div className="grid grid-cols-2 gap-6"><div><label className="text-xs font-bold text-slate-400 block mb-1">L/100km</label><FormattedInput decimals={1} value={data.consumptionICE} onChange={val=>handleChange('consumptionICE', val)} /></div><div><label className="text-xs font-bold text-slate-400 block mb-1">Precio €/L</label><FormattedInput decimals={3} value={data.priceFuel} onChange={val=>handleChange('priceFuel', val)} /></div></div></div>
                         </div>
                     </div>
@@ -739,7 +753,6 @@
                         </div>
                     )}
                 </div>
-                {/* FOOTER REFERIDO TESLA */}
                 <div className="mt-8 p-6 bg-blue-900/20 border border-blue-500/30 rounded-xl flex flex-col items-center gap-4 text-center">
                     <p className="text-sm font-bold text-slate-300 leading-relaxed max-w-4xl">
                         (*) Si estás pensando en comprar un Tesla, utiliza mi enlace de referido para obtener beneficios exclusivos (descuentos o meses de carga gratuita según la promoción vigente).
@@ -755,11 +768,8 @@
             </div>
         );
       };
-  
-     
+ 
         
-    
-
         
 
       // --- CALCULADORA DE CARGA (DISTRIBUCIÓN FULL WIDTH + INTERÉS COMPUESTO) ---
