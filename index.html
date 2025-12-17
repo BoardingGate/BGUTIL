@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -5483,9 +5482,9 @@
 
 
      
-      // --- CALCULADORA RENTING VS PROPIEDAD (V10 - FINAL 5K STEP AXIS) ---
+      // --- CALCULADORA RENTING VS PROPIEDAD (V11 - ACTUALIZADO) ---
       const RentingCalculator = () => {
-        const [data, setData] = usePersistentState('rentingDataV10', {
+        const [data, setData] = usePersistentState('rentingDataV11', {
             years: 15,
             kmPerYear: 20000,
 
@@ -5511,18 +5510,30 @@
         const num = (v) => parseFloat(v) || 0;
         const yearsProjected = Math.max(1, Math.round(num(data.years)));
 
+        // Costes Energéticos
         const propAnnualEnergy = (num(data.kmPerYear) / 100) * num(data.propCons) * num(data.propEnergyPrice);
         const rentAnnualEnergy = (num(data.kmPerYear) / 100) * num(data.rentCons) * num(data.rentEnergyPrice);
 
+        // Costes Averías (Calculo total y anual)
         const propTotalBreakdownCost = num(data.propPrice) * (num(data.propBreakdownPct) / 100);
         const propAnnualBreakdown = propTotalBreakdownCost / yearsProjected;
 
+        // Totales Anuales Operativos
         const propAnnualTotal = num(data.propInsurance) + num(data.propTax) + num(data.propMaint) + propAnnualBreakdown + propAnnualEnergy;
         const rentAnnualTotal = (num(data.rentMonthly) * 12) + num(data.rentExtraAnnual) + rentAnnualEnergy;
 
+        // Desembolsos Iniciales y Finales (Usuario)
         const propInitialOut = num(data.propPrice) - num(data.propAid);
         const rentInitialOut = num(data.rentEntry);
         const finalResidualValue = num(data.propPrice) * (num(data.propResaleValuePct) / 100);
+
+        // --- CÁLCULO PRECIO EQUILIBRIO (NUEVO) ---
+        // Coste Total Renting Absoluto
+        const totalRentingAbsolute = rentInitialOut + (rentAnnualTotal * yearsProjected);
+        // Coste Total Compra (Sin vender el coche)
+        const totalPropAbsoluteNoSale = propInitialOut + (propAnnualTotal * yearsProjected);
+        // Para que (Compra - Venta) = Renting  ->  Venta = Compra - Renting
+        const equilibriumPrice = totalPropAbsoluteNoSale - totalRentingAbsolute;
 
         const tableRows = useMemo(() => {
             const rows = [];
@@ -5571,7 +5582,7 @@
 
         const RentingCSSChart = ({ rows }) => {
             const maxVal = Math.max(...rows.map(r => Math.max(r.propVal, r.rentVal)));
-            const step = 5000; // INTERVALO FIJO
+            const step = 5000; 
             const yMax = Math.ceil((maxVal * 1.05) / step) * step;
             
             const ticks = [];
@@ -5622,7 +5633,6 @@
                                             </div>
                                         </div>
                                     </div>
-                                    {/* Etiqueta Año */}
                                     <div className="text-[10px] text-slate-500 font-bold absolute -bottom-6">{row.year}</div>
                                 </div>
                             ))}
@@ -5664,19 +5674,28 @@
                              </div>
                         </div>
                         
-                        {/* 2. COSTE MENSUAL / ANUAL */}
-                        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 flex flex-col justify-center">
-                            <div className="text-[10px] text-slate-400 mb-3 uppercase font-bold tracking-wider text-center">Coste Medio Prorrateado (Neto)</div>
-                            <div className="grid grid-cols-2 gap-4 text-center divide-x divide-slate-700">
-                                <div>
-                                    <div className="text-blue-400 text-[10px] font-bold mb-1 uppercase">Compra</div>
-                                    <div className="text-xl font-bold text-white">{formatMoney(monthlyProp)}€<span className="text-[10px] text-slate-500">/mes</span></div>
-                                    <div className="text-xs text-slate-400 mt-1 font-mono">{formatMoney(annualProp)}€/año</div>
+                        {/* 2. COSTE MENSUAL / EQUILIBRIO */}
+                        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 flex flex-col justify-between">
+                            <div>
+                                <div className="text-[10px] text-slate-400 mb-3 uppercase font-bold tracking-wider text-center">Coste Medio Neto / Mes</div>
+                                <div className="grid grid-cols-2 gap-4 text-center divide-x divide-slate-700">
+                                    <div>
+                                        <div className="text-blue-400 text-[10px] font-bold mb-1 uppercase">Compra</div>
+                                        <div className="text-lg font-bold text-white">{formatMoney(monthlyProp)}€</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-orange-400 text-[10px] font-bold mb-1 uppercase">Renting</div>
+                                        <div className="text-lg font-bold text-white">{formatMoney(monthlyRent)}€</div>
+                                    </div>
                                 </div>
-                                <div>
-                                    <div className="text-orange-400 text-[10px] font-bold mb-1 uppercase">Renting</div>
-                                    <div className="text-xl font-bold text-white">{formatMoney(monthlyRent)}€<span className="text-[10px] text-slate-500">/mes</span></div>
-                                    <div className="text-xs text-slate-400 mt-1 font-mono">{formatMoney(annualRent)}€/año</div>
+                            </div>
+                            <div className="mt-4 pt-3 border-t border-slate-700">
+                                <div className="text-[10px] text-slate-300 uppercase font-bold text-center mb-1">Precio Venta Equilibrio</div>
+                                <div className={`text-2xl font-bold text-center ${equilibriumPrice > 0 ? 'text-white' : 'text-slate-500'}`}>
+                                    {formatMoney(equilibriumPrice)}€
+                                </div>
+                                <div className="text-[9px] text-slate-500 text-center leading-tight mt-1">
+                                    Debes vender el coche por este importe para que la Compra iguale al Renting.
                                 </div>
                             </div>
                         </div>
@@ -5725,7 +5744,7 @@
                                     <div className="grid grid-cols-2 gap-4 items-center">
                                         <FormattedInput value={data.propBreakdownPct} onChange={val=>handleChange('propBreakdownPct', val)} decimals={1}/>
                                         <div className="text-[10px] text-slate-400">
-                                            Total vida: <span className="text-white font-bold">{formatMoney(propTotalBreakdownCost)}€</span>
+                                            Anual: <span className="text-white font-bold">{formatMoney(propAnnualBreakdown)}€</span>
                                         </div>
                                     </div>
                                 </div>
@@ -5736,7 +5755,10 @@
                                     <input type="range" min="0" max="100" step="1" value={data.propResaleValuePct} onChange={(e) => handleChange('propResaleValuePct', e.target.value)} className="flex-grow h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-green-500" />
                                     <span className="font-bold text-white w-12 text-right">{data.propResaleValuePct}%</span>
                                 </div>
-                                <div className="text-xs text-slate-500 mt-1">Se descontarán {formatMoney(finalResidualValue)}€ en el último año.</div>
+                                <div className="text-xs text-slate-500 mt-2 space-y-1">
+                                    <div>Estás simulando una venta por <span className="text-green-400 font-bold">{formatMoney(finalResidualValue)}€</span>.</div>
+                                    <div className="text-blue-300">Para igualar al Renting deberías venderlo por <span className="font-bold">{formatMoney(equilibriumPrice)}€</span>.</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -5805,9 +5827,21 @@
                         </div>
                     )}
                 </div>
+
+                <div className="mt-8 p-6 bg-slate-800 border border-slate-700 rounded-xl">
+                    <h5 className="text-sm font-bold text-white uppercase mb-2 flex items-center gap-2"><Icons.Book className="w-4 h-4"/> Interpretación de Resultados</h5>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                        Esta herramienta permite dos análisis principales:
+                        <br/><br/>
+                        <strong>1. Compra vs Renting (Mismo periodo):</strong> Configura los años que dura el contrato de renting (ej. 4 años) y ajusta el "Valor Venta Final" estimado de tu coche en propiedad tras esos 4 años. El resultado te dirá qué opción sale más barata asumiendo que vendes el coche al finalizar el renting.
+                        <br/><br/>
+                        <strong>2. Compra para "toda la vida" vs Rentings encadenados:</strong> Configura el periodo de vida útil del coche (ej. 10 o 15 años). En la columna de Renting, se asume que renuevas contratos con las mismas condiciones indefinidamente. En la columna de Propiedad, ajusta el "Valor Venta Final" a algo residual (ej. 0% o 5%). El resultado te dirá si a la larga compensa tener coche en propiedad o vivir de rentings.
+                    </p>
+                </div>
             </div>
         );
       };
+  
 
     
         
@@ -5907,4 +5941,3 @@
     </script>
 </body>
 </html>
-
