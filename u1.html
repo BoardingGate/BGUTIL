@@ -5633,7 +5633,7 @@
                         <div className="absolute inset-0 pointer-events-none">
                             {ticks.map((tickVal) => (
                                 <div key={tickVal} className="absolute w-full flex items-center" style={{ bottom: `${(tickVal / yMax) * 100}%` }}>
-                                    <div className={`w-full border-t ${tickVal === 0 ? 'border-slate-500' : 'border-slate-700/30'}`}></div>
+                                    <div className={`w-full border-t ${tickVal === 0 ? 'border-white' : 'border-slate-500'}`}></div>
                                     <span className="absolute -left-10 text-[9px] font-bold text-slate-400 w-8 text-right font-mono">
                                         {(tickVal / 1000).toFixed(0)}k
                                     </span>
