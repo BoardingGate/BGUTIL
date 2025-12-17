@@ -5522,10 +5522,11 @@
       };
 
 
-      // --- CALCULADORA RENTING VS PROPIEDAD (V4 - FIX CHART 5K & TABLE) ---
+
+      // --- CALCULADORA RENTING VS PROPIEDAD (V5 - CHART VISIBILITY & CASHFLOW TABLE) ---
       const RentingCalculator = () => {
-        // Estado persistente con nuevos valores por defecto
-        const [data, setData] = usePersistentState('rentingDataV4', {
+        // Estado persistente con valores solicitados
+        const [data, setData] = usePersistentState('rentingDataV5', {
             // Comunes
             years: 15,
             kmPerYear: 20000,
@@ -5554,78 +5555,90 @@
         const num = (v) => parseFloat(v) || 0;
         const yearsProjected = Math.max(1, Math.round(num(data.years)));
 
-        // --- CÁLCULOS ---
-
-        // 1. Energía Anual
+        // --- CÁLCULOS ANUALES ---
+        // Energía
         const propAnnualEnergy = (num(data.kmPerYear) / 100) * num(data.propCons) * num(data.propEnergyPrice);
         const rentAnnualEnergy = (num(data.kmPerYear) / 100) * num(data.rentCons) * num(data.rentEnergyPrice);
 
-        // 2. Averías Propiedad
+        // Averías Propiedad (Total vida útil / años)
         const propTotalBreakdownCost = num(data.propPrice) * (num(data.propBreakdownPct) / 100);
         const propAnnualBreakdown = propTotalBreakdownCost / yearsProjected;
 
-        // 3. Fijos Anuales Propiedad
-        const propAnnualFixed = num(data.propInsurance) + num(data.propTax) + num(data.propMaint) + propAnnualBreakdown;
+        // Fijos Totales Anuales (Seguro + Impuestos + Mtto + Averías + Energía)
+        const propAnnualTotal = num(data.propInsurance) + num(data.propTax) + num(data.propMaint) + propAnnualBreakdown + propAnnualEnergy;
         
-        // 4. Fijos Anuales Renting (Cuotas + Extras fuera contrato)
-        const rentAnnualFixed = (num(data.rentMonthly) * 12) + num(data.rentExtraAnnual);
+        // Renting Totales Anuales (Cuotas + Extras + Energía)
+        const rentAnnualTotal = (num(data.rentMonthly) * 12) + num(data.rentExtraAnnual) + rentAnnualEnergy;
 
-        // 5. Iniciales
+        // Desembolso Inicial
         const propInitialOut = num(data.propPrice) - num(data.propAid);
+        const rentInitialOut = num(data.rentEntry);
 
-        // Generar Datos
+        // --- GENERACIÓN DE DATOS ---
         const tableRows = useMemo(() => {
             const rows = [];
             const depreciationPerYear = (100 - num(data.propResaleValuePct)) / yearsProjected;
 
+            // Iteramos desde año 0 hasta el final
             for (let i = 0; i <= yearsProjected; i++) {
-                // PROPIEDAD
-                const propOpAcum = (propAnnualFixed + propAnnualEnergy) * i;
-                const currentDepreciation = Math.min(100, depreciationPerYear * i);
-                const currentResidualValue = num(data.propPrice) * ((100 - currentDepreciation) / 100);
-                const propTotalSpent = propInitialOut + propOpAcum; // Todo lo pagado (Coche + Gastos)
-                const propNetCost = propTotalSpent - currentResidualValue; // Restamos lo que recuperaríamos al vender
+                // 1. DINERO GASTADO ACUMULADO (LO QUE SALE DEL BOLSILLO)
+                // Propiedad: Entrada + (Gastos Anuales * Años)
+                const propSpentAccum = propInitialOut + (propAnnualTotal * i);
+                
+                // Renting: Entrada + (Gastos Anuales * Años)
+                const rentSpentAccum = rentInitialOut + (rentAnnualTotal * i);
 
-                // RENTING
-                const rentOpAcum = (rentAnnualFixed + rentAnnualEnergy) * i;
-                const rentTotalSpent = num(data.rentEntry) + rentOpAcum; // Todo lo pagado a fondo perdido
+                // 2. VALOR DEL ACTIVO (COCHE)
+                // Año 0 = 100%, Año X = % Objetivo. (Lineal simple)
+                const currentDepreciation = Math.min(100, depreciationPerYear * i);
+                const carValue = num(data.propPrice) * ((100 - currentDepreciation) / 100);
+
+                // 3. BALANCE FINANCIERO (Para gráfica y diferencias)
+                // Coste Real Propiedad = Lo gastado - Lo que vale el coche
+                const propNetCost = propSpentAccum - carValue;
+                // Coste Real Renting = Lo gastado (no tienes coche)
+                const rentNetCost = rentSpentAccum;
 
                 rows.push({
                     year: i,
+                    // Para la tabla (Cashflow)
+                    propSpent: propSpentAccum,
+                    rentSpent: rentSpentAccum,
+                    carValue: carValue,
+                    
+                    // Para la gráfica (Neto)
                     ev: propNetCost, 
-                    ice: rentTotalSpent, 
-                    diff: rentTotalSpent - propNetCost,
+                    ice: rentNetCost, 
+                    diff: rentNetCost - propNetCost, // Ahorro real teniendo en cuenta el valor del coche
+
                     stacks: {
                         ev: [
-                            { val: propNetCost > 0 ? propNetCost : 0, col: 0x1e3a8a }, // Coste Neto
-                            { val: propAnnualEnergy * i, col: 0x3b82f6 },    
-                            { val: propAnnualFixed * i, col: 0x93c5fd }      
+                            { val: propNetCost > 0 ? propNetCost : 0, col: 0x1e3a8a }, 
+                            { val: (propAnnualEnergy + propAnnualBreakdown) * i, col: 0x3b82f6 }, 
+                            { val: (num(data.propInsurance) + num(data.propTax)) * i, col: 0x93c5fd }      
                         ],
                         ice: [
-                            { val: num(data.rentEntry), col: 0x7c2d12 },     
+                            { val: rentInitialOut, col: 0x7c2d12 },     
                             { val: rentAnnualEnergy * i, col: 0xf97316 },    
-                            { val: rentAnnualFixed * i, col: 0xfed7aa }      
+                            { val: (num(data.rentMonthly) * 12) * i, col: 0xfed7aa }      
                         ]
                     }
                 });
             }
             return rows;
-        }, [data, yearsProjected, propInitialOut, propAnnualFixed, propAnnualEnergy, rentAnnualFixed, rentAnnualEnergy]);
+        }, [data, yearsProjected, propInitialOut, propAnnualTotal, rentInitialOut, rentAnnualTotal, propAnnualEnergy, rentAnnualEnergy]);
 
         const finalRow = tableRows[tableRows.length - 1];
         const totalSavings = finalRow.diff;
         const winner = totalSavings > 0 ? "COMPRA" : "RENTING";
-        const months = yearsProjected * 12;
-        const monthlyProp = finalRow.ev / months;
-        const monthlyRent = finalRow.ice / months;
+        const monthlyProp = finalRow.ev / (yearsProjected * 12);
+        const monthlyRent = finalRow.ice / (yearsProjected * 12);
 
-        // --- GRÁFICO 3D AJUSTADO ---
+        // --- GRÁFICO 3D (REVISADO: ZOOM, ESCALA Y TEXTO GRANDE) ---
         const Renting3DChart = ({ rows }) => {
             const mountRef = useRef(null);
             
-            // Calcular escala Y basada en el máximo valor, redondeando al siguiente 5000
             const maxVal = Math.max(rows[rows.length-1].ev, rows[rows.length-1].ice);
-            // FIJAMOS EL PASO A 5000 EUROS
             const stepY = 5000; 
             const yAxisMax = Math.ceil((maxVal * 1.1) / stepY) * stepY; 
             
@@ -5633,31 +5646,28 @@
                 if (!mountRef.current || !window.THREE) return;
                 
                 const width = mountRef.current.offsetWidth;
-                const height = 450; // Altura aumentada para mejor visibilidad
+                const height = 500; // Más altura para que respire
                 mountRef.current.innerHTML = '';
                 
                 const scene = new THREE.Scene();
                 
-                // --- CONFIGURACIÓN DE DIMENSIONES ---
+                // Configuración
                 const BAR_WIDTH = 0.8; 
-                const SPACING = 1.8; 
-                // Calculamos el ancho total exacto de la gráfica
+                const SPACING = 2.0; // Un poco más de espacio entre años
                 const TOTAL_CHART_WIDTH = (rows.length - 1) * SPACING;
-                const MAX_H_3D = 35; // Altura visual máxima en unidades 3D
+                const MAX_H_3D = 40; 
                 const SCALE = MAX_H_3D / yAxisMax;
 
-                // --- CÁMARA AJUSTADA ---
-                // Left y Right se ajustan para centrar el TOTAL_CHART_WIDTH en la pantalla
-                // Añadimos margen lateral para que el texto de la izquierda no se corte (-8)
-                const margin = 5;
+                // --- CÁMARA CRÍTICA ---
+                // Left negativo grande (-12) para dejar sitio a los textos de euros
+                // Right cubre el ancho total + margen
                 const camera = new THREE.OrthographicCamera(
-                    -8, TOTAL_CHART_WIDTH + margin, 
+                    -12, TOTAL_CHART_WIDTH + 5, 
                     MAX_H_3D + 5, -5, 
                     1, 1000
                 );
                 
-                // Posición de la cámara
-                camera.position.set(TOTAL_CHART_WIDTH / 2, 15, 100);
+                camera.position.set(TOTAL_CHART_WIDTH / 2, 20, 100);
                 camera.rotation.order = 'YXZ'; 
                 camera.rotation.y = 0.1; 
                 camera.rotation.x = -0.05; 
@@ -5666,19 +5676,17 @@
                 renderer.setSize(width, height);
                 mountRef.current.appendChild(renderer.domElement);
 
-                // Luces
-                const ambientLight = new THREE.AmbientLight(0xffffff, 0.95); scene.add(ambientLight);
-                const dirLight = new THREE.DirectionalLight(0xffffff, 0.4); dirLight.position.set(20, 20, 50); scene.add(dirLight);
+                const ambientLight = new THREE.AmbientLight(0xffffff, 1.0); scene.add(ambientLight);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.5); dirLight.position.set(20, 20, 50); scene.add(dirLight);
                 
                 const group = new THREE.Group(); scene.add(group);
 
-                // --- HELPER TEXTO (ALTA RESOLUCIÓN) ---
+                // Helper Texto Grande
                 const createText = (message, color = '#ffffff', size = 1, align = 'center') => {
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     canvas.width = 512; canvas.height = 128;
-                    // Fuente más grande y negrita para visibilidad
-                    ctx.font = '900 50px Arial'; 
+                    ctx.font = 'Bold 70px Arial'; // FUENTE MUY GRANDE
                     ctx.fillStyle = color;
                     ctx.textAlign = align;
                     ctx.textBaseline = 'middle';
@@ -5687,33 +5695,28 @@
                     const tex = new THREE.CanvasTexture(canvas);
                     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
                     const sprite = new THREE.Sprite(mat);
-                    sprite.scale.set(8 * size, 2 * size, 1);
+                    sprite.scale.set(10 * size, 2.5 * size, 1);
                     return sprite;
                 };
 
-                // --- EJE Y (CADA 5000 EUROS) ---
+                // EJE Y (Líneas y Texto)
                 for(let val=0; val<=yAxisMax; val+=stepY) {
                     const y = val * SCALE;
-                    
-                    // Línea horizontal
-                    const points = [new THREE.Vector3(-4, y, -2), new THREE.Vector3(TOTAL_CHART_WIDTH + 2, y, -2)];
-                    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 }));
+                    // Línea
+                    const points = [new THREE.Vector3(-6, y, -2), new THREE.Vector3(TOTAL_CHART_WIDTH + 2, y, -2)];
+                    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.15 }));
                     group.add(line);
                     
-                    // Etiqueta Valor (5k, 10k...)
-                    if (val > 0) {
-                        const labelText = (val/1000).toFixed(0) + 'k';
-                        const label = createText(labelText, '#ffffff', 1.0, 'right');
-                        // Posicionamos a la izquierda de la gráfica
-                        label.position.set(-5, y, 0); 
-                        group.add(label);
-                    }
+                    // Etiqueta (0, 5k, 10k...)
+                    const labelText = (val/1000).toFixed(0) + 'k';
+                    const label = createText(labelText, '#94a3b8', 1.2, 'right');
+                    label.position.set(-7, y, 0); // Posición X fija a la izquierda
+                    group.add(label);
                 }
 
-                // --- BARRAS ---
+                // Barras
                 rows.forEach((row, i) => {
                     const x = i * SPACING;
-
                     const createStack = (layers, zPos) => {
                         let currentY = 0;
                         layers.forEach(layer => {
@@ -5721,48 +5724,41 @@
                             const h = layer.val * SCALE;
                             const mesh = new THREE.Mesh(new THREE.BoxGeometry(BAR_WIDTH, h, BAR_WIDTH), new THREE.MeshLambertMaterial({ color: layer.col }));
                             mesh.position.set(x, currentY + h/2, zPos);
-                            
-                            // Borde negro para distinguir bloques
                             const edges = new THREE.LineSegments(new THREE.EdgesGeometry(mesh.geometry), new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 }));
                             edges.position.copy(mesh.position);
-                            
                             group.add(mesh);
                             group.add(edges);
                             currentY += h;
                         });
                     };
-                    
-                    createStack(row.stacks.ev, 1.0); // Propiedad (Frente)
-                    createStack(row.stacks.ice, -1.0); // Renting (Fondo)
+                    createStack(row.stacks.ev, 1.0); 
+                    createStack(row.stacks.ice, -1.0);
 
-                    // Etiqueta Año (Intervalos inteligentes si son muchos años)
-                    const showLabel = rows.length > 15 ? (i % 2 === 0) : true;
-                    if (showLabel || i === rows.length - 1) {
-                        const yearLabel = createText(row.year.toString(), '#cbd5e1', 0.7);
-                        yearLabel.position.set(x, -2.5, 1.5);
+                    // Año (Mostrar TODOS los años si caben, o alternos si son muchos)
+                    if (rows.length <= 20 || i % 2 === 0 || i === rows.length - 1) {
+                        const yearLabel = createText(row.year.toString(), '#ffffff', 0.8);
+                        yearLabel.position.set(x, -3, 2);
                         group.add(yearLabel);
                     }
                 });
 
                 renderer.render(scene, camera);
 
-                // Resize
                 const handleResize = () => {
                     if (!mountRef.current) return;
                     const w = mountRef.current.offsetWidth;
-                    // Mantener el aspecto correcto recalculando los límites de la cámara ortográfica
                     const aspect = w / height;
-                    const viewHeight = (MAX_H_3D + 10); // Altura fija lógica
+                    const viewHeight = (MAX_H_3D + 10);
                     const viewWidth = viewHeight * aspect;
                     
-                    // Recalcular left/right para mantener centrado
                     const centerX = TOTAL_CHART_WIDTH / 2;
-                    // Si el ancho visible es menor que el gráfico, hacemos zoom out (aumentando el rango de la cámara)
-                    // Si sobra espacio, centramos.
-                    const finalWidth = Math.max(viewWidth, TOTAL_CHART_WIDTH + 12); 
+                    // Aseguramos que el ancho de la cámara sea suficiente para ver todo el gráfico + eje Y
+                    // El 24 es el margen izquierdo para etiquetas
+                    const minWidthNeeded = TOTAL_CHART_WIDTH + 24; 
+                    const finalWidth = Math.max(viewWidth, minWidthNeeded); 
                     
-                    camera.left = centerX - (finalWidth / 2);
-                    camera.right = centerX + (finalWidth / 2);
+                    camera.left = centerX - (finalWidth * 0.6); // Más espacio a la izquierda
+                    camera.right = centerX + (finalWidth * 0.4);
                     
                     camera.updateProjectionMatrix();
                     renderer.setSize(w, height);
@@ -5770,14 +5766,14 @@
                 };
                 
                 window.addEventListener('resize', handleResize);
-                handleResize(); // Init
+                handleResize();
 
                 return () => {
                     window.removeEventListener('resize', handleResize);
                     if (mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
                 };
             }, [rows, yAxisMax]);
-            return <div ref={mountRef} className="w-full h-[450px] cursor-grab active:cursor-grabbing" />;
+            return <div ref={mountRef} className="w-full h-[500px] cursor-grab active:cursor-grabbing" />;
         };
 
         const handleChange = (field, value) => setData({...data, [field]: parseFloat(value) || 0});
@@ -5788,9 +5784,8 @@
                 <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-6 text-center shadow-2xl">
                     <h3 className="text-slate-300 text-sm font-display uppercase tracking-widest mb-4 font-bold">Resultados Financieros (Total {data.years} años)</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-                        
                         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 relative overflow-hidden group">
-                            <div className="text-xs text-slate-400 mb-2 uppercase font-bold tracking-wider">Coste Mensual Real (Prorrateado)</div>
+                            <div className="text-xs text-slate-400 mb-2 uppercase font-bold tracking-wider">Coste Mensual Real (Neto)</div>
                             <div className="flex justify-around items-end mb-2">
                                 <div className="text-center">
                                     <div className="text-xs text-blue-400 font-bold mb-1">COMPRA</div>
@@ -5802,16 +5797,14 @@
                                     <div className="text-2xl font-bold text-white">{formatMoney(monthlyRent)}€</div>
                                 </div>
                             </div>
-                            <div className="text-[10px] text-slate-500 font-bold mt-1 bg-black/20 py-1 rounded">Incluye depreciación, energía y todos los gastos</div>
+                            <div className="text-[10px] text-slate-500 font-bold mt-1 bg-black/20 py-1 rounded">Incluye venta del coche vs gasto a fondo perdido</div>
                         </div>
-
                         <div className={`bg-slate-900/50 rounded-xl p-4 border-2 ${totalSavings > 0 ? 'border-blue-500/50' : 'border-orange-500/50'} relative`}>
                              <div className="text-xs text-slate-300 mb-1 uppercase font-bold">Opción más rentable</div>
                              <div className={`text-3xl font-bold font-display ${totalSavings > 0 ? 'text-blue-400' : 'text-orange-400'} mb-1`}>{winner}</div>
                              <div className="text-lg font-bold text-white">Ahorras {formatMoney(Math.abs(totalSavings))}€</div>
                              <div className="text-[10px] font-bold text-slate-400 mt-1">en el periodo total de {data.years} años</div>
                         </div>
-
                          <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600">
                             <div className="text-xs text-slate-300 mb-2 uppercase font-bold">Coste Neto Total (TCO)</div>
                             <div className="flex flex-col gap-1">
@@ -5831,8 +5824,6 @@
 
                 {/* INPUTS */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    
-                    {/* COLUMNA PROPIEDAD */}
                     <div className="bg-blue-900/10 border border-blue-800/50 rounded-xl p-6">
                         <h4 className="text-blue-400 font-display font-bold mb-4 flex items-center gap-2 text-lg"><Icons.Home /> Compra en Propiedad</h4>
                         <div className="space-y-4">
@@ -5840,7 +5831,6 @@
                                 <div><label className="text-xs font-bold text-slate-400 block mb-1">Precio Compra (€)</label><FormattedInput value={data.propPrice} onChange={val=>handleChange('propPrice', val)} grouped={true}/></div>
                                 <div><label className="text-xs font-bold text-slate-400 block mb-1">Ayudas/Dto (€)</label><FormattedInput value={data.propAid} onChange={val=>handleChange('propAid', val)} grouped={true}/></div>
                             </div>
-
                             <div className="bg-slate-800/40 p-3 rounded border border-slate-700/50">
                                 <h5 className="text-xs font-bold text-blue-200 mb-2 uppercase flex items-center gap-2"><Icons.Zap className="w-3 h-3"/> Consumo / Combustible</h5>
                                 <div className="grid grid-cols-2 gap-4">
@@ -5848,7 +5838,6 @@
                                     <div><label className="text-[10px] font-bold text-slate-400 block mb-1">Precio (€/L o €/kWh)</label><FormattedInput value={data.propEnergyPrice} onChange={val=>handleChange('propEnergyPrice', val)} decimals={3}/></div>
                                 </div>
                             </div>
-                            
                             <div className="pt-2 border-t border-slate-700/50">
                                 <h5 className="text-xs font-bold text-slate-300 mb-2">Gastos Anuales y Averías</h5>
                                 <div className="grid grid-cols-3 gap-2">
@@ -5867,7 +5856,6 @@
                                     </div>
                                 </div>
                             </div>
-                            
                             <div className="pt-2 border-t border-slate-700/50">
                                 <label className="text-sm font-bold text-green-400 block mb-1">Valor Venta Final (% del original)</label>
                                 <div className="flex items-center gap-4">
@@ -5879,7 +5867,6 @@
                         </div>
                     </div>
 
-                    {/* COLUMNA RENTING */}
                     <div className="bg-orange-900/10 border border-orange-800/50 rounded-xl p-6">
                         <h4 className="text-orange-400 font-display font-bold mb-4 flex items-center gap-2 text-lg"><Icons.FileText /> Renting / Leasing</h4>
                         <div className="space-y-4">
@@ -5887,13 +5874,11 @@
                                 <div><label className="text-xs font-bold text-slate-400 block mb-1">Cuota Mensual (IVA inc)</label><FormattedInput value={data.rentMonthly} onChange={val=>handleChange('rentMonthly', val)} grouped={true}/></div>
                                 <div><label className="text-xs font-bold text-slate-400 block mb-1">Entrada (Fondo perdido)</label><FormattedInput value={data.rentEntry} onChange={val=>handleChange('rentEntry', val)} grouped={true}/></div>
                             </div>
-                            
                             <div>
                                 <label className="text-xs font-bold text-orange-300 block mb-1">Gastos Extra Anuales (No incluidos)</label>
                                 <FormattedInput value={data.rentExtraAnnual} onChange={val=>handleChange('rentExtraAnnual', val)} grouped={true}/>
                                 <div className="text-[10px] text-slate-500 mt-1">* Ej: Cambio neumáticos, franquicias seguro, etc.</div>
                             </div>
-                            
                             <div className="bg-slate-800/40 p-3 rounded border border-slate-700/50">
                                 <h5 className="text-xs font-bold text-orange-200 mb-2 uppercase flex items-center gap-2"><Icons.Zap className="w-3 h-3"/> Consumo / Combustible</h5>
                                 <div className="grid grid-cols-2 gap-4">
@@ -5901,7 +5886,6 @@
                                     <div><label className="text-[10px] font-bold text-slate-400 block mb-1">Precio (€/L o €/kWh)</label><FormattedInput value={data.rentEnergyPrice} onChange={val=>handleChange('rentEnergyPrice', val)} decimals={3}/></div>
                                 </div>
                             </div>
-
                             <div className="pt-4 border-t border-slate-700/50 bg-slate-800/30 p-3 rounded">
                                 <div className="text-xs font-bold text-slate-400 mb-1 uppercase">Ventajas Renting:</div>
                                 <ul className="text-xs text-slate-300 list-disc pl-4 space-y-1">
@@ -5915,7 +5899,6 @@
                     </div>
                 </div>
 
-                {/* PARÁMETROS COMUNES */}
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
                     <h4 className="text-slate-300 font-bold mb-4 text-base">Variables de Comparación</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -5924,7 +5907,6 @@
                     </div>
                 </div>
 
-                {/* GRÁFICA */}
                 <div className="mt-8">
                      <div className="flex justify-between items-center mb-2 px-2">
                         <div className="text-xs font-bold uppercase text-slate-400">Evolución Coste Neto Acumulado</div>
@@ -5943,12 +5925,13 @@
                                 <thead className="bg-slate-900">
                                     <tr>
                                         <th>Año</th>
-                                        <th className="text-right">Coste Neto Propiedad<br/><span className="text-[9px] text-slate-500">(Gasto - Valor Coche)</span></th>
-                                        <th className="text-right">Gasto Total Renting<br/><span className="text-[9px] text-slate-500">(Entrada + Cuotas + Extras)</span></th>
-                                        <th className="text-right">Diferencia</th>
+                                        <th className="text-right text-blue-300">Total Pagado Propiedad<br/><span className="text-[9px] text-slate-500">(Acumulado salida caja)</span></th>
+                                        <th className="text-right text-green-400">Valor Coche<br/><span className="text-[9px] text-slate-500">(Activo recuperable)</span></th>
+                                        <th className="text-right text-orange-300">Total Pagado Renting<br/><span className="text-[9px] text-slate-500">(Acumulado salida caja)</span></th>
+                                        <th className="text-right">Balance Final<br/><span className="text-[9px] text-slate-500">(Neto Compra vs Renting)</span></th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-slate-900/50">{tableRows.map((row) => (<tr key={row.year}><td className="font-bold text-slate-400">{row.year}</td><td className="text-blue-300">{formatMoney(row.ev)}€</td><td className="text-orange-300">{formatMoney(row.ice)}€</td><td className={row.diff > 0 ? 'text-green-400 font-bold' : 'text-red-400'}>{row.diff > 0 ? 'Compra ahorra ' : 'Renting ahorra '}{formatMoney(Math.abs(row.diff))}€</td></tr>))}</tbody>
+                                <tbody className="bg-slate-900/50">{tableRows.map((row) => (<tr key={row.year}><td className="font-bold text-slate-400">{row.year}</td><td className="text-blue-300 font-mono">{formatMoney(row.propSpent)}€</td><td className="text-green-400 font-mono">{formatMoney(row.carValue)}€</td><td className="text-orange-300 font-mono">{formatMoney(row.rentSpent)}€</td><td className={row.diff > 0 ? 'text-green-400 font-bold' : 'text-red-400'}>{row.diff > 0 ? 'Compra gana ' : 'Renting gana '}{formatMoney(Math.abs(row.diff))}€</td></tr>))}</tbody>
                             </table>
                         </div>
                     )}
@@ -5956,6 +5939,7 @@
             </div>
         );
       };
+
 
         
       
