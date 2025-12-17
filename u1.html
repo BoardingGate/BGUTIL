@@ -5830,6 +5830,274 @@ const Icons = {
             </div>
         );
       };
+
+
+
+        
+      // --- CALCULADORA RENTING VS PROPIEDAD ---
+      const RentingCalculator = () => {
+        // Estado persistente
+        const [data, setData] = usePersistentState('rentingDataV1', {
+            // Comunes
+            years: 5,
+            kmPerYear: 15000,
+            energyPrice: 0.10, // €/kWh o €/L (asumimos mismo combustible para simplificar comparativa financiera)
+            consumption: 16.0, // kWh/100 o L/100
+
+            // Propiedad
+            propPrice: 48000,
+            propAid: 4500, // MOVES
+            propResaleValuePct: 45, // % del valor original al final del periodo
+            propInsurance: 600, // Anual
+            propTax: 120, // IVTM Anual
+            propMaint: 150, // Mtto Anual
+            
+            // Renting
+            rentMonthly: 650,
+            rentEntry: 5000, // Entrada/Fianza a fondo perdido
+            rentIncludeTires: true
+        });
+
+        const [showTable, setShowTable] = useState(true);
+
+        const num = (v) => parseFloat(v) || 0;
+        const yearsProjected = Math.max(1, Math.round(num(data.years)));
+
+        // CÁLCULOS
+        const annualEnergyCost = (num(data.kmPerYear) / 100) * num(data.consumption) * num(data.energyPrice);
+
+        // -- PROPIEDAD --
+        const propInitialOut = num(data.propPrice) - num(data.propAid);
+        const propAnnualFixed = num(data.propInsurance) + num(data.propTax) + num(data.propMaint);
+        
+        // -- RENTING --
+        const rentAnnualFixed = num(data.rentMonthly) * 12;
+        // En renting el seguro, mtto e impuestos suelen ir incluidos (coste 0 extra), solo se paga energía
+
+        // Generar Datos Año a Año
+        const tableRows = useMemo(() => {
+            const rows = [];
+            // Depreciación estimada (Curva estándar: fuerte bajada año 1, luego estabiliza)
+            // Usaremos una depreciación lineal simple basada en el valor final objetivo para simplificar la UX
+            const depreciationPerYear = (100 - num(data.propResaleValuePct)) / yearsProjected;
+
+            for (let i = 0; i <= yearsProjected; i++) {
+                // PROPIEDAD
+                const propOpAcum = (propAnnualFixed + annualEnergyCost) * i;
+                // Valor del coche que "recuperaríamos" si vendemos hoy.
+                // Año 0 vale el 100%, Año X vale el % objetivo.
+                const currentDepreciation = Math.min(100, depreciationPerYear * i);
+                const residualValue = num(data.propPrice) * ((100 - currentDepreciation) / 100);
+                
+                // Coste Neto Propiedad = (Lo pagado inc. coche + Gastos) - (Lo que vale el coche hoy)
+                const propTotalSpent = propInitialOut + propOpAcum;
+                const propNetCost = propTotalSpent - residualValue;
+
+                // RENTING
+                const rentOpAcum = (rentAnnualFixed + annualEnergyCost) * i;
+                const rentTotalSpent = num(data.rentEntry) + rentOpAcum;
+                // En renting no tienes activo, el coste neto es todo lo gastado.
+                
+                rows.push({
+                    year: i,
+                    km: num(data.kmPerYear) * i,
+                    // Mapeamos a 'ev' y 'ice' para reusar el gráfico 3D existente
+                    // EV = Propiedad (Azul), ICE = Renting (Naranja/Marrón)
+                    ev: propNetCost, 
+                    ice: rentTotalSpent, 
+                    diff: rentTotalSpent - propNetCost, // Si positivo, Renting es más caro (ahorras comprando)
+                    stacks: {
+                        ev: [
+                            { val: propNetCost > 0 ? propNetCost : 0, col: 0x1e3a8a }, // Coste Neto Activo
+                            { val: annualEnergyCost * i, col: 0x3b82f6 },    // Energía
+                            { val: propAnnualFixed * i, col: 0x93c5fd }      // Seguros/Mtto
+                        ],
+                        ice: [
+                            { val: num(data.rentEntry), col: 0x7c2d12 },     // Entrada
+                            { val: annualEnergyCost * i, col: 0xf97316 },    // Energía
+                            { val: rentAnnualFixed * i, col: 0xfed7aa }      // Cuotas
+                        ]
+                    }
+                });
+            }
+            return rows;
+        }, [data, yearsProjected, propInitialOut, propAnnualFixed, annualEnergyCost, rentAnnualFixed]);
+
+        const finalRow = tableRows[tableRows.length - 1];
+        const totalSavings = finalRow.diff;
+        const winner = totalSavings > 0 ? "PROPIEDAD" : "RENTING";
+        
+        // Reutilizamos el gráfico 3D de Amortización, pero necesitamos pasarle el componente si no está global.
+        // Como Amortization3DChart está definido DENTRO de AmortizationCalculator en el código original, 
+        // necesitamos copiar su lógica o sacarlo fuera. 
+        // **SOLUCIÓN RÁPIDA:** Copio aquí una versión simplificada del 3D adaptada a Renting para que sea autónomo.
+        
+        const Renting3DChart = ({ rows }) => {
+            const mountRef = useRef(null);
+            const maxVal = Math.max(rows[rows.length-1].ev, rows[rows.length-1].ice);
+            const stepY = 5000; 
+            const yAxisMax = Math.ceil((maxVal * 1.1) / stepY) * stepY; 
+            
+            useEffect(() => {
+                if (!mountRef.current || !window.THREE) return;
+                const width = mountRef.current.offsetWidth;
+                const height = 400; 
+                mountRef.current.innerHTML = '';
+                const scene = new THREE.Scene();
+                const BAR_WIDTH = 0.8; const SPACING = 1.8; const TOTAL_WIDTH = (rows.length - 1) * SPACING;
+                const MAX_H_3D = 25; const SCALE = MAX_H_3D / yAxisMax;
+                const camera = new THREE.OrthographicCamera(-3, TOTAL_WIDTH + 3, MAX_H_3D + 5, -5, 1, 1000);
+                camera.position.set(TOTAL_WIDTH / 2, MAX_H_3D / 2, 100);
+                camera.rotation.order = 'YXZ'; camera.rotation.y = 0.2; camera.rotation.x = -0.05; 
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                renderer.setSize(width, height);
+                mountRef.current.appendChild(renderer.domElement);
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); scene.add(ambientLight);
+                const dirLight = new THREE.DirectionalLight(0xffffff, 0.5); dirLight.position.set(10, 20, 50); scene.add(dirLight);
+                const group = new THREE.Group(); scene.add(group);
+
+                // Ejes
+                for(let val=0; val<=yAxisMax; val+=stepY) {
+                    const y = val * SCALE;
+                    if (val > 0) {
+                        const points = [new THREE.Vector3(-2, y, -2), new THREE.Vector3(TOTAL_WIDTH + 2, y, -2)];
+                        const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2 }));
+                        group.add(line);
+                    }
+                }
+
+                // Barras
+                rows.forEach((row, i) => {
+                    const x = i * SPACING;
+                    const createStack = (layers, zPos) => {
+                        let currentY = 0;
+                        layers.forEach(layer => {
+                            if (layer.val <= 10) return; 
+                            const h = layer.val * SCALE;
+                            const mesh = new THREE.Mesh(new THREE.BoxGeometry(BAR_WIDTH, h, BAR_WIDTH), new THREE.MeshLambertMaterial({ color: layer.col }));
+                            mesh.position.set(x, currentY + h/2, zPos);
+                            group.add(mesh);
+                            currentY += h;
+                        });
+                    };
+                    createStack(row.stacks.ev, 1.0); // Propiedad (Frente)
+                    createStack(row.stacks.ice, -1.0); // Renting (Fondo)
+                });
+                renderer.render(scene, camera);
+            }, [rows, yAxisMax]);
+            return <div ref={mountRef} className="w-full h-[400px]" />;
+        };
+
+        const handleChange = (field, value) => setData({...data, [field]: parseFloat(value) || 0});
+
+        return (
+            <div className="space-y-6">
+                {/* KPI HEADER */}
+                <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-8 text-center shadow-2xl">
+                    <h3 className="text-slate-300 text-sm font-display uppercase tracking-widest mb-4 font-bold">Análisis Financiero ({data.years} años)</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600">
+                            <div className="text-sm text-blue-300 mb-2 uppercase font-bold">Mejor Opción</div>
+                            <div className={`text-4xl font-bold font-display ${totalSavings > 0 ? 'text-blue-400' : 'text-orange-400'}`}>{winner}</div>
+                        </div>
+                        <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600">
+                             <div className="text-sm text-green-400 mb-2 uppercase font-bold">Ahorro Estimado</div>
+                             <div className="text-4xl font-bold font-display text-white">{formatMoney(Math.abs(totalSavings))}€</div>
+                             <div className="text-xs font-bold text-slate-400 mt-1">Diferencia neta al finalizar contrato</div>
+                        </div>
+                         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600">
+                            <div className="text-sm text-slate-300 mb-2 uppercase font-bold">Coste Mensual Real</div>
+                            <div className="text-3xl font-bold font-display text-white">{formatDecimal(Math.abs(totalSavings > 0 ? finalRow.ev : finalRow.ice) / (yearsProjected*12))}€<span className="text-sm">/mes</span></div>
+                            <div className="text-xs font-bold text-slate-400 mt-1">Prorrateando todo (Opción ganadora)</div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* INPUTS */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* COLUMNA PROPIEDAD */}
+                    <div className="bg-blue-900/10 border border-blue-800/50 rounded-xl p-6">
+                        <h4 className="text-blue-400 font-display font-bold mb-4 flex items-center gap-2 text-lg"><Icons.Home /> Compra en Propiedad</h4>
+                        <div className="space-y-4">
+                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Compra (€)</label><FormattedInput value={data.propPrice} onChange={val=>handleChange('propPrice', val)} /></div>
+                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Ayudas / Entrada (Descuento inicial)</label><FormattedInput value={data.propAid} onChange={val=>handleChange('propAid', val)} /></div>
+                            
+                            <div className="pt-2 border-t border-slate-700/50">
+                                <h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center">Gastos que asumes tú</h5>
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div><label className="text-[10px] font-bold text-slate-400 block mb-1">Seguro/Año</label><FormattedInput value={data.propInsurance} onChange={val=>handleChange('propInsurance', val)} /></div>
+                                    <div><label className="text-[10px] font-bold text-slate-400 block mb-1">Impuestos/Año</label><FormattedInput value={data.propTax} onChange={val=>handleChange('propTax', val)} /></div>
+                                    <div><label className="text-[10px] font-bold text-slate-400 block mb-1">Mtto/Año</label><FormattedInput value={data.propMaint} onChange={val=>handleChange('propMaint', val)} /></div>
+                                </div>
+                            </div>
+                            
+                            <div className="pt-2 border-t border-slate-700/50">
+                                <label className="text-sm font-bold text-green-400 block mb-1">Valor Venta Final (% del valor original)</label>
+                                <div className="flex items-center gap-4">
+                                    <input type="range" min="10" max="80" step="5" value={data.propResaleValuePct} onChange={(e) => handleChange('propResaleValuePct', e.target.value)} className="flex-grow h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-green-500" />
+                                    <span className="font-bold text-white w-12 text-right">{data.propResaleValuePct}%</span>
+                                </div>
+                                <div className="text-xs text-slate-500 mt-1">Valor residual estimado: {formatMoney(num(data.propPrice) * (num(data.propResaleValuePct)/100))}€</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* COLUMNA RENTING */}
+                    <div className="bg-orange-900/10 border border-orange-800/50 rounded-xl p-6">
+                        <h4 className="text-orange-400 font-display font-bold mb-4 flex items-center gap-2 text-lg"><Icons.FileText /> Renting / Leasing</h4>
+                        <div className="space-y-4">
+                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Cuota Mensual (IVA inc)</label><FormattedInput value={data.rentMonthly} onChange={val=>handleChange('rentMonthly', val)} /></div>
+                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Entrada / Fianza (A fondo perdido)</label><FormattedInput value={data.rentEntry} onChange={val=>handleChange('rentEntry', val)} /></div>
+                            
+                            <div className="pt-4 border-t border-slate-700/50 bg-slate-800/30 p-3 rounded">
+                                <div className="text-xs font-bold text-slate-400 mb-1 uppercase">Ahorros incluidos en cuota:</div>
+                                <ul className="text-xs text-slate-300 list-disc pl-4 space-y-1">
+                                    <li>Seguro a todo riesgo incluido</li>
+                                    <li>Impuestos municipales incluidos</li>
+                                    <li>Mantenimiento y averías incluido</li>
+                                    <li>Gestión de multas (habitual)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* PARÁMETROS COMUNES */}
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+                    <h4 className="text-slate-300 font-bold mb-4 text-base">Parámetros Comunes (Impactan a ambos)</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Duración Contrato (Años)</label><FormattedInput value={data.years} onChange={val=>handleChange('years', val)} decimals={0}/></div>
+                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Km Anuales</label><FormattedInput value={data.kmPerYear} onChange={val=>handleChange('kmPerYear', val)} grouped={true}/></div>
+                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo (kWh/100)</label><FormattedInput value={data.consumption} onChange={val=>handleChange('consumption', val)} decimals={1}/></div>
+                        <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Energía (€/kWh)</label><FormattedInput value={data.energyPrice} onChange={val=>handleChange('energyPrice', val)} decimals={2}/></div>
+                    </div>
+                </div>
+
+                {/* GRÁFICA */}
+                <div className="mt-8">
+                     <div className="flex justify-between items-center mb-2 px-2">
+                        <div className="text-xs font-bold uppercase text-slate-400">Coste Neto Acumulado</div>
+                        <div className="flex gap-4 text-[10px] font-bold uppercase">
+                            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-600 rounded"></div> Propiedad (Azul)</div>
+                            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-orange-600 rounded"></div> Renting (Naranja)</div>
+                        </div>
+                    </div>
+                    <Renting3DChart rows={tableRows} />
+
+                    <button onClick={() => setShowTable(!showTable)} className="w-full py-4 mt-6 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-base font-medium text-slate-300 transition-colors flex items-center justify-center gap-2"><Icons.Table /> {showTable ? 'Ocultar Tabla' : 'Ver Tabla Detallada'}</button>
+                    {showTable && (
+                        <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800 animate-fade-in">
+                            <table className="w-full custom-table">
+                                <thead className="bg-slate-900"><tr><th>Año</th><th className="text-right">Coste Neto Propiedad</th><th className="text-right">Gasto Total Renting</th><th className="text-right">Diferencia</th></tr></thead>
+                                <tbody className="bg-slate-900/50">{tableRows.map((row) => (<tr key={row.year}><td className="font-bold text-slate-400">{row.year}</td><td className="text-blue-300">{formatMoney(row.ev)}€</td><td className="text-orange-300">{formatMoney(row.ice)}€</td><td className={row.diff > 0 ? 'text-green-400 font-bold' : 'text-red-400'}>{row.diff > 0 ? 'Compra ahorra ' : 'Renting ahorra '}{formatMoney(Math.abs(row.diff))}€</td></tr>))}</tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+      };
+
         
         
       // --- APP PRINCIPAL ---
@@ -5861,6 +6129,7 @@ const Icons = {
                     </>
                 );      
                 case 'amortization': return <AmortizationCalculator />;
+                case 'renting': return <RentingCalculator />;    
                 case 'calculator': return <ChargingCalculator />;
                 case 'tirelab': return <TirePressureLab />;   
                 case 'rotation': return <TireRotationGuide />;
@@ -5899,6 +6168,7 @@ const Icons = {
                             <TabButton id="drain" label="Drenaje" />
                             <TabButton id="simulator" label="Simulador" />
                             <TabButton id="amortization" label="Amortización" />
+                            <TabButton id="renting" label="Renting" />
                             <TabButton id="calculator" label="Calculadora" />
                             <TabButton id="tirelab" label="Psi/Bar Sauras" />
                             <TabButton id="rotation" label="Rotación" />
