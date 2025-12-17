@@ -482,12 +482,10 @@
       };
 
 
-
-        
-        // --- CALCULADORA DE AMORTIZACIÓN (V13 - STACKED CSS CHART) ---
+      // --- CALCULADORA DE AMORTIZACIÓN (V14 - FIXED CSS HEIGHTS) ---
       const AmortizationCalculator = () => {
         // Valores por defecto
-        const [data, setData] = usePersistentState('amortDataV13', {
+        const [data, setData] = usePersistentState('amortDataV14', {
             priceEV: 43000, priceICE: 45000, moves: 7000, aidICE: 0,
             kmPerYear: 20000, consumptionEV: 16.0, consumptionICE: 6.5,
             priceElec: 0.10, priceFuel: 1.50, 
@@ -538,7 +536,6 @@
                     ev: totalEV,
                     ice: totalICE,
                     diff: totalICE - totalEV,
-                    // Desglose para la gráfica
                     stacks: {
                         ev: {
                             base: netPriceEV,
@@ -561,11 +558,12 @@
         const breakEvenRow = tableRows.find(r => r.diff >= 0);
         const breakEvenYear = breakEvenRow ? breakEvenRow.year : 0;
 
-        // --- GRÁFICA CSS APILADA (STACKED) ---
+        // --- GRÁFICA CSS APILADA (FIXED HEIGHTS) ---
         const AmortizationCSSChart = ({ rows }) => {
             const maxVal = Math.max(...rows.map(r => Math.max(r.ev, r.ice)));
             const step = 5000;
-            const yMax = Math.ceil((maxVal * 1.05) / step) * step;
+            // Aseguramos que yMax sea al menos 5000 para evitar división por cero si todo es 0
+            const yMax = Math.max(5000, Math.ceil((maxVal * 1.05) / step) * step);
             
             const ticks = [];
             for (let i = 0; i <= yMax; i += step) ticks.push(i);
@@ -578,7 +576,6 @@
                             <Icons.TrendingUp className="w-3 h-3 text-cyan-400" /> Comparativa Coste Acumulado (TCO)
                         </h4>
                         
-                        {/* Leyenda de Colores */}
                         <div className="flex flex-wrap gap-4 text-[9px] font-bold uppercase bg-slate-800/50 p-2 rounded border border-slate-700">
                             <div className="flex items-center gap-2">
                                 <span className="text-blue-300 border-b border-blue-500/30">Eléctrico</span>
@@ -619,17 +616,18 @@
                                 <div key={row.year} className="flex-1 flex flex-col justify-end items-center h-full group relative gap-1 mx-0.5">
                                     <div className="w-full flex gap-0.5 items-end h-full justify-center">
                                         
-                                        {/* Columna EV (Apilada) */}
-                                        <div className="w-1/2 flex flex-col-reverse relative min-h-[1px] transition-transform hover:scale-105 duration-200">
-                                            {/* Base (Coche) */}
+                                        {/* Columna EV (Eléctrico) */}
+                                        {/* FIX: h-full añadido para que los hijos sepan calcular su % respecto al gráfico */}
+                                        <div className="w-1/2 flex flex-col-reverse h-full relative transition-transform hover:scale-105 duration-200">
+                                            {/* Base (Coche) - Blue 900 */}
                                             <div className="w-full bg-blue-900 border-x border-t border-blue-800/50" style={{ height: `${(row.stacks.ev.base / yMax) * 100}%` }}></div>
-                                            {/* Energía */}
+                                            {/* Energía - Blue 600 */}
                                             <div className="w-full bg-blue-600 border-x border-t border-blue-500/50" style={{ height: `${(row.stacks.ev.energy / yMax) * 100}%` }}></div>
-                                            {/* Operaciones */}
+                                            {/* Operaciones - Blue 300 */}
                                             <div className="w-full bg-blue-300 rounded-t-sm border-x border-t border-blue-200/50" style={{ height: `${(row.stacks.ev.ops / yMax) * 100}%` }}></div>
                                             
                                             {/* Tooltip EV */}
-                                            <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-slate-900/95 text-white text-[10px] p-2 rounded z-20 pointer-events-none border border-blue-500/50 shadow-xl w-32 backdrop-blur-sm">
+                                            <div className="opacity-0 group-hover:opacity-100 absolute bottom-1/2 left-1/2 -translate-x-1/2 mb-2 bg-slate-900/95 text-white text-[10px] p-2 rounded z-20 pointer-events-none border border-blue-500/50 shadow-xl w-32 backdrop-blur-sm">
                                                 <div className="font-bold text-blue-300 border-b border-blue-500/30 mb-1 pb-1">EV Año {row.year}: {formatMoney(row.ev)}€</div>
                                                 <div className="flex justify-between"><span>Coche:</span> <span>{formatMoney(row.stacks.ev.base)}</span></div>
                                                 <div className="flex justify-between text-blue-400"><span>Energía:</span> <span>{formatMoney(row.stacks.ev.energy)}</span></div>
@@ -637,20 +635,21 @@
                                             </div>
                                         </div>
 
-                                        {/* Columna ICE (Apilada) */}
-                                        <div className="w-1/2 flex flex-col-reverse relative min-h-[1px] transition-transform hover:scale-105 duration-200">
-                                            {/* Base (Coche) */}
+                                        {/* Columna ICE (Térmico) */}
+                                        {/* FIX: h-full añadido */}
+                                        <div className="w-1/2 flex flex-col-reverse h-full relative transition-transform hover:scale-105 duration-200">
+                                            {/* Base (Coche) - Orange 900 */}
                                             <div className="w-full bg-orange-900 border-x border-t border-orange-800/50" style={{ height: `${(row.stacks.ice.base / yMax) * 100}%` }}></div>
-                                            {/* Energía */}
+                                            {/* Energía - Orange 600 */}
                                             <div className="w-full bg-orange-600 border-x border-t border-orange-500/50" style={{ height: `${(row.stacks.ice.energy / yMax) * 100}%` }}></div>
-                                            {/* Operaciones */}
+                                            {/* Operaciones - Orange 200 */}
                                             <div className="w-full bg-orange-200 rounded-t-sm border-x border-t border-orange-100/50" style={{ height: `${(row.stacks.ice.ops / yMax) * 100}%` }}></div>
 
                                             {/* Tooltip ICE */}
-                                            <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-8 bg-slate-900/95 text-white text-[10px] p-2 rounded z-20 pointer-events-none border border-orange-500/50 shadow-xl w-32 backdrop-blur-sm">
+                                            <div className="opacity-0 group-hover:opacity-100 absolute bottom-1/2 left-1/2 -translate-x-1/2 mb-8 bg-slate-900/95 text-white text-[10px] p-2 rounded z-20 pointer-events-none border border-orange-500/50 shadow-xl w-32 backdrop-blur-sm">
                                                 <div className="font-bold text-orange-300 border-b border-orange-500/30 mb-1 pb-1">ICE Año {row.year}: {formatMoney(row.ice)}€</div>
                                                 <div className="flex justify-between"><span>Coche:</span> <span>{formatMoney(row.stacks.ice.base)}</span></div>
-                                                <div className="flex justify-between text-orange-400"><span>Energía:</span> <span>{formatMoney(row.stacks.ice.energy)}</span></div>
+                                                <div className="flex justify-between text-orange-400"><span>Gasolina:</span> <span>{formatMoney(row.stacks.ice.energy)}</span></div>
                                                 <div className="flex justify-between text-orange-200"><span>Mtto:</span> <span>{formatMoney(row.stacks.ice.ops)}</span></div>
                                             </div>
                                         </div>
@@ -756,6 +755,8 @@
             </div>
         );
       };
+  
+     
         
     
 
