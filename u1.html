@@ -5522,10 +5522,11 @@
       };
 
 
-      // --- CALCULADORA RENTING VS PROPIEDAD (V9 - HTML CHART & FIXED KPI) ---
+     
+      // --- CALCULADORA RENTING VS PROPIEDAD (V10 - FINAL 5K STEP AXIS) ---
       const RentingCalculator = () => {
         // Estado persistente
-        const [data, setData] = usePersistentState('rentingDataV9', {
+        const [data, setData] = usePersistentState('rentingDataV10', {
             // Comunes
             years: 15,
             kmPerYear: 20000,
@@ -5618,18 +5619,24 @@
             crossOverWinner = tableRows[0].rentVal < tableRows[0].propVal ? "Renting" : "Compra";
         }
 
-        // --- NUEVA GRÁFICA CSS (GARANTIZA ESCALA 0) ---
+        // --- NUEVA GRÁFICA CSS (INTERVALOS EXACTOS DE 5000€) ---
         const RentingCSSChart = ({ rows }) => {
             const maxVal = Math.max(...rows.map(r => Math.max(r.propVal, r.rentVal)));
-            // Redondear al alza al próximo 5000 para el tope del eje Y
-            const yMax = Math.ceil((maxVal * 1.1) / 5000) * 5000;
-            const ticks = [0, 0.25, 0.5, 0.75, 1];
+            const step = 5000; // INTERVALO FIJO
+            // Redondear al alza al próximo múltiplo de 5000 con un poco de margen (1.05)
+            const yMax = Math.ceil((maxVal * 1.05) / step) * step;
+            
+            // Generar array de ticks [0, 5000, 10000, ...]
+            const ticks = [];
+            for (let i = 0; i <= yMax; i += step) {
+                ticks.push(i);
+            }
 
             return (
-                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 relative h-[450px] flex flex-col">
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 relative h-[500px] flex flex-col">
                     {/* Título Gráfica */}
                     <div className="flex justify-between items-center mb-6 px-2">
-                        <div className="text-xs font-bold uppercase text-slate-400">Evolución Coste Acumulado (Escala Real)</div>
+                        <div className="text-xs font-bold uppercase text-slate-400">Evolución Coste Acumulado</div>
                         <div className="flex gap-4 text-[10px] font-bold uppercase">
                             <div className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-600 rounded"></div> Compra</div>
                             <div className="flex items-center gap-2"><div className="w-3 h-3 bg-orange-600 rounded"></div> Renting</div>
@@ -5637,13 +5644,15 @@
                     </div>
 
                     <div className="flex-1 relative flex items-end ml-10 mb-6 border-l border-b border-slate-600">
-                        {/* EJE Y (Líneas y Etiquetas) */}
+                        {/* EJE Y (Líneas y Etiquetas cada 5k) */}
                         <div className="absolute inset-0 pointer-events-none">
-                            {ticks.map((t, i) => (
-                                <div key={i} className="absolute w-full flex items-center" style={{ bottom: `${t * 100}%` }}>
-                                    <div className="w-full border-t border-slate-700/50"></div>
-                                    <span className="absolute -left-10 text-[10px] font-bold text-slate-400 w-8 text-right">
-                                        {(yMax * t / 1000).toFixed(0)}k
+                            {ticks.map((tickVal) => (
+                                <div key={tickVal} className="absolute w-full flex items-center" style={{ bottom: `${(tickVal / yMax) * 100}%` }}>
+                                    {/* Línea horizontal */}
+                                    <div className={`w-full border-t ${tickVal === 0 ? 'border-slate-500' : 'border-slate-700/30'}`}></div>
+                                    {/* Etiqueta */}
+                                    <span className="absolute -left-10 text-[9px] font-bold text-slate-400 w-8 text-right font-mono">
+                                        {(tickVal / 1000).toFixed(0)}k
                                     </span>
                                 </div>
                             ))}
@@ -5660,7 +5669,7 @@
                                             style={{ height: `${(row.propVal / yMax) * 100}%` }}
                                         >
                                             {/* Tooltip Hover */}
-                                            <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-1 bg-black/90 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-20 pointer-events-none border border-blue-500/50">
+                                            <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-1 bg-black/90 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-20 pointer-events-none border border-blue-500/50 shadow-xl">
                                                 Compra: {formatMoney(row.propVal)}€
                                             </div>
                                         </div>
@@ -5669,7 +5678,7 @@
                                             className="w-1/2 bg-orange-600 rounded-t-sm transition-all duration-500 hover:bg-orange-500 relative min-h-[1px]"
                                             style={{ height: `${(row.rentVal / yMax) * 100}%` }}
                                         >
-                                            <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-8 bg-black/90 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-20 pointer-events-none border border-orange-500/50">
+                                            <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-8 bg-black/90 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap z-20 pointer-events-none border border-orange-500/50 shadow-xl">
                                                 Renting: {formatMoney(row.rentVal)}€
                                             </div>
                                         </div>
@@ -5688,7 +5697,7 @@
 
         return (
             <div className="space-y-6">
-                {/* KPI HEADER - ESTRUCTURA SOLICITADA */}
+                {/* KPI HEADER */}
                 <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-6 text-center shadow-2xl">
                     <h3 className="text-slate-300 text-sm font-display uppercase tracking-widest mb-6 font-bold">Resumen Económico Final ({data.years} años)</h3>
                     
@@ -5716,7 +5725,7 @@
                              </div>
                         </div>
                         
-                        {/* 2. COSTE MENSUAL / ANUAL (RECUPERADO) */}
+                        {/* 2. COSTE MENSUAL / ANUAL */}
                         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 flex flex-col justify-center">
                             <div className="text-[10px] text-slate-400 mb-3 uppercase font-bold tracking-wider text-center">Coste Medio Prorrateado (Neto)</div>
                             <div className="grid grid-cols-2 gap-4 text-center divide-x divide-slate-700">
