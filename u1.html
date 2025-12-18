@@ -2211,7 +2211,8 @@
       };
 
 
-      // --- COMPONENTE PRINCIPAL: CURVA DE CARGA (CORREGIDO LAYOUT + FUENTES) ---
+
+      // --- COMPONENTE: CURVA DE CARGA (MODIFICADO: INPUTS DE PRECISIÓN Y KWH EDITABLE) ---
       const ChargeCurveCalculator = () => {
         const [state, setState] = usePersistentState('curveState', { 
             batType: 'LFP', 
@@ -2263,7 +2264,7 @@
             const totalEnergy = (safeEnd - safeStart) * kwhPerPercent;
             const rangeAdded = state.consumption > 0 ? (totalEnergy / state.consumption) * 100 : 0;
             const totalRange = state.consumption > 0 ? ((state.capacity * (safeEnd/100)) / state.consumption) * 100 : 0;
-            return { minutes, rangeAdded, totalRange };
+            return { minutes, rangeAdded, totalRange, totalEnergy };
         };
 
         const handleChartChange = (key, value) => {
@@ -2274,8 +2275,17 @@
             setState(prev => ({ ...prev, startPct: newStart, endPct: newEnd, optimizationTime: Math.round(metrics.minutes), targetRange: Math.round(metrics.totalRange) }));
         };
 
+        // NUEVO: Editar energía directamente y ajustar endPct
+        const handleEnergyEdit = (kWh) => {
+            if (state.capacity <= 0) return;
+            const pctToAdd = (kWh / state.capacity) * 100;
+            const newEnd = Math.min(100, Math.max(state.startPct + 1, state.startPct + pctToAdd));
+            const metrics = calculateMetrics(state.startPct, newEnd);
+            setState(prev => ({ ...prev, endPct: newEnd, optimizationTime: Math.round(metrics.minutes), targetRange: Math.round(metrics.totalRange) }));
+        };
+
         const handleTimeOptimization = (minutes) => {
-            const idealStart = 10; 
+            const idealStart = state.startPct; 
             let accumMinutes = 0;
             let foundEnd = idealStart;
             const kwhPerPercent = state.capacity / 100;
@@ -2291,7 +2301,7 @@
             }
             const finalEnd = Math.min(100, foundEnd);
             const metrics = calculateMetrics(idealStart, finalEnd);
-            setState(prev => ({ ...prev, startPct: idealStart, endPct: finalEnd, optimizationTime: minutes, targetRange: Math.round(metrics.totalRange) }));
+            setState(prev => ({ ...prev, endPct: finalEnd, optimizationTime: minutes, targetRange: Math.round(metrics.totalRange) }));
         };
 
         const handleRangeOptimization = (km) => {
@@ -2311,8 +2321,7 @@
         `;
 
         const metrics = calculateMetrics(state.startPct, state.endPct);
-        const totalCost = ((state.endPct - state.startPct) / 100 * state.capacity) * state.costPerKwh;
-        const maxPossibleRange = state.consumption > 0 ? (state.capacity / state.consumption) * 100 : 0;
+        const totalCost = metrics.totalEnergy * state.costPerKwh;
         
         const peakGraphHeight = Math.max(state.chargerPower, 250); 
         const gridLines = [];
@@ -2330,6 +2339,11 @@
         const speedAtEnd = state.consumption > 0 ? (powerAtEnd / state.consumption) * 100 : 0;
 
         const handleChange = (k, v) => setState(prev => ({...prev, [k]: v}));
+        const handlePowerStep = (delta) => {
+            const newVal = Math.max(1, Math.min(800, parseFloat((state.chargerPower + delta).toFixed(1))));
+            setState(prev => ({...prev, chargerPower: newVal}));
+        };
+
         const setLFP = () => setState(prev => ({...prev, batType: 'LFP', capacity: 60}));
         const setNCA = () => setState(prev => ({...prev, batType: 'NCA', capacity: 75}));
 
@@ -2368,12 +2382,6 @@
                                     {Math.round(speedAtEnd)}<span className="text-base ml-1">km/h</span>
                                 </div>
                             </div>
-
-                            {powerAtEnd < 40 && state.endPct > 80 && (
-                                <div className="bg-red-900/60 border border-red-500/30 rounded px-2 py-1 text-[9px] font-bold text-red-200 uppercase text-right max-w-[120px]">
-                                    Zona Saturación (Ineficiente)
-                                </div>
-                            )}
                         </div>
                      </div>
 
@@ -2386,8 +2394,12 @@
                             </div>
                             
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Capacidad Batería (kWh)</label><FormattedInput value={state.capacity} onChange={v => handleChange('capacity', v)} /></div>
+                            <div>
+                                <label className="text-sm font-bold text-blue-400 block mb-1">Energía a Añadir (kWh)</label>
+                                <FormattedInput value={metrics.totalEnergy} decimals={2} onChange={handleEnergyEdit} />
+                                <span className="text-[10px] text-slate-500 font-bold">Equivale a +{formatDecimal(state.endPct - state.startPct, 1)}% SoC</span>
+                            </div>
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Consumo Medio (kWh/100km)</label><FormattedInput value={state.consumption} decimals={1} onChange={v => handleChange('consumption', v)} /></div>
-                            
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Coste (€/kWh)</label><FormattedInput decimals={2} value={state.costPerKwh} onChange={v => handleChange('costPerKwh', v)} /></div>
                         </div>
                     </div>
@@ -2421,9 +2433,9 @@
                          <div className="flex items-center justify-center gap-4 mb-2 z-20 relative">
                              <div className="text-yellow-500 font-display font-bold text-xl px-2">INICIO {state.startPct}%</div>
                              <div className="text-slate-500 text-lg">➜</div>
-                             <div className="text-white font-bold text-lg bg-white/10 px-3 py-1 rounded border border-white/20">+{state.endPct - state.startPct}%</div>
+                             <div className="text-white font-bold text-lg bg-white/10 px-3 py-1 rounded border border-white/20">+{formatDecimal(state.endPct - state.startPct, 1)}%</div>
                              <div className="text-slate-500 text-lg">➜</div>
-                             <div className="text-green-500 font-display font-bold text-xl px-2">FIN {state.endPct}%</div>
+                             <div className="text-green-500 font-display font-bold text-xl px-2">FIN {formatDecimal(state.endPct, 0)}%</div>
                          </div>
                          
                          <div className="h-[300px] flex gap-2 relative pt-2 pb-2 border-b border-slate-700">
@@ -2487,9 +2499,16 @@
                          </div>
 
                          <div className="mt-8 pt-6 border-t border-slate-700/50">
-                            <div className="flex justify-between mb-2">
+                            <div className="flex justify-between mb-4">
                                 <label className="text-sm font-bold text-slate-300 uppercase tracking-wider">Potencia Máxima Cargador</label>
-                                <span className="text-lg font-bold text-blue-400 font-mono">{state.chargerPower} kW</span>
+                                <div className="flex items-center gap-3">
+                                    <button onClick={() => handlePowerStep(-0.1)} className="btn-step">-</button>
+                                    <div className="w-32">
+                                        <FormattedInput value={state.chargerPower} decimals={1} onChange={v => handleChange('chargerPower', v)} />
+                                    </div>
+                                    <button onClick={() => handlePowerStep(0.1)} className="btn-step">+</button>
+                                    <span className="text-lg font-bold text-blue-400 font-mono ml-2">kW</span>
+                                </div>
                             </div>
                             <input 
                                 type="range" 
@@ -2532,8 +2551,8 @@
                                 <label className="text-base text-cyan-300 font-bold flex items-center gap-2"><Icons.TrendingUp className="w-5 h-5"/> Autonomía Deseada</label>
                                 <span className="text-base font-bold text-white bg-cyan-500/20 px-3 py-1 rounded">{Math.round(state.targetRange)} km</span>
                             </div>
-                            <input type="range" min="50" max={maxPossibleRange} step="5" 
-                                value={Math.min(Math.max(50, state.targetRange), maxPossibleRange)} 
+                            <input type="range" min="50" max={600} step="5" 
+                                value={Math.min(600, state.targetRange)} 
                                 onChange={e => handleRangeOptimization(parseInt(e.target.value))} 
                                 className="w-full h-4 bg-slate-700 rounded-lg cursor-pointer accent-cyan-500" />
                             <div className="text-sm font-bold text-slate-400 mt-2 italic">Calcula el % final necesario para llegar a un destino.</div>
@@ -2544,7 +2563,7 @@
             </div>
         );
       };
- 
+
      
             
      
