@@ -2867,15 +2867,14 @@
 
         // --- INICIO PARTE 1: ESTADO PARA ESTIMADOR DE CONSUMO ---
         const [estState, setEstState] = usePersistentState('estConsV1', {
-            selectedProp: 'A', // A o B
+            selectedProp: 'A', 
             withTaxes: true,
             startDate: new Date().toISOString().split('T')[0],
             endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
-            // Definición Horaria España 2.0TD por defecto
             scheduleDef: {
-                p1: [10, 11, 12, 13, 18, 19, 20, 21], // Horas Punta
-                p2: [8, 9, 14, 15, 16, 17, 22, 23],   // Horas Llano
-                p3: [0, 1, 2, 3, 4, 5, 6, 7]          // Horas Valle (Resto + Fines de semana enteros)
+                p1: [10, 11, 12, 13, 18, 19, 20, 21], 
+                p2: [8, 9, 14, 15, 16, 17, 22, 23],   
+                p3: [0, 1, 2, 3, 4, 5, 6, 7]          
             },
             devices: [
                 { id: 1, name: "Aerotermia / Calefacción", power: 4.5, count: 1, dutyCycle: 60, days: { Mon: [], Tue: [], Wed: [], Thu: [], Fri: [], Sat: [], Sun: [] } }
@@ -2952,19 +2951,15 @@
             setEstState(prev => ({ ...prev, devices: prev.devices.filter(d => d.id !== id) }));
         };
 
-        // Motor de Cálculo de Estimación
-        const calculateEstimation = () => {
+       const calculateEstimation = () => {
             const start = new Date(estState.startDate);
             const end = new Date(estState.endDate);
             const daysDiff = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
             const weeks = daysDiff / 7;
 
-            // Obtener precios según selección
             const prop = estState.selectedProp === 'A' ? tState.propA : tState.propB;
-            // Impuestos
             const taxMultiplier = estState.withTaxes ? (1 + tState.impuestoElec/100) * (1 + tState.iva/100) : 1;
             
-            // Precios Finales a aplicar
             const p1Price = prop.priceEnP1 * (1 - prop.discEn/100) * taxMultiplier;
             const p2Price = prop.priceEnP2 * (1 - prop.discEn/100) * taxMultiplier;
             const p3Price = prop.priceEnP3 * (1 - prop.discEn/100) * taxMultiplier;
@@ -2977,7 +2972,7 @@
                 let devKwhWeekly = 0;
                 let devCostWeekly = 0;
 
-                ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((dayStr, dayIdx) => {
+                ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((dayStr) => {
                     const isWeekend = dayStr === 'Sat' || dayStr === 'Sun';
                     const intervals = dev.days[dayStr] || [];
                     
@@ -2987,24 +2982,21 @@
                         const [h2, m2] = int.end.split(':').map(Number);
                         let startH = h1 + m1/60;
                         let endH = h2 + m2/60;
-                        if(endH < startH) endH += 24; // Cruce de medianoche
+                        if(endH < startH) endH += 24; 
                         
                         const duration = endH - startH;
                         if(duration <= 0) return;
 
-                        // Potencia Efectiva (Factor de Marcha)
                         const effectivePower = dev.power * dev.count * (dev.dutyCycle / 100);
                         
-                        // Desglose por hora para aplicar precio correcto
                         for(let h = Math.floor(startH); h < Math.ceil(endH); h++) {
                             const hourReal = h % 24;
-                            // Calcular fracción de la hora que está activo
                             const overlapStart = Math.max(h, startH);
                             const overlapEnd = Math.min(h + 1, endH);
                             const fraction = Math.max(0, overlapEnd - overlapStart);
                             
                             const kwh = effectivePower * fraction;
-                            let price = p3Price; // Por defecto P3 (Valle/Finde)
+                            let price = p3Price; 
 
                             if (!isWeekend) {
                                 if (estState.scheduleDef.p1.includes(hourReal)) price = p1Price;
@@ -3025,20 +3017,20 @@
                 totalCost += devTotalCost;
             });
             
-            // Cálculo mensual promedio
             const monthlyKwh = totalKwh / (daysDiff / 30.44);
             const monthlyCost = totalCost / (daysDiff / 30.44);
             
-            // Comparativa con factura actual (base mensual) del comparador principal
-            const currentBillTotal = estState.selectedProp === 'A' ? billA.total : billB.total; // Esto es mensual segun days=30 por defecto
-            // Normalizar a mensual
+            // AQUÍ OCURRÍA EL ERROR: Ahora billA y billB ya existen
+            const currentBillTotal = estState.selectedProp === 'A' ? billA.total : billB.total;
             const billMonthly = currentBillTotal * (30 / tState.days); 
             const impactPct = billMonthly > 0 ? (monthlyCost / billMonthly) * 100 : 0;
 
             return { totalCost, totalKwh, deviceResults, daysDiff, monthlyKwh, monthlyCost, impactPct };
         };
 
-        const estResult = calculateEstimation();
+        const estResult = calculateEstimation();   
+
+        
           
 
         const [savedDate, setSavedDate] = useState(null);
@@ -3368,7 +3360,7 @@
 
 
 
-                {/* --- INICIO PARTE 2: BLOQUE VISUAL ESTIMACIÓN --- */}
+                {/* --- BLOQUE C: VISUAL (Insertar antes de los botones de Guardar) --- */}
                 <div className="lg:col-span-12 mt-8 animate-fade-in">
                     <div className="bg-slate-900/90 border-2 border-slate-700/50 rounded-2xl p-6 relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
@@ -3383,7 +3375,6 @@
                             Herramienta para calcular el impacto económico de sistemas de Aerotermia, Bombas de calor, Filtros de piscina o Carga de VE en base a sus horarios de uso y tu tarifa seleccionada.
                         </p>
 
-                        {/* CONFIGURACIÓN GLOBAL */}
                         <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 mb-6 relative z-10">
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                 <div>
@@ -3410,11 +3401,9 @@
                             </div>
                         </div>
 
-                        {/* LISTA DE DISPOSITIVOS */}
                         <div className="space-y-4 relative z-10">
                             {estState.devices.map((dev) => (
                                 <div key={dev.id} className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden transition-all hover:border-slate-500">
-                                    {/* CABECERA DISPOSITIVO */}
                                     <div className="p-4 bg-slate-900/50 border-b border-slate-700 flex flex-wrap gap-4 items-end">
                                         <div className="flex-grow min-w-[200px]">
                                             <label className="text-[10px] font-bold text-slate-500 uppercase">Nombre</label>
@@ -3438,7 +3427,6 @@
                                         <button onClick={() => deleteDevice(dev.id)} className="p-2 text-red-500 hover:bg-red-900/20 rounded"><Icons.LogOut className="w-5 h-5" /></button>
                                     </div>
 
-                                    {/* HORARIOS */}
                                     <div className="p-4 bg-slate-900/30">
                                         <div className="flex overflow-x-auto gap-2 pb-2">
                                             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => {
@@ -3480,7 +3468,6 @@
                             )}
                         </div>
 
-                        {/* RESULTADOS TOTALES */}
                         <div className="mt-8 bg-black/40 rounded-xl p-6 border border-slate-700/50 relative z-10">
                             <h4 className="text-sm font-bold text-slate-300 uppercase mb-4 flex gap-2 items-center"><Icons.PieChart className="w-4 h-4"/> Resultados Estimados ({estResult.daysDiff} días)</h4>
                             
@@ -3527,11 +3514,7 @@
                             </div>
                         </div>
                     </div>
-                </div>
-                {/* --- FIN PARTE 2 --- */}
-
-
-
+                </div>              
 
 
 
