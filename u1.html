@@ -2836,8 +2836,12 @@
       };
 
 
-      // --- TARIFF COMPARATOR (FIXED: LABELS BELOW CHART) ---
+        
+        
+        
+    // --- TARIFF COMPARATOR (FIXED & EXTENDED) ---
       const TariffComparator = () => {
+        // 1. ESTADO ORIGINAL
         const [tState, setTState] = usePersistentState('tariffCompV5', {
             days: 30,
             potP1: 4.6, potP2: 7.4,
@@ -2865,7 +2869,7 @@
             }
         });
 
-        // --- INICIO PARTE 1: ESTADO PARA ESTIMADOR DE CONSUMO ---
+        // 2. NUEVO ESTADO PARA ESTIMACIÓN (INSERTADO)
         const [estState, setEstState] = usePersistentState('estConsV1', {
             selectedProp: 'A', 
             withTaxes: true,
@@ -2881,158 +2885,6 @@
             ]
         });
 
-        const handleDeviceChange = (id, field, value) => {
-            setEstState(prev => ({
-                ...prev,
-                devices: prev.devices.map(d => d.id === id ? { ...d, [field]: value } : d)
-            }));
-        };
-
-        const handleDeviceSchedule = (deviceId, day, index, field, value) => {
-            setEstState(prev => ({
-                ...prev,
-                devices: prev.devices.map(d => {
-                    if (d.id !== deviceId) return d;
-                    const newDayArr = [...(d.days[day] || [])];
-                    if (!newDayArr[index]) newDayArr[index] = { start: '', end: '' };
-                    newDayArr[index][field] = value;
-                    return { ...d, days: { ...d.days, [day]: newDayArr } };
-                })
-            }));
-        };
-
-        const addInterval = (deviceId, day) => {
-             setEstState(prev => ({
-                ...prev,
-                devices: prev.devices.map(d => {
-                    if(d.id !== deviceId) return d;
-                    if((d.days[day]?.length || 0) >= 5) return d;
-                    return { ...d, days: { ...d.days, [day]: [...(d.days[day]||[]), { start: '00:00', end: '00:00' }] } };
-                })
-            }));
-        };
-        
-        const removeInterval = (deviceId, day, index) => {
-             setEstState(prev => ({
-                ...prev,
-                devices: prev.devices.map(d => {
-                    if(d.id !== deviceId) return d;
-                    const newArr = d.days[day].filter((_, i) => i !== index);
-                    return { ...d, days: { ...d.days, [day]: newArr } };
-                })
-            }));
-        };
-
-        const copyScheduleToWeek = (deviceId, sourceDay) => {
-            setEstState(prev => ({
-                ...prev,
-                devices: prev.devices.map(d => {
-                    if (d.id !== deviceId) return d;
-                    const source = d.days[sourceDay];
-                    const newDays = { ...d.days };
-                    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach(day => {
-                        newDays[day] = JSON.parse(JSON.stringify(source));
-                    });
-                    return { ...d, days: newDays };
-                })
-            }));
-        };
-
-        const addDevice = () => {
-            if (estState.devices.length >= 5) return;
-            const newId = Math.max(...estState.devices.map(d => d.id), 0) + 1;
-            setEstState(prev => ({
-                ...prev,
-                devices: [...prev.devices, { id: newId, name: "Nuevo Dispositivo", power: 1.0, count: 1, dutyCycle: 100, days: { Mon: [], Tue: [], Wed: [], Thu: [], Fri: [], Sat: [], Sun: [] } }]
-            }));
-        };
-
-        const deleteDevice = (id) => {
-            setEstState(prev => ({ ...prev, devices: prev.devices.filter(d => d.id !== id) }));
-        };
-
-       const calculateEstimation = () => {
-            const start = new Date(estState.startDate);
-            const end = new Date(estState.endDate);
-            const daysDiff = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
-            const weeks = daysDiff / 7;
-
-            const prop = estState.selectedProp === 'A' ? tState.propA : tState.propB;
-            const taxMultiplier = estState.withTaxes ? (1 + tState.impuestoElec/100) * (1 + tState.iva/100) : 1;
-            
-            const p1Price = prop.priceEnP1 * (1 - prop.discEn/100) * taxMultiplier;
-            const p2Price = prop.priceEnP2 * (1 - prop.discEn/100) * taxMultiplier;
-            const p3Price = prop.priceEnP3 * (1 - prop.discEn/100) * taxMultiplier;
-
-            let totalCost = 0;
-            let totalKwh = 0;
-            const deviceResults = [];
-
-            estState.devices.forEach(dev => {
-                let devKwhWeekly = 0;
-                let devCostWeekly = 0;
-
-                ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((dayStr) => {
-                    const isWeekend = dayStr === 'Sat' || dayStr === 'Sun';
-                    const intervals = dev.days[dayStr] || [];
-                    
-                    intervals.forEach(int => {
-                        if(!int.start || !int.end) return;
-                        const [h1, m1] = int.start.split(':').map(Number);
-                        const [h2, m2] = int.end.split(':').map(Number);
-                        let startH = h1 + m1/60;
-                        let endH = h2 + m2/60;
-                        if(endH < startH) endH += 24; 
-                        
-                        const duration = endH - startH;
-                        if(duration <= 0) return;
-
-                        const effectivePower = dev.power * dev.count * (dev.dutyCycle / 100);
-                        
-                        for(let h = Math.floor(startH); h < Math.ceil(endH); h++) {
-                            const hourReal = h % 24;
-                            const overlapStart = Math.max(h, startH);
-                            const overlapEnd = Math.min(h + 1, endH);
-                            const fraction = Math.max(0, overlapEnd - overlapStart);
-                            
-                            const kwh = effectivePower * fraction;
-                            let price = p3Price; 
-
-                            if (!isWeekend) {
-                                if (estState.scheduleDef.p1.includes(hourReal)) price = p1Price;
-                                else if (estState.scheduleDef.p2.includes(hourReal)) price = p2Price;
-                            }
-                            
-                            devKwhWeekly += kwh;
-                            devCostWeekly += (kwh * price);
-                        }
-                    });
-                });
-
-                const devTotalKwh = devKwhWeekly * weeks;
-                const devTotalCost = devCostWeekly * weeks;
-
-                deviceResults.push({ ...dev, totalKwh: devTotalKwh, totalCost: devTotalCost });
-                totalKwh += devTotalKwh;
-                totalCost += devTotalCost;
-            });
-            
-            const monthlyKwh = totalKwh / (daysDiff / 30.44);
-            const monthlyCost = totalCost / (daysDiff / 30.44);
-            
-            // AQUÍ OCURRÍA EL ERROR: Ahora billA y billB ya existen
-            const currentBillTotal = estState.selectedProp === 'A' ? billA.total : billB.total;
-            const billMonthly = currentBillTotal * (30 / tState.days); 
-            const impactPct = billMonthly > 0 ? (monthlyCost / billMonthly) * 100 : 0;
-
-            return { totalCost, totalKwh, deviceResults, daysDiff, monthlyKwh, monthlyCost, impactPct };
-        };
-
-        const estResult = calculateEstimation();   
-
-        
-          
-
         const [savedDate, setSavedDate] = useState(null);
 
         useEffect(() => {
@@ -3042,6 +2894,7 @@
             } catch (e) { console.error(e); }
         }, []);
 
+        // --- SUBCOMPONENTE GRÁFICA (ORIGINAL) ---
         const Tariff3DChart = ({ billA, billB, nameA, nameB }) => {
             const mountRef = useRef(null);
 
@@ -3232,6 +3085,7 @@
             );
         };
 
+        // --- HANDLERS ORIGINALES ---
         const handleSaveSnapshot = () => {
             try {
                 const now = new Date().toLocaleString('es-ES');
@@ -3270,6 +3124,78 @@
             setTState(prev => ({ ...prev, [propKey]: { ...prev[propKey], [field]: val } }));
         };
 
+        // --- HANDLERS NUEVOS (ESTIMADOR) ---
+        const handleDeviceChange = (id, field, value) => {
+            setEstState(prev => ({
+                ...prev,
+                devices: prev.devices.map(d => d.id === id ? { ...d, [field]: value } : d)
+            }));
+        };
+
+        const handleDeviceSchedule = (deviceId, day, index, field, value) => {
+            setEstState(prev => ({
+                ...prev,
+                devices: prev.devices.map(d => {
+                    if (d.id !== deviceId) return d;
+                    const newDayArr = [...(d.days[day] || [])];
+                    if (!newDayArr[index]) newDayArr[index] = { start: '', end: '' };
+                    newDayArr[index][field] = value;
+                    return { ...d, days: { ...d.days, [day]: newDayArr } };
+                })
+            }));
+        };
+
+        const addInterval = (deviceId, day) => {
+             setEstState(prev => ({
+                ...prev,
+                devices: prev.devices.map(d => {
+                    if(d.id !== deviceId) return d;
+                    if((d.days[day]?.length || 0) >= 5) return d;
+                    return { ...d, days: { ...d.days, [day]: [...(d.days[day]||[]), { start: '00:00', end: '00:00' }] } };
+                })
+            }));
+        };
+        
+        const removeInterval = (deviceId, day, index) => {
+             setEstState(prev => ({
+                ...prev,
+                devices: prev.devices.map(d => {
+                    if(d.id !== deviceId) return d;
+                    const newArr = d.days[day].filter((_, i) => i !== index);
+                    return { ...d, days: { ...d.days, [day]: newArr } };
+                })
+            }));
+        };
+
+        const copyScheduleToWeek = (deviceId, sourceDay) => {
+            setEstState(prev => ({
+                ...prev,
+                devices: prev.devices.map(d => {
+                    if (d.id !== deviceId) return d;
+                    const source = d.days[sourceDay];
+                    const newDays = { ...d.days };
+                    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach(day => {
+                        newDays[day] = JSON.parse(JSON.stringify(source));
+                    });
+                    return { ...d, days: newDays };
+                })
+            }));
+        };
+
+        const addDevice = () => {
+            if (estState.devices.length >= 5) return;
+            const newId = Math.max(...estState.devices.map(d => d.id), 0) + 1;
+            setEstState(prev => ({
+                ...prev,
+                devices: [...prev.devices, { id: newId, name: "Nuevo Dispositivo", power: 1.0, count: 1, dutyCycle: 100, days: { Mon: [], Tue: [], Wed: [], Thu: [], Fri: [], Sat: [], Sun: [] } }]
+            }));
+        };
+
+        const deleteDevice = (id) => {
+            setEstState(prev => ({ ...prev, devices: prev.devices.filter(d => d.id !== id) }));
+        };
+
+        // --- CÁLCULO PRINCIPAL FACTURAS (ORIGINAL) ---
         const calculateBill = (proposal) => {
             const termPotDisc = ((tState.potP1 * proposal.pricePotP1 * tState.days) + (tState.potP2 * proposal.pricePotP2 * tState.days)) * (1 - proposal.discPot / 100);
             const termEnRaw = (tState.p1Kwh * proposal.priceEnP1) + (tState.p2Kwh * proposal.priceEnP2) + (tState.p3Kwh * proposal.priceEnP3) + (tState.p3VeKwh * proposal.priceEnP3Ve) + (tState.p4Kwh * proposal.priceEnP4);
@@ -3305,6 +3231,86 @@
         const winnerEVCost = diff > 0 ? evCostA : evCostB;
         const getConsPct = (val) => tState.consTotal > 0 ? (val / tState.consTotal) * 100 : 0;
         const consumptionData = { p1Kwh: tState.p1Kwh, p2Kwh: tState.p2Kwh, p3Kwh: tState.p3Kwh, p3VeKwh: tState.p3VeKwh, p4Kwh: tState.p4Kwh, totalKwh: tState.consTotal };
+
+        // --- CÁLCULO ESTIMADOR (AHORA SÍ, DESPUÉS DE billA Y billB) ---
+        const calculateEstimation = () => {
+            const start = new Date(estState.startDate);
+            const end = new Date(estState.endDate);
+            const daysDiff = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+            const weeks = daysDiff / 7;
+
+            const prop = estState.selectedProp === 'A' ? tState.propA : tState.propB;
+            const taxMultiplier = estState.withTaxes ? (1 + tState.impuestoElec/100) * (1 + tState.iva/100) : 1;
+            
+            const p1Price = prop.priceEnP1 * (1 - prop.discEn/100) * taxMultiplier;
+            const p2Price = prop.priceEnP2 * (1 - prop.discEn/100) * taxMultiplier;
+            const p3Price = prop.priceEnP3 * (1 - prop.discEn/100) * taxMultiplier;
+
+            let totalCost = 0;
+            let totalKwh = 0;
+            const deviceResults = [];
+
+            estState.devices.forEach(dev => {
+                let devKwhWeekly = 0;
+                let devCostWeekly = 0;
+
+                ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((dayStr) => {
+                    const isWeekend = dayStr === 'Sat' || dayStr === 'Sun';
+                    const intervals = dev.days[dayStr] || [];
+                    
+                    intervals.forEach(int => {
+                        if(!int.start || !int.end) return;
+                        const [h1, m1] = int.start.split(':').map(Number);
+                        const [h2, m2] = int.end.split(':').map(Number);
+                        let startH = h1 + m1/60;
+                        let endH = h2 + m2/60;
+                        if(endH < startH) endH += 24; 
+                        
+                        const duration = endH - startH;
+                        if(duration <= 0) return;
+
+                        const effectivePower = dev.power * dev.count * (dev.dutyCycle / 100);
+                        
+                        for(let h = Math.floor(startH); h < Math.ceil(endH); h++) {
+                            const hourReal = h % 24;
+                            const overlapStart = Math.max(h, startH);
+                            const overlapEnd = Math.min(h + 1, endH);
+                            const fraction = Math.max(0, overlapEnd - overlapStart);
+                            
+                            const kwh = effectivePower * fraction;
+                            let price = p3Price; 
+
+                            if (!isWeekend) {
+                                if (estState.scheduleDef.p1.includes(hourReal)) price = p1Price;
+                                else if (estState.scheduleDef.p2.includes(hourReal)) price = p2Price;
+                            }
+                            
+                            devKwhWeekly += kwh;
+                            devCostWeekly += (kwh * price);
+                        }
+                    });
+                });
+
+                const devTotalKwh = devKwhWeekly * weeks;
+                const devTotalCost = devCostWeekly * weeks;
+
+                deviceResults.push({ ...dev, totalKwh: devTotalKwh, totalCost: devTotalCost });
+                totalKwh += devTotalKwh;
+                totalCost += devTotalCost;
+            });
+            
+            const monthlyKwh = totalKwh / (daysDiff / 30.44);
+            const monthlyCost = totalCost / (daysDiff / 30.44);
+            
+            // Comparativa con factura actual (base mensual)
+            const currentBillTotal = estState.selectedProp === 'A' ? billA.total : billB.total;
+            const billMonthly = currentBillTotal * (30 / tState.days); 
+            const impactPct = billMonthly > 0 ? (monthlyCost / billMonthly) * 100 : 0;
+
+            return { totalCost, totalKwh, deviceResults, daysDiff, monthlyKwh, monthlyCost, impactPct };
+        };
+
+        const estResult = calculateEstimation();
 
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
@@ -3358,9 +3364,7 @@
                     />
                 </div>
 
-
-
-                {/* --- BLOQUE C: VISUAL (Insertar antes de los botones de Guardar) --- */}
+                {/* --- NUEVO PANEL DE ESTIMACIÓN (INSERTADO AQUÍ) --- */}
                 <div className="lg:col-span-12 mt-8 animate-fade-in">
                     <div className="bg-slate-900/90 border-2 border-slate-700/50 rounded-2xl p-6 relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
@@ -3375,6 +3379,7 @@
                             Herramienta para calcular el impacto económico de sistemas de Aerotermia, Bombas de calor, Filtros de piscina o Carga de VE en base a sus horarios de uso y tu tarifa seleccionada.
                         </p>
 
+                        {/* CONFIGURACIÓN GLOBAL */}
                         <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 mb-6 relative z-10">
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                                 <div>
@@ -3401,9 +3406,11 @@
                             </div>
                         </div>
 
+                        {/* LISTA DE DISPOSITIVOS */}
                         <div className="space-y-4 relative z-10">
                             {estState.devices.map((dev) => (
                                 <div key={dev.id} className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden transition-all hover:border-slate-500">
+                                    {/* CABECERA DISPOSITIVO */}
                                     <div className="p-4 bg-slate-900/50 border-b border-slate-700 flex flex-wrap gap-4 items-end">
                                         <div className="flex-grow min-w-[200px]">
                                             <label className="text-[10px] font-bold text-slate-500 uppercase">Nombre</label>
@@ -3427,6 +3434,7 @@
                                         <button onClick={() => deleteDevice(dev.id)} className="p-2 text-red-500 hover:bg-red-900/20 rounded"><Icons.LogOut className="w-5 h-5" /></button>
                                     </div>
 
+                                    {/* HORARIOS */}
                                     <div className="p-4 bg-slate-900/30">
                                         <div className="flex overflow-x-auto gap-2 pb-2">
                                             {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => {
@@ -3468,6 +3476,7 @@
                             )}
                         </div>
 
+                        {/* RESULTADOS TOTALES */}
                         <div className="mt-8 bg-black/40 rounded-xl p-6 border border-slate-700/50 relative z-10">
                             <h4 className="text-sm font-bold text-slate-300 uppercase mb-4 flex gap-2 items-center"><Icons.PieChart className="w-4 h-4"/> Resultados Estimados ({estResult.daysDiff} días)</h4>
                             
@@ -3514,11 +3523,7 @@
                             </div>
                         </div>
                     </div>
-                </div>              
-
-
-
-                
+                </div>
 
                 <div className="lg:col-span-12">
                     <div className="flex flex-col md:flex-row gap-6 justify-center items-center p-6 bg-slate-900/50 rounded-xl border border-slate-700/50">
@@ -3534,6 +3539,7 @@
             </div>
         );
       };
+
      
 
   
