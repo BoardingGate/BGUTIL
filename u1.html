@@ -2837,9 +2837,7 @@
 
 
 
-
-     
-      // --- TARIFF COMPARATOR (VERTICAL LAYOUT FIX) ---
+      // --- TARIFF COMPARATOR (FIXED SCHEDULE LAYOUT) ---
       const TariffComparator = () => {
         // 1. ESTADO ORIGINAL
         const [tState, setTState] = usePersistentState('tariffCompV5', {
@@ -3422,31 +3420,41 @@
                                 </div>
                             </div>
 
-                            {/* NUEVO: CONFIGURACIÓN DE HORARIOS P1/P2/P3 */}
+                            {/* NUEVO: CONFIGURACIÓN DE HORARIOS P1/P2/P3 - DISEÑO VERTICAL CORREGIDO */}
                             <div className="pt-4 border-t border-slate-700">
                                 <div className="flex justify-between items-center mb-3">
-                                    <label className="text-xs font-bold text-slate-300 uppercase">Configuración de Horarios (Periodos Energía)</label>
-                                    <div className="flex items-center gap-2">
+                                    <label className="text-sm font-bold text-slate-300 uppercase">Configuración de Horarios (Periodos Energía)</label>
+                                    <div className="flex items-center gap-2 bg-slate-900 p-2 rounded border border-slate-600">
                                         <input type="checkbox" checked={estState.scheduleConfig.weekendsAreP3} onChange={() => setEstState(p => ({...p, scheduleConfig: {...p.scheduleConfig, weekendsAreP3: !p.scheduleConfig.weekendsAreP3}}))} className="w-4 h-4 accent-green-500 cursor-pointer" />
-                                        <span className="text-xs text-slate-400">Fines de Semana son Valle (P3)</span>
+                                        <span className="text-xs text-white font-bold">Fines de Semana son Valle (P3)</span>
                                     </div>
                                 </div>
+                                
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="bg-slate-900 p-2 rounded border border-slate-700 flex items-center gap-2">
-                                        <span className="text-xs font-bold text-red-400 w-8">P1:</span>
-                                        {[0, 1, 2].map(i => (
-                                            <input key={i} type="text" placeholder="10-14" value={estState.scheduleConfig.p1[i]} onChange={(e) => handleScheduleConfig('p1', i, e.target.value)} className="flex-1 bg-slate-800 border border-slate-600 rounded text-center text-xs text-white p-1" />
-                                        ))}
+                                    {/* BLOQUE P1 */}
+                                    <div className="bg-slate-900 p-3 rounded border border-slate-700">
+                                        <div className="text-xs font-bold text-red-400 mb-2 border-b border-red-900/50 pb-1">P1 (Horas Punta):</div>
+                                        <div className="flex flex-col gap-2">
+                                            {[0, 1, 2].map(i => (
+                                                <input key={i} type="text" placeholder="Ej: 10-14" value={estState.scheduleConfig.p1[i]} onChange={(e) => handleScheduleConfig('p1', i, e.target.value)} className="w-full bg-slate-800 border border-slate-600 rounded text-center text-sm font-mono font-bold text-white p-2 focus:border-red-500 outline-none" />
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="bg-slate-900 p-2 rounded border border-slate-700 flex items-center gap-2">
-                                        <span className="text-xs font-bold text-orange-400 w-8">P2:</span>
-                                        {[0, 1, 2].map(i => (
-                                            <input key={i} type="text" placeholder="08-10" value={estState.scheduleConfig.p2[i]} onChange={(e) => handleScheduleConfig('p2', i, e.target.value)} className="flex-1 bg-slate-800 border border-slate-600 rounded text-center text-xs text-white p-1" />
-                                        ))}
+
+                                    {/* BLOQUE P2 */}
+                                    <div className="bg-slate-900 p-3 rounded border border-slate-700">
+                                        <div className="text-xs font-bold text-orange-400 mb-2 border-b border-orange-900/50 pb-1">P2 (Horas Llano):</div>
+                                        <div className="flex flex-col gap-2">
+                                            {[0, 1, 2].map(i => (
+                                                <input key={i} type="text" placeholder="Ej: 08-10" value={estState.scheduleConfig.p2[i]} onChange={(e) => handleScheduleConfig('p2', i, e.target.value)} className="w-full bg-slate-800 border border-slate-600 rounded text-center text-sm font-mono font-bold text-white p-2 focus:border-orange-500 outline-none" />
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="text-[9px] text-slate-500 mt-1 italic text-center">
-                                    * Todo lo que no esté definido en P1 o P2 se considerará P3 (Valle). Formato: HH-HH (Ej: 10-14).
+
+                                <div className="text-sm font-bold text-slate-400 mt-4 italic text-center leading-relaxed bg-black/20 p-2 rounded">
+                                    * Todo lo que no esté definido en P1 o P2 se considerará <span className="text-green-400">P3 (Valle)</span>. 
+                                    <br/>Formato obligatorio: <strong>HH-HH</strong> (Ej: 10-14 para indicar de 10:00 a 14:00).
                                 </div>
                             </div>
                         </div>
@@ -3597,6 +3605,8 @@
             </div>
         );
       };
+
+
  
 
   
