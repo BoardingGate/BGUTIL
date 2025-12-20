@@ -2837,9 +2837,7 @@
 
 
         
-        
-        
-    // --- TARIFF COMPARATOR (FIXED & EXTENDED) ---
+      // --- TARIFF COMPARATOR (FIXED ICON ERROR) ---
       const TariffComparator = () => {
         // 1. ESTADO ORIGINAL
         const [tState, setTState] = usePersistentState('tariffCompV5', {
@@ -2869,7 +2867,7 @@
             }
         });
 
-        // 2. NUEVO ESTADO PARA ESTIMACIÓN (INSERTADO)
+        // 2. NUEVO ESTADO PARA ESTIMACIÓN
         const [estState, setEstState] = usePersistentState('estConsV1', {
             selectedProp: 'A', 
             withTaxes: true,
@@ -3232,7 +3230,7 @@
         const getConsPct = (val) => tState.consTotal > 0 ? (val / tState.consTotal) * 100 : 0;
         const consumptionData = { p1Kwh: tState.p1Kwh, p2Kwh: tState.p2Kwh, p3Kwh: tState.p3Kwh, p3VeKwh: tState.p3VeKwh, p4Kwh: tState.p4Kwh, totalKwh: tState.consTotal };
 
-        // --- CÁLCULO ESTIMADOR (AHORA SÍ, DESPUÉS DE billA Y billB) ---
+        // --- CÁLCULO ESTIMADOR ---
         const calculateEstimation = () => {
             const start = new Date(estState.startDate);
             const end = new Date(estState.endDate);
@@ -3364,7 +3362,7 @@
                     />
                 </div>
 
-                {/* --- NUEVO PANEL DE ESTIMACIÓN (INSERTADO AQUÍ) --- */}
+                {/* --- NUEVO PANEL DE ESTIMACIÓN --- */}
                 <div className="lg:col-span-12 mt-8 animate-fade-in">
                     <div className="bg-slate-900/90 border-2 border-slate-700/50 rounded-2xl p-6 relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
@@ -3478,7 +3476,7 @@
 
                         {/* RESULTADOS TOTALES */}
                         <div className="mt-8 bg-black/40 rounded-xl p-6 border border-slate-700/50 relative z-10">
-                            <h4 className="text-sm font-bold text-slate-300 uppercase mb-4 flex gap-2 items-center"><Icons.PieChart className="w-4 h-4"/> Resultados Estimados ({estResult.daysDiff} días)</h4>
+                            <h4 className="text-sm font-bold text-slate-300 uppercase mb-4 flex gap-2 items-center"><Icons.Activity className="w-4 h-4"/> Resultados Estimados ({estResult.daysDiff} días)</h4>
                             
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
                                 <div className="bg-slate-800 p-4 rounded-xl border border-slate-600 text-center">
