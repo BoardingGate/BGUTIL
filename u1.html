@@ -2839,7 +2839,7 @@
 
 
 
-      // --- TARIFF COMPARATOR (FIXED ICON ERROR) ---
+      // --- TARIFF COMPARATOR (TESLA BROWSER OPTIMIZED) ---
       const TariffComparator = () => {
         // 1. ESTADO ORIGINAL
         const [tState, setTState] = usePersistentState('tariffCompV5', {
@@ -3151,7 +3151,7 @@
                 devices: prev.devices.map(d => {
                     if(d.id !== deviceId) return d;
                     if((d.days[day]?.length || 0) >= 5) return d;
-                    return { ...d, days: { ...d.days, [day]: [...(d.days[day]||[]), { start: '00:00', end: '00:00' }] } };
+                    return { ...d, days: { ...d.days, [day]: [...(d.days[day]||[]), { start: '', end: '' }] } };
                 })
             }));
         };
@@ -3260,10 +3260,16 @@
                     
                     intervals.forEach(int => {
                         if(!int.start || !int.end) return;
-                        const [h1, m1] = int.start.split(':').map(Number);
-                        const [h2, m2] = int.end.split(':').map(Number);
-                        let startH = h1 + m1/60;
-                        let endH = h2 + m2/60;
+                        
+                        // Parseo manual robusto para texto
+                        const parseTime = (str) => {
+                            if(!str) return 0;
+                            const parts = str.includes(':') ? str.split(':') : [str, '0'];
+                            return parseInt(parts[0]) + (parseInt(parts[1]||0)/60);
+                        };
+
+                        const startH = parseTime(int.start);
+                        let endH = parseTime(int.end);
                         if(endH < startH) endH += 24; 
                         
                         const duration = endH - startH;
@@ -3302,7 +3308,6 @@
             const monthlyKwh = totalKwh / (daysDiff / 30.44);
             const monthlyCost = totalCost / (daysDiff / 30.44);
             
-            // Comparativa con factura actual (base mensual)
             const currentBillTotal = estState.selectedProp === 'A' ? billA.total : billB.total;
             const billMonthly = currentBillTotal * (30 / tState.days); 
             const impactPct = billMonthly > 0 ? (monthlyCost / billMonthly) * 100 : 0;
@@ -3397,11 +3402,11 @@
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Fecha Inicio</label>
-                                    <input type="date" value={estState.startDate} onChange={(e) => setEstState(p => ({...p, startDate: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white text-sm font-bold" />
+                                    <input type="text" placeholder="AAAA-MM-DD" value={estState.startDate} onChange={(e) => setEstState(p => ({...p, startDate: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white text-sm font-bold" />
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Fecha Fin</label>
-                                    <input type="date" value={estState.endDate} onChange={(e) => setEstState(p => ({...p, endDate: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white text-sm font-bold" />
+                                    <input type="text" placeholder="AAAA-MM-DD" value={estState.endDate} onChange={(e) => setEstState(p => ({...p, endDate: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white text-sm font-bold" />
                                 </div>
                             </div>
                         </div>
@@ -3441,20 +3446,25 @@
                                                 const dayInitials = { Mon: 'LU', Tue: 'MA', Wed: 'MI', Thu: 'JU', Fri: 'VI', Sat: 'SA', Sun: 'DO' };
                                                 const intervals = dev.days[day] || [];
                                                 return (
-                                                    <div key={day} className="min-w-[140px] bg-slate-800 rounded border border-slate-700 p-2 flex flex-col gap-2">
+                                                    <div key={day} className="min-w-[160px] bg-slate-800 rounded border border-slate-700 p-2 flex flex-col gap-2">
                                                         <div className="flex justify-between items-center border-b border-slate-700 pb-1 mb-1">
                                                             <span className={`font-bold text-xs ${['Sat', 'Sun'].includes(day) ? 'text-orange-400' : 'text-slate-300'}`}>{dayInitials[day]}</span>
                                                             <div className="flex gap-1">
-                                                                <button onClick={() => addInterval(dev.id, day)} className="text-[10px] bg-slate-700 px-1.5 rounded hover:bg-slate-600 text-green-400">+</button>
-                                                                {day === 'Mon' && <button onClick={() => copyScheduleToWeek(dev.id, 'Mon')} title="Copiar Lunes a toda la semana" className="text-[10px] bg-slate-700 px-1.5 rounded hover:bg-blue-600 text-blue-400 hover:text-white">All</button>}
+                                                                <button onClick={() => addInterval(dev.id, day)} className="text-[10px] bg-slate-700 px-1.5 rounded hover:bg-slate-600 text-green-400 font-bold">+</button>
+                                                                {day === 'Mon' && <button onClick={() => copyScheduleToWeek(dev.id, 'Mon')} title="Copiar Lunes a toda la semana" className="text-[10px] bg-slate-700 px-1.5 rounded hover:bg-blue-600 text-blue-400 hover:text-white font-bold">All</button>}
                                                             </div>
                                                         </div>
                                                         {intervals.map((int, idx) => (
-                                                            <div key={idx} className="flex items-center gap-1">
-                                                                <input type="time" value={int.start} onChange={(e) => handleDeviceSchedule(dev.id, day, idx, 'start', e.target.value)} className="w-14 bg-slate-900 text-[10px] text-white rounded px-1 py-1 border border-slate-600" />
-                                                                <span className="text-slate-500">-</span>
-                                                                <input type="time" value={int.end} onChange={(e) => handleDeviceSchedule(dev.id, day, idx, 'end', e.target.value)} className="w-14 bg-slate-900 text-[10px] text-white rounded px-1 py-1 border border-slate-600" />
-                                                                <button onClick={() => removeInterval(dev.id, day, idx)} className="text-red-500 hover:text-red-400">×</button>
+                                                            <div key={idx} className="flex flex-col gap-1 bg-slate-900/50 p-1 rounded border border-slate-700/50 mb-1">
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="text-[9px] text-slate-500 w-3">De:</span>
+                                                                    <input type="text" placeholder="HH:MM" value={int.start} onChange={(e) => handleDeviceSchedule(dev.id, day, idx, 'start', e.target.value)} className="w-full bg-slate-900 text-[10px] text-white rounded px-1 border border-slate-600 font-mono text-center" />
+                                                                </div>
+                                                                <div className="flex items-center gap-1">
+                                                                    <span className="text-[9px] text-slate-500 w-3">A:</span>
+                                                                    <input type="text" placeholder="HH:MM" value={int.end} onChange={(e) => handleDeviceSchedule(dev.id, day, idx, 'end', e.target.value)} className="w-full bg-slate-900 text-[10px] text-white rounded px-1 border border-slate-600 font-mono text-center" />
+                                                                </div>
+                                                                <button onClick={() => removeInterval(dev.id, day, idx)} className="text-[9px] text-red-400 hover:text-red-300 font-bold text-right w-full">ELIMINAR</button>
                                                             </div>
                                                         ))}
                                                         {intervals.length === 0 && <span className="text-[10px] text-slate-600 text-center py-2">Sin uso</span>}
@@ -3482,14 +3492,14 @@
                             
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
                                 <div className="bg-slate-800 p-4 rounded-xl border border-slate-600 text-center">
-                                    <div className="text-xs text-slate-400 uppercase font-bold mb-1">Consumo Total</div>
-                                    <div className="text-3xl font-display font-bold text-white">{formatDecimal(estResult.totalKwh, 0)} <span className="text-base text-slate-500 font-normal">kWh</span></div>
-                                    <div className="text-xs text-blue-400 mt-1 font-bold">~{formatDecimal(estResult.monthlyKwh, 0)} kWh / mes</div>
+                                    <div className="text-xs text-slate-400 uppercase font-bold mb-1">Consumo Mensual</div>
+                                    <div className="text-3xl font-display font-bold text-white">{formatDecimal(estResult.monthlyKwh, 0)} <span className="text-base text-slate-500 font-normal">kWh</span></div>
+                                    <div className="text-xs text-blue-400 mt-1 font-bold">Total periodo: {formatDecimal(estResult.totalKwh, 0)} kWh</div>
                                 </div>
                                 <div className="bg-slate-800 p-4 rounded-xl border border-slate-600 text-center">
-                                    <div className="text-xs text-slate-400 uppercase font-bold mb-1">Coste Estimado</div>
-                                    <div className="text-3xl font-display font-bold text-green-400">{formatDecimal(estResult.totalCost)} €</div>
-                                    <div className="text-xs text-green-600 mt-1 font-bold">~{formatDecimal(estResult.monthlyCost)} € / mes</div>
+                                    <div className="text-xs text-slate-400 uppercase font-bold mb-1">Coste Mensual</div>
+                                    <div className="text-3xl font-display font-bold text-green-400">{formatDecimal(estResult.monthlyCost)} €</div>
+                                    <div className="text-xs text-green-600 mt-1 font-bold">Total periodo: {formatDecimal(estResult.totalCost)} €</div>
                                 </div>
                                 <div className="bg-slate-800 p-4 rounded-xl border border-slate-600 text-center relative overflow-hidden">
                                     <div className="text-xs text-slate-400 uppercase font-bold mb-1">Impacto en Factura</div>
@@ -3504,18 +3514,18 @@
                                     <thead className="text-xs text-slate-500 uppercase bg-slate-900/50 border-b border-slate-700">
                                         <tr>
                                             <th className="px-4 py-2">Dispositivo</th>
+                                            <th className="px-4 py-2 text-right">Coste Mensual</th>
                                             <th className="px-4 py-2 text-right">Total kWh</th>
                                             <th className="px-4 py-2 text-right">Coste Total</th>
-                                            <th className="px-4 py-2 text-right">Coste Mensual</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800">
                                         {estResult.deviceResults.map(res => (
                                             <tr key={res.id}>
                                                 <td className="px-4 py-2 font-bold text-white">{res.name}</td>
-                                                <td className="px-4 py-2 text-right font-mono text-slate-300">{formatDecimal(res.totalKwh, 1)}</td>
-                                                <td className="px-4 py-2 text-right font-mono text-green-400">{formatDecimal(res.totalCost, 2)}€</td>
-                                                <td className="px-4 py-2 text-right font-mono text-slate-400">{formatDecimal(res.totalCost / (estResult.daysDiff/30.44), 2)}€</td>
+                                                <td className="px-4 py-2 text-right font-mono text-green-400 text-lg font-bold">{formatDecimal(res.totalCost / (estResult.daysDiff/30.44), 2)}€</td>
+                                                <td className="px-4 py-2 text-right font-mono text-slate-400 text-xs">{formatDecimal(res.totalKwh, 1)}</td>
+                                                <td className="px-4 py-2 text-right font-mono text-slate-400 text-xs">{formatDecimal(res.totalCost, 2)}€</td>
                                             </tr>
                                         ))}
                                     </tbody>
