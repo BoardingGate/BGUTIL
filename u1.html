@@ -454,27 +454,107 @@
       };
 
       const SimpleSavingsSimulator = ({ params, costs }) => {
+        // Estado persistente con 500.000 km por defecto
         const [distance, setDistance] = usePersistentState('simpleSimDistance', 500000);
         const presets = [100, 1000, 10000, 20000, 50000, 100000, 200000, 300000, 400000, 500000];
+        
+        // Cálculos Económicos
         const costEV = (distance / 100) * params.electricConsumptionRef * costs.electricityPrice;
         const costICE = (distance / 100) * costs.gasConsumptionRef * costs.gasPrice;
         const savings = costICE - costEV;
         const percent = costICE > 0 ? (savings / costICE) * 100 : 0;
 
+        // Cálculos de Emisiones CO2 (Valores promedio industria)
+        // Fabricación (Estimado): Térmico ~8.000kg CO2 | Eléctrico ~15.000kg CO2 (incluye batería)
+        const mfgCO2_ICE = 8000; 
+        const mfgCO2_EV = 15000;
+        
+        // Uso: Gasolina ~2.31kg CO2 por litro | Electricidad (Mix España) ~0.18kg CO2 por kWh
+        const opCO2_ICE = (distance / 100) * costs.gasConsumptionRef * 2.31;
+        const opCO2_EV = (distance / 100) * params.electricConsumptionRef * 0.18;
+        
+        const totalCO2_ICE = mfgCO2_ICE + opCO2_ICE;
+        const totalCO2_EV = mfgCO2_EV + opCO2_EV;
+        const co2Savings = totalCO2_ICE - totalCO2_EV;
+
         return (
             <div className="bg-slate-900/50 backdrop-blur-lg border border-slate-800 rounded-2xl p-6 shadow-xl animate-fade-in">
-                <h3 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-4"><Icons.Piggy className="w-6 h-6 text-green-400" /> SIMULADOR SIMPLE DE KM RECORRIDOS AHORRO VE / TÉRMICO</h3>
+                <h3 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2 border-b border-slate-800 pb-4">
+                    <Icons.Piggy className="w-6 h-6 text-green-400" /> SIMULADOR SIMPLE DE AHORRO Y EMISIONES
+                </h3>
+                
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                    {/* COLUMNA IZQUIERDA: INPUTS */}
                     <div className="space-y-6">
-                        <div><label className="text-sm font-bold text-slate-400 block mb-2">KM. REALIZADOS</label><FormattedInput value={distance} onChange={setDistance} grouped={true} /></div>
-                        <div><label className="text-xs font-bold text-slate-500 block mb-2 uppercase tracking-wider">Selección Rápida</label><div className="flex flex-wrap gap-2">{presets.map((val) => (<button key={val} onClick={() => setDistance(val)} className={`px-3 py-2 text-xs font-bold rounded border transition-colors ${distance === val ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}>{formatMoney(val)} km</button>))}</div></div>
-                    </div>
-                    <div className="bg-slate-900/80 rounded-xl p-6 border border-slate-700 h-full flex flex-col justify-center">
-                        <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-slate-700/50">
-                            <div className="text-center"><div className="text-xs font-bold text-orange-400 uppercase mb-1">Coste Térmico</div><div className="text-2xl font-bold text-white">{formatMoney(costICE)}€</div><div className="text-sm font-bold text-slate-400 font-mono mt-1">{costs.gasConsumptionRef}L/100</div></div>
-                            <div className="text-center"><div className="text-xs font-bold text-blue-400 uppercase mb-1">Coste Eléctrico</div><div className="text-2xl font-bold text-white">{formatMoney(costEV)}€</div><div className="text-sm font-bold text-slate-400 font-mono mt-1">{params.electricConsumptionRef}kWh/100</div></div>
+                        <div>
+                            <label className="text-sm font-bold text-slate-400 block mb-2">KM. REALIZADOS</label>
+                            <FormattedInput value={distance} onChange={setDistance} grouped={true} />
                         </div>
-                        <div className="bg-green-500/10 rounded-lg p-4 text-center border border-green-500/20"><div className="text-sm font-bold text-green-400 uppercase tracking-widest mb-1">Ahorro Total</div><div className="text-4xl font-display font-bold text-white mb-1">+{formatMoney(savings)}€</div><div className="text-sm font-bold text-green-300">{formatDecimal(percent, 1)}% más barato</div></div>
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 block mb-2 uppercase tracking-wider">Selección Rápida</label>
+                            <div className="flex flex-wrap gap-2">
+                                {presets.map((val) => (
+                                    <button 
+                                        key={val} 
+                                        onClick={() => setDistance(val)} 
+                                        className={`px-3 py-2 text-xs font-bold rounded border transition-colors ${distance === val ? 'bg-blue-600 border-blue-500 text-white' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'}`}
+                                    >
+                                        {formatMoney(val)} km
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* COLUMNA DERECHA: RESULTADOS */}
+                    <div className="space-y-4">
+                        {/* RESULTADO ECONÓMICO */}
+                        <div className="bg-slate-900/80 rounded-xl p-6 border border-slate-700">
+                            <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-slate-700/50">
+                                <div className="text-center">
+                                    <div className="text-xs font-bold text-orange-400 uppercase mb-1">Coste Térmico</div>
+                                    <div className="text-2xl font-bold text-white">{formatMoney(costICE)}€</div>
+                                    <div className="text-sm font-bold text-slate-400 font-mono mt-1">{costs.gasConsumptionRef}L/100</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-xs font-bold text-blue-400 uppercase mb-1">Coste Eléctrico</div>
+                                    <div className="text-2xl font-bold text-white">{formatMoney(costEV)}€</div>
+                                    <div className="text-sm font-bold text-slate-400 font-mono mt-1">{params.electricConsumptionRef}kWh/100</div>
+                                </div>
+                            </div>
+                            <div className="bg-green-500/10 rounded-lg p-4 text-center border border-green-500/20">
+                                <div className="text-sm font-bold text-green-400 uppercase tracking-widest mb-1">Ahorro en Combustible</div>
+                                <div className="text-4xl font-display font-bold text-white mb-1">+{formatMoney(savings)}€</div>
+                                <div className="text-sm font-bold text-green-300">{formatDecimal(percent, 1)}% más barato</div>
+                            </div>
+                        </div>
+
+                        {/* RESULTADO MEDIOAMBIENTAL */}
+                        <div className="bg-slate-900/80 rounded-xl p-6 border border-slate-700">
+                            <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-slate-700/50">
+                                <div className="text-center">
+                                    <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Emisiones Térmico</div>
+                                    <div className="text-xl font-bold text-slate-300">{formatMoney(totalCO2_ICE)} kg</div>
+                                    <div className="text-[10px] text-slate-500">Fabricación + Uso</div>
+                                </div>
+                                <div className="text-center">
+                                    <div className="text-[10px] font-bold text-slate-500 uppercase mb-1">Emisiones Eléctrico</div>
+                                    <div className="text-xl font-bold text-slate-300">{formatMoney(totalCO2_EV)} kg</div>
+                                    <div className="text-[10px] text-slate-500">Fabricación + Uso</div>
+                                </div>
+                            </div>
+                            <div className="bg-blue-500/10 rounded-lg p-4 text-center border border-blue-500/20">
+                                <div className="text-sm font-bold text-blue-400 uppercase tracking-widest mb-1">CO2 Evitado a la Atmósfera</div>
+                                <div className={`text-3xl font-display font-bold ${co2Savings > 0 ? 'text-white' : 'text-red-400'}`}>
+                                    {co2Savings > 0 ? '+' : ''}{formatMoney(co2Savings)} kg
+                                </div>
+                                <div className="text-[10px] font-bold text-blue-300 mt-1 italic">
+                                    {co2Savings > 0 
+                                        ? "El Eléctrico es más ecológico a largo plazo" 
+                                        : "Aún no se ha compensado la huella de fabricación de la batería"}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
