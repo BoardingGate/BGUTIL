@@ -210,19 +210,6 @@
       }
         
         
-
-
-
-// Cálculo de regeneración Tesla (Promedio 21% de eficiencia de recuperación)
-let capacidadTesla = parseFloat($('#capacidad_bateria').val()) || 75; // 75kWh si no hay valor
-let regenKwh = (parseFloat($('#input_ciclos').val()) || 0) * capacidadTesla * 0.21;
-
-// Mostrar el resultado en la tarjeta
-$('#res_regen').text(regenKwh.toFixed(1));
-        
-        
-        
-
  
   const Icons = {
         Wind: ({className}) => <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></svg>,
@@ -1833,6 +1820,18 @@ $('#res_regen').text(regenKwh.toFixed(1));
             #slider-dual-start::-webkit-slider-thumb { border-color: #eab308; } 
             #slider-dual-target::-webkit-slider-thumb { border-color: #22c55e; }
         `;
+        
+        // ... código existente ...
+const totalDrivingKwh = (state.currentKm / 100) * state.consumption;
+
+// --- AÑADE ESTAS 2 LÍNEAS ---
+const totalRegenKwh = totalDrivingKwh * 0.22; // Estimación 22% de regeneración en Tesla
+const costRegenSaved = totalRegenKwh * state.energyPrice; 
+// ----------------------------
+
+const daysOwned = carAge ? carAge.days : 0;
+// ... resto del código ...
+        
 
         return (
             <div className="grid grid-cols-1 gap-8 animate-fade-in">
@@ -2075,20 +2074,36 @@ $('#res_regen').text(regenKwh.toFixed(1));
                                 <div className="text-xl font-bold text-slate-200 mt-4 bg-blue-900/30 inline-block px-6 py-3 rounded">Histórico: {formatDecimal(avgDailyKmHistorical, 1)} km/día</div>
                             </div>
                             
-                            
-<div class="col-xl-3 col-md-6 mb-4">
-    <div class="card border-left-danger shadow h-100 py-2">
-        <div class="card-body">
-            <div class="row no-gutters align-items-center">
-                <div class="col mr-2">
-                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Regeneración Est. (Tesla)</div>
-                    <div class="h5 mb-0 font-weight-bold text-gray-800"><span id="res_regen">0</span> kWh</div>
-                </div>
-                <div class="col-auto">
-                    <i class="fas fa-bolt fa-2x text-gray-300"></i>
-                </div>
-            </div>
+     {/* Reemplaza el div que tiene className="grid grid-cols-1 md:grid-cols-3 gap-4" por este: */}
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
+        <div className="text-xs font-bold text-slate-400 uppercase mb-2">Consumo Conducción</div>
+        <div className="text-xl font-bold text-white">{formatMoney(totalDrivingKwh)} <span className="text-sm text-slate-500 font-normal">kWh</span></div>
+        <div className="text-lg font-bold text-green-400 mt-1">{formatDecimal(costDrivingHistory)}€</div>
+    </div>
+
+    {/* NUEVA TARJETA DE REGENERACIÓN */}
+    <div className="bg-slate-800/50 p-4 rounded-xl border border-green-500/30 text-center relative overflow-hidden">
+        <div className="text-xs font-bold text-green-400 uppercase mb-2">Energía Regenerada</div>
+        <div className="text-xl font-bold text-white">-{formatMoney(totalRegenKwh)} <span className="text-sm text-green-400/70 font-normal">kWh</span></div>
+        <div className="text-sm font-bold text-slate-400 mt-1 flex flex-col">
+            <span>Est. Recuperado (22%)</span>
+            <span className="text-green-400 text-lg font-bold mt-1">-{formatDecimal(costRegenSaved)}€</span>
         </div>
+        <div className="absolute top-1 right-1 opacity-20"><Icons.Zap className="w-4 h-4 text-green-400" /></div>
+    </div>
+
+    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
+        <div className="text-xs font-bold text-purple-400 uppercase mb-2">Consumo Vampiro</div>
+        <div className="text-xl font-bold text-purple-300">+{formatMoney(totalVampireKwh)} <span className="text-sm text-purple-400/70 font-normal">kWh</span></div>
+        <div className="text-sm font-bold text-slate-400 mt-1 flex flex-col"><span>~{formatMoney(vampireKmEquivalent)} km</span><span className="text-red-400 text-lg font-bold mt-1">{formatDecimal(costVampireHistory)}€</span></div>
+    </div>
+
+    <div className="bg-slate-800/50 p-4 rounded-xl border border-red-900/30 text-center relative overflow-hidden">
+        <div className="text-xs font-bold text-red-400 uppercase mb-2">Ineficiencia Carga</div>
+        <div className="text-xl font-bold text-red-300">+{formatMoney(totalLossKwh)} <span className="text-sm text-red-400/70 font-normal">kWh</span></div>
+        <div className="text-sm font-bold text-slate-400 mt-1 flex flex-col"><span>~{formatMoney(estimatedSessions)} sesiones*</span><span className="text-red-400 text-lg font-bold mt-1">{formatDecimal(costLossHistory)}€</span></div>
+        <div className="absolute top-1 right-1 text-[9px] text-red-500/50 font-bold">*Est. al 40%</div>
     </div>
 </div>
                             
