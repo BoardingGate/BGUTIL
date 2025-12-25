@@ -210,37 +210,15 @@
       }
         
         
-        
-function calcularRegeneracionTesla() {
-    // 1. Capturamos los valores de tu dashboard
-    // Nota: Revisa que estos IDs coincidan con tus inputs actuales
-    let ciclos = parseFloat(document.getElementById('input_ciclos').value) || 0;
-    let capacidadBateria = parseFloat(document.getElementById('capacidad_kwh').value) || 75; // 75kWh por defecto (Model 3/Y)
 
-    /* 
-       LÓGICA TESLA:
-       - Un ciclo completo es una descarga/carga del 100%.
-       - En el uso real, por cada 100 kWh consumidos, un Tesla regenera ~20 kWh 
-         en conducción urbana/mixta.
-    */
-    const FACTOR_REGEN = 0.20; 
-    
-    let totalKwhConsumidos = ciclos * capacidadBateria;
-    let kwhRegenerados = totalKwhConsumidos * FACTOR_REGEN;
 
-    // 3. Actualizar la tarjeta
-    document.getElementById('tesla_regen_val').innerText = kwhRegenerados.toLocaleString('de-DE', {minimumFractionDigits: 1, maximumFractionDigits: 1});
-}
 
-// Eventos para que se calcule solo al escribir
-document.addEventListener('DOMContentLoaded', function() {
-    const inputs = ['input_ciclos', 'capacidad_kwh'];
-    inputs.forEach(id => {
-        const el = document.getElementById(id);
-        if(el) el.addEventListener('input', calcularRegeneracionTesla);
-    });
-});
+// Cálculo de regeneración Tesla (Promedio 21% de eficiencia de recuperación)
+let capacidadTesla = parseFloat($('#capacidad_bateria').val()) || 75; // 75kWh si no hay valor
+let regenKwh = (parseFloat($('#input_ciclos').val()) || 0) * capacidadTesla * 0.21;
 
+// Mostrar el resultado en la tarjeta
+$('#res_regen').text(regenKwh.toFixed(1));
         
         
         
@@ -2097,22 +2075,24 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <div className="text-xl font-bold text-slate-200 mt-4 bg-blue-900/30 inline-block px-6 py-3 rounded">Histórico: {formatDecimal(avgDailyKmHistorical, 1)} km/día</div>
                             </div>
                             
-                            <!-- Tarjeta Tesla kWh Regenerados -->
-<div class="card shadow h-100 py-2" style="border-left: 4px solid #E81828; background-color: #f8f9fc;">
-    <div class="card-body">
-        <div class="row no-gutters align-items-center">
-            <div class="col mr-2">
-                <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
-                    Energía Recuperada (Regeneración Tesla)</div>
-                <div class="h5 mb-0 font-weight-bold text-gray-800"><span id="tesla_regen_val">0.0</span> kWh</div>
-                <div class="text-xs text-muted mt-1">Est. basado en eficiencia del 20%</div>
-            </div>
-            <div class="col-auto">
-                <i class="fas fa-bolt fa-2x text-danger"></i>
+                            
+<div class="col-xl-3 col-md-6 mb-4">
+    <div class="card border-left-danger shadow h-100 py-2">
+        <div class="card-body">
+            <div class="row no-gutters align-items-center">
+                <div class="col mr-2">
+                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Regeneración Est. (Tesla)</div>
+                    <div class="h5 mb-0 font-weight-bold text-gray-800"><span id="res_regen">0</span> kWh</div>
+                </div>
+                <div class="col-auto">
+                    <i class="fas fa-bolt fa-2x text-gray-300"></i>
+                </div>
             </div>
         </div>
     </div>
 </div>
+                            
+                            
                             
                             
                             
