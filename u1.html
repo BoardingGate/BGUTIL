@@ -1412,7 +1412,9 @@
       };
 
 
-      // --- COMPONENTE: ESTRATEGIA DE CARGA (MODIFICADO: LEYENDA REINSTAURADA + CICLOS) ---
+     
+
+// --- COMPONENTE: ESTRATEGIA DE CARGA (MODIFICADO: AÑADIDA REGENERACIÓN TESLA) ---
       const ChargingStrategy = () => {
         const [state, setState] = usePersistentState('strategyState_v2', {
             battery: 60,
@@ -1532,9 +1534,9 @@
                         const glassHeight = ((startPct - endPct) / 100) * maxBarHeight;
                         const glassGeo = new THREE.CylinderGeometry(radius, radius, glassHeight, 32);
                         const glassMat = new THREE.MeshPhysicalMaterial({ 
-                            color: 0x94a3b8, // Gris azulado
+                            color: 0x94a3b8, 
                             transparent: true, 
-                            opacity: 0.4, // Opacidad sólida
+                            opacity: 0.4, 
                             roughness: 0.2,
                             metalness: 0.2,
                             transmission: 0.1 
@@ -1761,11 +1763,16 @@
         const monthlyCost = (totalCost / 7) * 30.41;
         const annualCost = (totalCost / 7) * 365;
 
-        // Cálculos de Ciclos y Longevidad
+        // --- CÁLCULOS DE CICLOS Y LONGEVIDAD (MODIFICADOS PARA REGENERACIÓN) ---
         const totalDrivingKwh = (state.currentKm / 100) * state.consumption;
+        
+        // LÓGICA TESLA: La energía regenerada reduce los kWh netos que salen de la batería
+        const totalRegenKwh = totalDrivingKwh * 0.22; 
+        const costRegenSaved = totalRegenKwh * state.energyPrice;
+
         const daysOwned = carAge ? carAge.days : 0; 
         const totalVampireKwh = daysOwned * state.vampireRate;
-        const totalNetKwh = totalDrivingKwh + totalVampireKwh;
+        const totalNetKwh = (totalDrivingKwh - totalRegenKwh) + totalVampireKwh;
         const efficiencyFactor = state.chargingEfficiency / 100 || 1;
         const totalGrossKwh = totalNetKwh / efficiencyFactor;
         const totalLossKwh = totalGrossKwh - totalNetKwh;
@@ -1808,7 +1815,7 @@
             }
         }
         const avgDailyKmWeekly = totalKmDriven / 7;
-        const dailyEnergyTotal = ((avgDailyKmWeekly / 100) * state.consumption) + state.vampireRate;
+        const dailyEnergyTotal = (((avgDailyKmWeekly / 100) * state.consumption) * 0.78) + state.vampireRate; // 0.78 es 1 - 0.22 regen
         const realConsumptionPer100 = avgDailyKmWeekly > 0 ? (dailyEnergyTotal / avgDailyKmWeekly) * 100 : 0;
         const kmLeftInCycles = realConsumptionPer100 > 0 ? (cyclesLeft * state.battery) / (realConsumptionPer100 / 100) : 0;
         const cycleTableData = [ { r: "0 al 100%", c: 500 }, { r: "10 al 100%", c: 500 }, { r: "20 al 100%", c: 1000 }, { r: "0 al 90%", c: 1500 }, { r: "10 al 90%", c: 1500 }, { r: "20 al 90%", c: 2000 }, { r: "0 al 80%", c: 3000 }, { r: "10 al 80%", c: 3000 }, { r: "20 al 80%", c: 3500 }, { r: "0 al 70%", c: 5000 }, { r: "10 al 70%", c: 5500 }, { r: "20 al 70%", c: 6000 } ];
@@ -1820,23 +1827,10 @@
             #slider-dual-start::-webkit-slider-thumb { border-color: #eab308; } 
             #slider-dual-target::-webkit-slider-thumb { border-color: #22c55e; }
         `;
-        
-        // ... código existente ...
-const totalDrivingKwh = (state.currentKm / 100) * state.consumption;
-
-// --- AÑADE ESTAS 2 LÍNEAS ---
-const totalRegenKwh = totalDrivingKwh * 0.22; // Estimación 22% de regeneración en Tesla
-const costRegenSaved = totalRegenKwh * state.energyPrice; 
-// ----------------------------
-
-const daysOwned = carAge ? carAge.days : 0;
-// ... resto del código ...
-        
 
         return (
             <div className="grid grid-cols-1 gap-8 animate-fade-in">
                 <style>{sliderStyle}</style>
-                {/* 1. Global Settings */}
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                     <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
                         <Icons.Settings /> Configuración Global
@@ -1877,14 +1871,10 @@ const daysOwned = carAge ? carAge.days : 0;
                                 <div><div className="text-xs font-bold text-slate-400 uppercase mb-1">Tiempo Disponible</div><div className="text-xl font-bold text-green-400 font-mono">{formatDecimal(windowStats.hours, 1)} h</div><div className="text-xs font-bold text-slate-500">desde las 00:00h</div></div>
                                 <div><div className="text-xs font-bold text-slate-400 uppercase mb-1">Máx. Carga Posible</div><div className="text-xl font-bold text-white font-mono">+{formatDecimal(windowStats.pct, 0)} %  [+{formatDecimal(windowStats.km, 0)} km]</div><div className="text-xs font-bold text-slate-500"><span className="text-xs font-bold text-slate-500">Mínimo para 100%: {formatDecimal(minStartPctToFull, 0)} % [{formatDecimal(minStartKmToFull, 0)} km]</span></div></div>
                             </div>
-                            <div className="mt-4 pt-3 border-t border-blue-500/20 text-[11px] font-bold text-blue-200 leading-tight">
-                                (*) Se sugiere la hora de inicio de carga de tal forma que termine momentos antes de su utilización. No es recomendable cargar al 100% si no va a utilizar el coche. Un truco si no va a usarlo es activar el Centinela para descargar un poco la batería.
-                            </div>
                         </div>
                     </div>
                 </div>
 
-                {/* 2. Weekly Grid */}
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
                     <div className="overflow-x-auto">
                         <table className="w-full text-base">
@@ -1899,7 +1889,7 @@ const daysOwned = carAge ? carAge.days : 0;
                             </thead>
                             <tbody className="divide-y divide-slate-800/50">
                                 {results.map((row) => {
-                                    const totalDailyKwh = ((state.dailyKm[row.day] / 100) * state.consumption) + state.vampireRate;
+                                    const totalDailyKwh = (((state.dailyKm[row.day] / 100) * state.consumption) * 0.78) + state.vampireRate;
                                     const totalDailyPct = (totalDailyKwh / state.battery) * 100;
                                     const isCharging = row.chargeTime > 0;
                                     const startTimeStr = isCharging ? calculateStartTime(state.chargeEndTime, row.chargeTime) : "";
@@ -1932,7 +1922,7 @@ const daysOwned = carAge ? carAge.days : 0;
                                             <td className="px-2 py-1 text-center">
                                                 {isCharging ? (
                                                     <div className="flex flex-col items-center justify-center bg-slate-800/60 p-1.5 rounded border border-slate-700/50 w-full max-w-[220px] mx-auto">
-                                                        <div className="flex justify-between w-full text-sm mb-0.5"><span className="text-slate-400 font-bold">Hora inicio:</span><span className="font-mono font-bold text-white text-right text-lg">{startTimeStr} <span className="text-[10px] text-slate-400 font-normal"> (a {state.chargeEndTime})</span></span></div>
+                                                        <div className="flex justify-between w-full text-sm mb-0.5"><span className="text-slate-400 font-bold">Hora inicio:</span><span className="font-mono font-bold text-white text-right text-lg">{startTimeStr}</span></div>
                                                         <div className="flex justify-center gap-3 text-sm w-full mt-0.5"><span className="text-slate-300 font-bold">+{formatDecimal(row.kwhAdded, 1)} kWh</span><span className="text-green-400 font-bold">+{formatDecimal(row.kmAdded, 0)} km</span></div>
                                                     </div>
                                                 ) : <span className="text-slate-700 font-bold text-xl">-</span>}
@@ -1945,26 +1935,12 @@ const daysOwned = carAge ? carAge.days : 0;
                     </div>
                 </div>
 
-                {/* 3. Graph + Summary */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
                     <div className="lg:col-span-8 bg-slate-900/50 border border-slate-800 rounded-xl p-6">
                         <h4 className="text-sm font-bold text-slate-300 uppercase mb-4 flex items-center gap-2"><Icons.Activity className="w-4 h-4" /> Evolución de Carga Diaria (Matriz 3D)</h4>
                         <div className="rounded-xl overflow-hidden bg-gradient-to-b from-slate-900/0 via-slate-900/50 to-slate-900/0 border border-white/5 relative h-[300px]">
                             <div className="absolute top-[50px] bottom-[50px] left-2 w-8 flex flex-col justify-between text-[9px] text-slate-500 font-bold text-right z-10 select-none"><span>100%</span><span>80%</span><span>60%</span><span>40%</span><span>20%</span><span>0%</span></div>
                             <div className="absolute inset-0"><WeeklyCharge3D data={results} /></div>
-                            <div className="absolute bottom-2 w-full flex px-[7.5%] pointer-events-none">
-                                {results.map((row, i) => (
-                                    <div key={i} className="flex-1 flex flex-col items-center justify-start">
-                                        <span className={`text-sm font-bold mb-1 ${['Sat','Sun'].includes(row.day) ? 'text-orange-400' : 'text-slate-400'}`}>{dayInitials[row.day]}</span>
-                                        {row.target > 0 && (
-                                            <div className="flex flex-col items-center bg-slate-900/80 px-1 py-0.5 rounded border border-blue-500/20 shadow-lg backdrop-blur-sm">
-                                                <span className="text-xs font-bold text-blue-300 leading-none">{row.target}%</span>
-                                                <span className="text-[9px] font-bold text-green-400 leading-none mt-0.5">{formatDecimal((row.target / 100) * (state.battery / state.consumption) * 100, 0)} km</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
                         </div>
                     </div>
                     <div className="lg:col-span-4 flex flex-col gap-6">
@@ -1984,57 +1960,7 @@ const daysOwned = carAge ? carAge.days : 0;
                     </div>
                 </div>
 
-                {/* 4. Calibration Section */}
-                <div className="mt-6 bg-slate-800/30 border border-yellow-500/20 rounded-xl p-6 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-10"><Icons.Settings className="w-24 h-24 text-yellow-500" /></div>
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-                        <h3 className="text-lg font-bold text-yellow-500 uppercase tracking-widest flex items-center gap-2">
-                            <Icons.Activity className="w-6 h-6"/> Calibración BMS / Carga Profunda
-                        </h3>
-                        <div className="flex items-center gap-2 bg-slate-900/50 p-2 rounded-lg border border-slate-700">
-                            <label className="text-xs font-bold text-slate-400 uppercase">FECHA ÚLTIMA CARGA PROFUNDA:</label>
-                            <input 
-                                type="text" 
-                                placeholder="DD-MM-AAAA"
-                                value={state.lastCalibrationDate} 
-                                onFocus={(e) => scrollToSafeZone(e.target)}
-                                onChange={(e) => handleChange('lastCalibrationDate', e.target.value)} 
-                                className="bg-slate-700 text-white text-sm font-bold rounded px-3 py-2 outline-none border border-slate-600 focus:border-blue-500 w-40 text-center" 
-                            />
-                        </div>
-                    </div>
-                    {calibrationOpportunity ? (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
-                            <div className="bg-slate-900/50 rounded-lg p-6 border border-slate-700">
-                                <div className="text-xs text-slate-400 font-bold uppercase mb-2">Día de Carga al 100%</div>
-                                <div className="text-4xl font-display font-bold text-white">{dayLabels[calibrationOpportunity.day]}</div>
-                            </div>
-                            <div className="bg-slate-900/50 rounded-lg p-6 border border-slate-700">
-                                <div className="text-xs text-slate-400 font-bold uppercase mb-2">Llegada Prevista</div>
-                                <div className={`text-4xl font-display font-bold ${calibrationOpportunity.isOptimal ? 'text-green-400' : 'text-orange-400'}`}>{formatDecimal(calibrationOpportunity.arrivalPct, 0)}%</div>
-                                <div className="text-sm font-bold text-slate-500 mt-1">Objetivo: {state.deepDischargeLimit}%</div>
-                            </div>
-                            <div className="bg-slate-900/50 rounded-lg p-6 border border-slate-700 flex items-center">
-                                {calibrationOpportunity.isOptimal ? (
-                                    <div className="text-green-400 font-bold flex items-center gap-4">
-                                        <div className="bg-green-500/20 p-3 rounded-full"><Icons.Award className="w-8 h-8"/></div>
-                                        <div><div className="text-lg">¡Condiciones Óptimas!</div><div className="text-sm text-green-300/70">Llegas al {formatDecimal(calibrationOpportunity.arrivalPct, 0)}% antes de cargar.</div></div>
-                                    </div>
-                                ) : (
-                                    <div className="text-orange-300 font-bold flex items-start gap-3">
-                                        <div className="bg-orange-500/20 p-2 rounded-full mt-1"><Icons.Wrench className="w-6 h-6"/></div>
-                                        <div><div className="text-base mb-1">Sugerencia de Ajuste</div>{calibrationOpportunity.advice ? (<div className="text-sm text-orange-200/90 leading-relaxed">Carga el <span className="text-white uppercase font-bold">{dayLabels[calibrationOpportunity.advice.prevDay]}</span> al <span className="text-white text-lg">{calibrationOpportunity.advice.newTarget}%</span> (en vez del {calibrationOpportunity.advice.oldTarget}%) para llegar al {state.deepDischargeLimit}%.</div>) : (<div className="text-sm text-orange-200/70">No se encontró una carga previa en la semana para ajustar. Consume más antes de cargar.</div>)}</div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ) : (<div className="text-center py-6 text-slate-400 font-bold text-base bg-slate-900/50 rounded-lg border border-slate-700 border-dashed">No hay programada ninguna carga al 100% en la semana. Para calibrar el BMS, establece un objetivo del 100% en algún día.</div>)}
-                    <div className="mt-4 p-4 bg-blue-900/20 border border-blue-500/20 rounded-lg text-sm font-bold text-blue-200 leading-relaxed">
-                        (*) Tesla recomienda cargar al 100% (LFP) una vez a la semana para mantener calibrada la batería y cada cierto tiempo (de forma casual o programada), por ejemplo cada 6 meses, hacerle una carga profunda desde lo más abajo que puedas hasta el 100%.
-                    </div>
-                </div>
-
-                {/* 5. Reintegración Ciclos y Vida Útil */}
+                {/* --- SECCIÓN: ESTIMACIÓN CICLOS CARGA (CON REGENERACIÓN) --- */}
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                     <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
                         <Icons.Activity /> Estimación de ciclos de carga
@@ -2049,12 +1975,26 @@ const daysOwned = carAge ? carAge.days : 0;
                                     {carAge && (<div className="bg-slate-800 px-4 py-3 rounded-lg border border-slate-700"><div className="text-xs font-bold text-slate-400 uppercase">Antigüedad</div><div className="text-base font-bold text-white whitespace-nowrap">{carAge.text}</div></div>)}
                                 </div>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                            {/* GRID DE TARJETAS DE CONSUMO HISTÓRICO */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
                                     <div className="text-xs font-bold text-slate-400 uppercase mb-2">Consumo Conducción</div>
                                     <div className="text-xl font-bold text-white">{formatMoney(totalDrivingKwh)} <span className="text-sm text-slate-500 font-normal">kWh</span></div>
                                     <div className="text-lg font-bold text-green-400 mt-1">{formatDecimal(costDrivingHistory)}€</div>
                                 </div>
+                                
+                                {/* NUEVA TARJETA: ENERGÍA REGENERADA */}
+                                <div className="bg-slate-800/50 p-4 rounded-xl border border-green-500/30 text-center relative overflow-hidden">
+                                    <div className="text-xs font-bold text-green-400 uppercase mb-2">Energía Regenerada</div>
+                                    <div className="text-xl font-bold text-white">-{formatMoney(totalRegenKwh)} <span className="text-sm text-green-400/70 font-normal">kWh</span></div>
+                                    <div className="text-sm font-bold text-slate-400 mt-1 flex flex-col">
+                                        <span>Est. Recuperado (22%)</span>
+                                        <span className="text-green-400 text-lg font-bold mt-1">-{formatDecimal(costRegenSaved)}€</span>
+                                    </div>
+                                    <div className="absolute top-1 right-1 opacity-20"><Icons.Zap className="w-4 h-4 text-green-400" /></div>
+                                </div>
+
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
                                     <div className="text-xs font-bold text-purple-400 uppercase mb-2">Consumo Vampiro</div>
                                     <div className="text-xl font-bold text-purple-300">+{formatMoney(totalVampireKwh)} <span className="text-sm text-purple-400/70 font-normal">kWh</span></div>
@@ -2064,73 +2004,28 @@ const daysOwned = carAge ? carAge.days : 0;
                                     <div className="text-xs font-bold text-red-400 uppercase mb-2">Ineficiencia Carga</div>
                                     <div className="text-xl font-bold text-red-300">+{formatMoney(totalLossKwh)} <span className="text-sm text-red-400/70 font-normal">kWh</span></div>
                                     <div className="text-sm font-bold text-slate-400 mt-1 flex flex-col"><span>~{formatMoney(estimatedSessions)} sesiones*</span><span className="text-red-400 text-lg font-bold mt-1">{formatDecimal(costLossHistory)}€</span></div>
-                                    <div className="absolute top-1 right-1 text-[9px] text-red-500/50 font-bold">*Est. al 40%</div>
                                 </div>
                             </div>
+                            
                             <div className="bg-slate-800/50 p-5 rounded-xl border border-blue-900/30 text-center">
                                 <div className="text-sm font-bold text-slate-300 uppercase mb-3">Consumo Total Acumulado (Bruto)</div>
                                 <div className="text-4xl font-bold text-white mb-2">{formatMoney(totalGrossKwh)} kWh</div>
                                 <div className="text-3xl font-bold text-blue-400">{formatDecimal(costTotalHistory)}€</div>
                                 <div className="text-xl font-bold text-slate-200 mt-4 bg-blue-900/30 inline-block px-6 py-3 rounded">Histórico: {formatDecimal(avgDailyKmHistorical, 1)} km/día</div>
                             </div>
-                            
-     {/* Reemplaza el div que tiene className="grid grid-cols-1 md:grid-cols-3 gap-4" por este: */}
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
-        <div className="text-xs font-bold text-slate-400 uppercase mb-2">Consumo Conducción</div>
-        <div className="text-xl font-bold text-white">{formatMoney(totalDrivingKwh)} <span className="text-sm text-slate-500 font-normal">kWh</span></div>
-        <div className="text-lg font-bold text-green-400 mt-1">{formatDecimal(costDrivingHistory)}€</div>
-    </div>
-
-    {/* NUEVA TARJETA DE REGENERACIÓN */}
-    <div className="bg-slate-800/50 p-4 rounded-xl border border-green-500/30 text-center relative overflow-hidden">
-        <div className="text-xs font-bold text-green-400 uppercase mb-2">Energía Regenerada</div>
-        <div className="text-xl font-bold text-white">-{formatMoney(totalRegenKwh)} <span className="text-sm text-green-400/70 font-normal">kWh</span></div>
-        <div className="text-sm font-bold text-slate-400 mt-1 flex flex-col">
-            <span>Est. Recuperado (22%)</span>
-            <span className="text-green-400 text-lg font-bold mt-1">-{formatDecimal(costRegenSaved)}€</span>
-        </div>
-        <div className="absolute top-1 right-1 opacity-20"><Icons.Zap className="w-4 h-4 text-green-400" /></div>
-    </div>
-
-    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
-        <div className="text-xs font-bold text-purple-400 uppercase mb-2">Consumo Vampiro</div>
-        <div className="text-xl font-bold text-purple-300">+{formatMoney(totalVampireKwh)} <span className="text-sm text-purple-400/70 font-normal">kWh</span></div>
-        <div className="text-sm font-bold text-slate-400 mt-1 flex flex-col"><span>~{formatMoney(vampireKmEquivalent)} km</span><span className="text-red-400 text-lg font-bold mt-1">{formatDecimal(costVampireHistory)}€</span></div>
-    </div>
-
-    <div className="bg-slate-800/50 p-4 rounded-xl border border-red-900/30 text-center relative overflow-hidden">
-        <div className="text-xs font-bold text-red-400 uppercase mb-2">Ineficiencia Carga</div>
-        <div className="text-xl font-bold text-red-300">+{formatMoney(totalLossKwh)} <span className="text-sm text-red-400/70 font-normal">kWh</span></div>
-        <div className="text-sm font-bold text-slate-400 mt-1 flex flex-col"><span>~{formatMoney(estimatedSessions)} sesiones*</span><span className="text-red-400 text-lg font-bold mt-1">{formatDecimal(costLossHistory)}€</span></div>
-        <div className="absolute top-1 right-1 text-[9px] text-red-500/50 font-bold">*Est. al 40%</div>
-    </div>
-</div>
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
-                            
                         </div>
+
                         <div className="space-y-6">
                             <div className="bg-slate-800/30 p-6 rounded-xl border border-green-900/30">
                                 <div className="flex justify-between items-end mb-4"><div className="text-base font-bold text-slate-300">Vida Útil Estimada ({formatMoney(cyclesGuaranteed)} Ciclos)</div><div className="text-sm font-bold text-green-400">{formatDecimal((cyclesUsed/cyclesGuaranteed)*100, 1)}% Usado</div></div>
                                 <div className="w-full bg-slate-700 rounded-full h-4 mb-6 overflow-hidden"><div className="bg-green-500 h-4 rounded-full" style={{ width: `${Math.min(100, (cyclesUsed/cyclesGuaranteed)*100)}%` }}></div></div>
                                 <div className="flex justify-between text-sm font-bold text-slate-400"><span>Consumidos: <span className="text-white text-base">{formatDecimal(cyclesUsed, 1)}</span></span><span>Restantes: <span className="text-blue-400 text-base">{formatMoney(cyclesLeft)} (~{formatMoney(kmLeftInCycles)} km)</span></span></div>
-                                <div className="mt-6 pt-4 border-t border-slate-700/50 space-y-3">
-                                    <div className="bg-slate-900/40 p-3 rounded"><div className="flex justify-between items-center mb-1"><span className="text-xs font-bold text-slate-400 uppercase">Media Vida (1.500 ciclos)</span><span className="text-sm font-bold text-white">{passed1500 ? "SUPERADO" : projectionDate1500}</span></div>{!passed1500 && (<div className="text-right text-xs font-bold text-blue-300">Faltan {formatDecimal(yearsLeft1500, 1)} años</div>)}</div>
-                                    <div className="bg-slate-900/40 p-3 rounded"><div className="flex justify-between items-center mb-1"><span className="text-xs font-bold text-green-400 uppercase">Garantía (3.000 ciclos)</span><span className="text-sm font-bold text-white">{projectionDateStr}</span></div><div className="text-right text-xs font-bold text-green-300">Faltan {formatDecimal(yearsLeftVal, 1)} años</div></div>
-                                </div>
                             </div>
                             <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
                                 <div className="bg-slate-800 px-6 py-3 border-b border-slate-700 shrink-0"><h4 className="text-base font-bold text-slate-300 uppercase">Tabla de Longevidad Estimada</h4></div>
                                 <div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="text-slate-400 font-bold bg-slate-800/50 sticky top-0"><tr><th className="px-6 py-2">Rango Carga</th><th className="px-6 py-2 text-right">Ciclos</th><th className="px-6 py-2 text-right">Km Totales</th></tr></thead><tbody className="divide-y divide-slate-800 text-slate-300 font-mono">
                                     {cycleTableData.map((row, idx) => {
-                                        const totalKm = (row.c * state.battery) / ((state.consumption/100) + (avgDailyKmWeekly > 0 ? state.vampireRate/(avgDailyKmWeekly) : 0));
+                                        const totalKm = (row.c * state.battery) / ((state.consumption/100 * 0.78) + (avgDailyKmWeekly > 0 ? state.vampireRate/(avgDailyKmWeekly) : 0));
                                         return (<tr key={idx} className="hover:bg-slate-800/30"><td className="px-6 py-1.5 font-bold text-slate-400">{row.r}</td><td className="px-6 py-1.5 text-right font-bold text-white">{formatMoney(row.c)}</td><td className="px-6 py-1.5 text-right text-blue-300 font-bold">{formatMoney(totalKm)} km</td></tr>);
                                     })}
                                 </tbody></table></div>
@@ -2139,14 +2034,18 @@ const daysOwned = carAge ? carAge.days : 0;
                     </div>
                 </div>
 
-                {/* 6. Buttons */}
                 <div className="flex flex-col md:flex-row gap-6 justify-center items-center p-6 bg-slate-900/50 rounded-xl border border-slate-700/50 mt-4">
-                    <div className="flex flex-col items-center gap-2 w-full md:w-auto"><button onClick={handleSaveSnapshot} className="w-full md:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"><Icons.Settings className="w-5 h-5" /> GUARDAR DATOS (solo guarda 1 copia)</button>{savedDate && (<span className="text-xs font-bold text-slate-400">Copia actual: <span className="text-blue-300">{savedDate}</span></span>)}</div>
+                    <div className="flex flex-col items-center gap-2 w-full md:w-auto"><button onClick={handleSaveSnapshot} className="w-full md:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"><Icons.Settings className="w-5 h-5" /> GUARDAR DATOS</button>{savedDate && (<span className="text-xs font-bold text-slate-400">Copia actual: <span className="text-blue-300">{savedDate}</span></span>)}</div>
                     {savedDate && (<div className="flex flex-col items-center gap-2 w-full md:w-auto"><button onClick={handleRestoreSnapshot} className="w-full md:w-auto px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"><Icons.Activity className="w-5 h-5" /> RESTAURAR DATOS</button></div>)}
                 </div>
             </div>
         );
       };
+
+                        
+
+
+                
 
 
 
