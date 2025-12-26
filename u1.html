@@ -2954,11 +2954,10 @@
 
 
 
-
-      // --- TARIFF COMPARATOR (CORREGIDO: RANKING CON % Y € + ESTIMADOR RESTAURADO) ---
+     // --- TARIFF COMPARATOR (FINAL: 3 COMPAÑÍAS, % RESTAURADO, OCTOPUS RELAX) ---
       const TariffComparator = () => {
-        // 1. ESTADO CON 3 PROPUESTAS
-        const [tState, setTState] = usePersistentState('tariffCompV8_complete', {
+        // 1. ESTADO CON 3 PROPUESTAS (Cambiado nombre a Octopus Relax)
+        const [tState, setTState] = usePersistentState('tariffCompV9_final', {
             days: 30,
             potP1: 4.6, potP2: 7.4,
             impuestoElec: 5.11, iva: 21,
@@ -3091,6 +3090,21 @@
                         <div className="absolute top-0 bottom-0 left-0 w-10 z-20 pointer-events-none">{ticks.map((t) => (<div key={t} className="absolute right-0 flex items-center justify-end w-full" style={{ bottom: `${10 + ((t / axisMax) * 80)}%`, transform: 'translateY(50%)' }}><span className="text-[10px] font-bold text-slate-400">{t.toFixed(0)}€</span></div>))}</div>
                         <div ref={mountRef} className="absolute inset-0 w-full h-full pl-10" /> 
                     </div>
+                    {/* AQUÍ SE MUESTRAN LOS NOMBRES Y TOTALES AL PIE DE LA GRÁFICA */}
+                    <div className="flex justify-center mt-3 pl-8 gap-4 text-center">
+                        <div className="w-24">
+                            <div className="text-xl font-display font-bold text-white leading-none mb-1">{formatDecimal(billA.total)}€</div>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{nameA}</div>
+                        </div>
+                        <div className="w-24">
+                            <div className="text-xl font-display font-bold text-white leading-none mb-1">{formatDecimal(billB.total)}€</div>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{nameB}</div>
+                        </div>
+                        <div className="w-24">
+                            <div className="text-xl font-display font-bold text-white leading-none mb-1">{formatDecimal(billC.total)}€</div>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{nameC}</div>
+                        </div>
+                    </div>
                 </div>
             );
         };
@@ -3152,10 +3166,11 @@
         const rankedBills = [billA, billB, billC].sort((a,b) => a.total - b.total);
         const best = rankedBills[0];
         
-        // Rankings para sub-apartados (Coste Total del Término, NO precio unitario, para que sea real)
+        // Rankings para sub-apartados
         const rankedEnergy = [billA, billB, billC].sort((a,b) => a.termEnNet - b.termEnNet);
         const rankedPower = [billA, billB, billC].sort((a,b) => a.termPotDisc - b.termPotDisc);
 
+        const getConsPct = (val) => tState.consTotal > 0 ? (val / tState.consTotal) * 100 : 0; // Helper restaurado
         const consumptionData = { p1Kwh: tState.p1Kwh, p2Kwh: tState.p2Kwh, p3Kwh: tState.p3Kwh, p3VeKwh: tState.p3VeKwh, p4Kwh: tState.p4Kwh, totalKwh: tState.consTotal };
         const getMinClass = (valA, valB, valC, currentVal) => { const min = Math.min(valA, valB, valC); return Math.abs(currentVal - min) < 0.001 ? 'text-green-400' : 'text-slate-300'; };
 
@@ -3232,7 +3247,7 @@
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
                 
-                {/* 1. SECCIÓN SUPERIOR: DATOS Y GRÁFICAS DE CONSUMO */}
+                {/* 1. SECCIÓN SUPERIOR: DATOS Y GRÁFICAS DE CONSUMO (RESTAURADOS %) */}
                 <div className="lg:col-span-12 space-y-4">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5">
                         <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2"><Icons.Euro className="w-5 h-5 text-slate-400" /><h3 className="text-sm text-slate-300 font-bold uppercase">DATOS COMUNES</h3></div>
@@ -3249,11 +3264,11 @@
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
                         <div className="flex justify-between items-center mb-4"><h3 className="text-sm text-slate-300 font-bold uppercase flex gap-2"><Icons.Activity className="w-4 h-4"/> Patrón de Consumo (kWh)</h3><div className="flex items-center gap-4"><div className="flex items-center gap-2"><span className="text-xs font-bold text-yellow-500">Excedentes:</span><div className="w-24"><FormattedInput value={tState.solarExp} onChange={v => setTState({...tState, solarExp: v})} decimals={0}/></div></div><div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-300">Total:</span><span className="text-base font-bold text-white bg-slate-800 px-3 py-2 rounded border border-slate-700">{formatDecimal(tState.consTotal, 0)}</span></div></div></div>
                         <div className="grid grid-cols-5 gap-4">
-                            <div className="bg-red-900/20 p-3 rounded border border-red-900/30 text-center"><label className="text-[10px] font-bold text-red-300 block mb-1">P1 (Punta)</label><FormattedInput value={tState.p1Kwh} onChange={v => handleConsChange('p1Kwh', v)} decimals={0}/></div>
-                            <div className="bg-orange-900/20 p-3 rounded border border-orange-900/30 text-center"><label className="text-[10px] font-bold text-orange-300 block mb-1">P2 (Llano)</label><FormattedInput value={tState.p2Kwh} onChange={v => handleConsChange('p2Kwh', v)} decimals={0}/></div>
-                            <div className="bg-green-900/20 p-3 rounded border border-green-900/30 text-center"><label className="text-[10px] font-bold text-green-300 block mb-1">P3 (Valle)</label><FormattedInput value={tState.p3Kwh} onChange={v => handleConsChange('p3Kwh', v)} decimals={0}/></div>
-                            <div className="bg-blue-900/20 p-3 rounded border border-blue-900/30 text-center relative overflow-hidden"><label className="text-[10px] font-bold text-blue-300 block mb-1">P3 (VE)</label><FormattedInput value={tState.p3VeKwh} onChange={v => handleConsChange('p3VeKwh', v)} decimals={0}/></div>
-                            <div className="bg-purple-900/20 p-3 rounded border border-purple-900/30 text-center"><label className="text-[10px] font-bold text-purple-300 block mb-1">P4 (Extra)</label><FormattedInput value={tState.p4Kwh} onChange={v => handleConsChange('p4Kwh', v)} decimals={0}/></div>
+                            <div className="bg-red-900/20 p-3 rounded border border-red-900/30 text-center"><label className="text-[10px] font-bold text-red-300 block mb-1">P1 (Punta)</label><FormattedInput value={tState.p1Kwh} onChange={v => handleConsChange('p1Kwh', v)} decimals={0}/><div className="text-[10px] font-bold text-red-300 block mt-1">{formatDecimal(getConsPct(tState.p1Kwh), 0)}%</div></div>
+                            <div className="bg-orange-900/20 p-3 rounded border border-orange-900/30 text-center"><label className="text-[10px] font-bold text-orange-300 block mb-1">P2 (Llano)</label><FormattedInput value={tState.p2Kwh} onChange={v => handleConsChange('p2Kwh', v)} decimals={0}/><div className="text-[10px] font-bold text-orange-300 block mt-1">{formatDecimal(getConsPct(tState.p2Kwh), 0)}%</div></div>
+                            <div className="bg-green-900/20 p-3 rounded border border-green-900/30 text-center"><label className="text-[10px] font-bold text-green-300 block mb-1">P3 (Valle)</label><FormattedInput value={tState.p3Kwh} onChange={v => handleConsChange('p3Kwh', v)} decimals={0}/><div className="text-[10px] font-bold text-green-300 block mt-1">{formatDecimal(getConsPct(tState.p3Kwh), 0)}%</div></div>
+                            <div className="bg-blue-900/20 p-3 rounded border border-blue-900/30 text-center relative overflow-hidden"><label className="text-[10px] font-bold text-blue-300 block mb-1">P3 (VE)</label><FormattedInput value={tState.p3VeKwh} onChange={v => handleConsChange('p3VeKwh', v)} decimals={0}/><div className="text-[10px] font-bold text-blue-300 block mt-1">{formatDecimal(getConsPct(tState.p3VeKwh), 0)}%</div></div>
+                            <div className="bg-purple-900/20 p-3 rounded border border-purple-900/30 text-center"><label className="text-[10px] font-bold text-purple-300 block mb-1">P4 (Extra)</label><FormattedInput value={tState.p4Kwh} onChange={v => handleConsChange('p4Kwh', v)} decimals={0}/><div className="text-[10px] font-bold text-purple-300 block mt-1">{formatDecimal(getConsPct(tState.p4Kwh), 0)}%</div></div>
                         </div>
                     </div>
                 </div>
@@ -3263,7 +3278,7 @@
                 <div className="lg:col-span-4"><ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
                 <div className="lg:col-span-4"><ProposalColumn propKey="propC" title="Propuesta C" data={tState.propC} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
 
-                {/* 3. SECCIÓN RESULTADOS: RANKING INTELIGENTE */}
+                {/* 3. SECCIÓN RESULTADOS: RANKING INTELIGENTE (ACTUALIZADO % Y €) */}
                 <div className="lg:col-span-12 space-y-6">
                     <div className="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 rounded-xl p-6">
                         <div className="flex items-center justify-center gap-3 mb-6">
@@ -3271,7 +3286,7 @@
                             <h3 className="text-2xl font-display font-bold text-white uppercase tracking-widest">Ranking Final</h3>
                         </div>
 
-                        {/* RANKING PRINCIPAL (HORIZONTAL CARDS) */}
+                        {/* RANKING PRINCIPAL */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                             {rankedBills.map((item, index) => {
                                 const isWinner = index === 0;
@@ -3313,7 +3328,7 @@
                             })}
                         </div>
 
-                        {/* SUB-RANKINGS: ENERGÍA VS POTENCIA */}
+                        {/* SUB-RANKINGS: ENERGÍA VS POTENCIA (ACTUALIZADO % Y €) */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             
                             {/* RANKING ENERGÍA */}
@@ -3553,7 +3568,6 @@
             </div>
         );
       };
-
         
  
 
