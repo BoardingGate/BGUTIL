@@ -2953,10 +2953,10 @@
 
 
 
-      // --- TARIFF COMPARATOR (FIXED SCHEDULE LAYOUT) ---
+      // --- TARIFF COMPARATOR (MODIFICADO: 3 COMPAÑÍAS) ---
       const TariffComparator = () => {
-        // 1. ESTADO ORIGINAL
-        const [tState, setTState] = usePersistentState('tariffCompV5', {
+        // 1. ESTADO CON 3 PROPUESTAS
+        const [tState, setTState] = usePersistentState('tariffCompV6_3props', {
             days: 30,
             potP1: 4.6, potP2: 7.4,
             impuestoElec: 5.11, iva: 21,
@@ -2967,7 +2967,7 @@
             solarExp: 0, 
 
             propA: {
-                name: "Octopus GO",
+                name: "OCTOPUS GO",
                 pricePotP1: 0.108, pricePotP2: 0.024,
                 priceEnP1: 0.206, priceEnP2: 0.206, priceEnP3: 0.065, priceEnP3Ve: 0.065, priceEnP4: 0.065,
                 discPot: 0, discEn: 0, comision: 0,
@@ -2980,12 +2980,20 @@
                 priceEnP1: 0.15, priceEnP2: 0.15, priceEnP3: 0.15, priceEnP3Ve: 0.15, priceEnP4: 0.15,
                 discPot: 0, discEn: 0, comision: 0,
                 solarPrice: 0.05, virtualBat: false
+            },
+
+            propC: {
+                name: "OCTOPUS 3",
+                pricePotP1: 0.095, pricePotP2: 0.027,
+                priceEnP1: 0.191, priceEnP2: 0.116, priceEnP3: 0.086, priceEnP3Ve: 0.086, priceEnP4: 0.086,
+                discPot: 0, discEn: 0, comision: 0,
+                solarPrice: 0.05, virtualBat: false
             }
         });
 
-        // 2. NUEVO ESTADO PARA ESTIMACIÓN
-        const [estState, setEstState] = usePersistentState('estConsV2', {
-            selectedProp: 'A', 
+        // 2. ESTADO PARA ESTIMACIÓN
+        const [estState, setEstState] = usePersistentState('estConsV3', {
+            selectedProp: 'A', // A, B, or C
             withTaxes: true,
             startDate: new Date().toISOString().split('T')[0],
             endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
@@ -3008,16 +3016,16 @@
             } catch (e) { console.error(e); }
         }, []);
 
-        // --- SUBCOMPONENTE GRÁFICA ---
-        const Tariff3DChart = ({ billA, billB, nameA, nameB }) => {
+        // --- SUBCOMPONENTE GRÁFICA 3D (ADAPTADO A 3 COLUMNAS) ---
+        const Tariff3DChart = ({ billA, billB, billC, nameA, nameB, nameC }) => {
             const mountRef = useRef(null);
 
-            const maxTotal = Math.max(billA.total, billB.total);
+            const maxTotal = Math.max(billA.total, billB.total, billC.total);
             const axisMax = Math.ceil((maxTotal * 1.1) / 10) * 10; 
             const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => axisMax * t);
 
             const VIEW_HEIGHT = 100;
-            const BASE_Y = -40; // Suelo en -40
+            const BASE_Y = -40; 
             const MAX_BAR_HEIGHT = 80; 
             const scaleY = MAX_BAR_HEIGHT / axisMax;
 
@@ -3056,10 +3064,10 @@
                 const colors = [0x4ade80, 0x60a5fa, 0x94a3b8, 0xc084fc];
                 const dataA = [billA.termPotDisc, billA.termEnNet, billA.fixedCosts, billA.taxes];
                 const dataB = [billB.termPotDisc, billB.termEnNet, billB.fixedCosts, billB.taxes];
+                const dataC = [billC.termPotDisc, billC.termEnNet, billC.fixedCosts, billC.taxes];
                 
-                const barWidth = 14; 
-                const centerOffset = -10; 
-                const spacing = 22; 
+                const barWidth = 12; 
+                const spacing = 20; 
 
                 const createStack = (data, xPos) => {
                     const group = new THREE.Group();
@@ -3089,10 +3097,13 @@
                     return group;
                 };
 
-                const stackA = createStack(dataA, centerOffset - spacing);
-                const stackB = createStack(dataB, centerOffset + spacing);
+                const stackA = createStack(dataA, -spacing - 5);
+                const stackB = createStack(dataB, 0);
+                const stackC = createStack(dataC, spacing + 5);
+                
                 scene.add(stackA);
                 scene.add(stackB);
+                scene.add(stackC);
 
                 const gridGroup = new THREE.Group();
                 ticks.forEach((tickVal, i) => {
@@ -3117,9 +3128,11 @@
                         const scale = Math.min(1, s);
                         stackA.scale.y = scale;
                         stackB.scale.y = scale;
+                        stackC.scale.y = scale;
                         const offset = BASE_Y * (1 - scale);
                         stackA.position.y = offset;
                         stackB.position.y = offset;
+                        stackC.position.y = offset;
                         renderer.render(scene, camera);
                         requestAnimationFrame(animate);
                     }
@@ -3144,7 +3157,7 @@
                     window.removeEventListener('resize', handleResize);
                     if (mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement);
                 };
-            }, [billA, billB]); 
+            }, [billA, billB, billC]); 
 
             const bottomPaddingPct = 10; 
             const drawingAreaPct = 80;
@@ -3153,7 +3166,7 @@
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 relative">
                     <div className="flex justify-between items-center mb-0 border-b border-slate-700/50 pb-2">
                         <h4 className="text-sm font-bold text-slate-300 uppercase flex items-center gap-2">
-                            <Icons.TrendingUp className="w-4 h-4"/> Comparativa de Costes
+                            <Icons.TrendingUp className="w-4 h-4"/> Comparativa de Costes (3 Opciones)
                         </h4>
                         <div className="flex flex-wrap justify-end gap-3 text-[10px] font-bold uppercase">
                             <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-green-400"></div>Potencia</div>
@@ -3175,14 +3188,18 @@
                         </div>
                         <div ref={mountRef} className="absolute inset-0 w-full h-full pl-10" /> 
                     </div>
-                    <div className="flex justify-center mt-3 pl-8 gap-8">
-                        <div className="text-center w-32 -ml-8">
-                            <div className="text-3xl font-display font-bold text-green-400 leading-none mb-1">{formatDecimal(billA.total)}€</div>
-                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider truncate">{nameA}</div>
+                    <div className="flex justify-center mt-3 pl-8 gap-4 text-center">
+                        <div className="w-24">
+                            <div className="text-xl font-display font-bold text-white leading-none mb-1">{formatDecimal(billA.total)}€</div>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{nameA}</div>
                         </div>
-                        <div className="text-center w-32 ml-4">
-                            <div className="text-3xl font-display font-bold text-slate-300 leading-none mb-1">{formatDecimal(billB.total)}€</div>
-                            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider truncate">{nameB}</div>
+                        <div className="w-24">
+                            <div className="text-xl font-display font-bold text-white leading-none mb-1">{formatDecimal(billB.total)}€</div>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{nameB}</div>
+                        </div>
+                        <div className="w-24">
+                            <div className="text-xl font-display font-bold text-white leading-none mb-1">{formatDecimal(billC.total)}€</div>
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{nameC}</div>
                         </div>
                     </div>
                 </div>
@@ -3332,17 +3349,29 @@
 
         const billA = calculateBill(tState.propA);
         const billB = calculateBill(tState.propB);
-        const evCostA = calculateEVCost(tState.propA);
-        const evCostB = calculateEVCost(tState.propB);
-        const diff = billB.total - billA.total;
-        const diffPercent = Math.min(billA.total, billB.total) > 0 ? (Math.abs(diff) / Math.max(billA.total, billB.total)) * 100 : 0;
-        const diffPot = billB.termPotDisc - billA.termPotDisc;
-        const diffPotPct = Math.min(billA.termPotDisc, billB.termPotDisc) > 0 ? (Math.abs(diffPot) / Math.max(billA.termPotDisc, billB.termPotDisc)) * 100 : 0;
-        const diffEn = billB.termEnNet - billA.termEnNet;
-        const diffEnPct = Math.min(billA.termEnNet, billB.termEnNet) > 0 ? (Math.abs(diffEn) / Math.max(billA.termEnNet, billB.termEnNet)) * 100 : 0;
-        const winnerEVCost = diff > 0 ? evCostA : evCostB;
+        const billC = calculateBill(tState.propC);
+        
+        // Logica para encontrar el mejor
+        const bills = [
+            { id: 'A', data: billA, name: tState.propA.name, ev: calculateEVCost(tState.propA) },
+            { id: 'B', data: billB, name: tState.propB.name, ev: calculateEVCost(tState.propB) },
+            { id: 'C', data: billC, name: tState.propC.name, ev: calculateEVCost(tState.propC) }
+        ];
+        
+        // Ordenar por total ascendente (menor coste primero)
+        const sortedBills = [...bills].sort((a,b) => a.data.total - b.data.total);
+        const winner = sortedBills[0];
+        const loser = sortedBills[2];
+        const totalSavings = loser.data.total - winner.data.total;
+        
         const getConsPct = (val) => tState.consTotal > 0 ? (val / tState.consTotal) * 100 : 0;
         const consumptionData = { p1Kwh: tState.p1Kwh, p2Kwh: tState.p2Kwh, p3Kwh: tState.p3Kwh, p3VeKwh: tState.p3VeKwh, p4Kwh: tState.p4Kwh, totalKwh: tState.consTotal };
+
+        // Helper para pintar celdas en la tabla
+        const getMinClass = (valA, valB, valC, currentVal) => {
+            const min = Math.min(valA, valB, valC);
+            return Math.abs(currentVal - min) < 0.001 ? 'text-green-400' : 'text-slate-300';
+        };
 
         // --- CÁLCULO ESTIMADOR ---
         const calculateEstimation = () => {
@@ -3351,7 +3380,11 @@
             const daysDiff = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
             const weeks = daysDiff / 7;
 
-            const prop = estState.selectedProp === 'A' ? tState.propA : tState.propB;
+            let prop;
+            if (estState.selectedProp === 'A') prop = tState.propA;
+            else if (estState.selectedProp === 'B') prop = tState.propB;
+            else prop = tState.propC;
+
             const taxMultiplier = estState.withTaxes ? (1 + tState.impuestoElec/100) * (1 + tState.iva/100) : 1;
             
             const p1Price = prop.priceEnP1 * (1 - prop.discEn/100) * taxMultiplier;
@@ -3434,7 +3467,11 @@
             const monthlyKwh = totalKwh / (daysDiff / 30.44);
             const monthlyCost = totalCost / (daysDiff / 30.44);
             
-            const currentBillTotal = estState.selectedProp === 'A' ? billA.total : billB.total;
+            let currentBillTotal;
+            if (estState.selectedProp === 'A') currentBillTotal = billA.total;
+            else if (estState.selectedProp === 'B') currentBillTotal = billB.total;
+            else currentBillTotal = billC.total;
+
             const billMonthly = currentBillTotal * (30 / tState.days); 
             const impactPct = billMonthly > 0 ? (monthlyCost / billMonthly) * 100 : 0;
 
@@ -3470,32 +3507,83 @@
                     </div>
                 </div>
 
-                <div className="lg:col-span-3"><ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
-                <div className="lg:col-span-3"><ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                <div className="lg:col-span-4"><ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                <div className="lg:col-span-4"><ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                <div className="lg:col-span-4"><ProposalColumn propKey="propC" title="Propuesta C" data={tState.propC} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
 
-                <div className="lg:col-span-6 space-y-4">
+                <div className="lg:col-span-12 space-y-4">
                     <div className="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 rounded-xl p-6 h-full flex flex-col">
-                        <h3 className="text-center text-sm uppercase tracking-widest text-slate-300 font-bold mb-4">Resultado Comparativa</h3>
-                        <div className={`text-center p-6 rounded-xl border mb-6 ${diff !== 0 ? 'bg-green-900/20 border-green-500/30' : 'bg-slate-800 border-slate-700'}`}>
-                             {diff === 0 ? (<div className="text-slate-400 font-bold text-lg">Coste idéntico</div>) : (
-                                <><div className="text-sm text-green-400 uppercase font-bold mb-2">Opción Ganadora: {diff > 0 ? tState.propA.name : tState.propB.name}</div><div className="text-4xl font-bold text-white mb-2">Ahorras {formatDecimal(Math.abs(diff))} € <span className="text-base font-normal text-slate-400">/ factura</span></div><div className="text-sm font-bold text-slate-300 mb-4">Proyección anual: ~{formatDecimal(Math.abs(diff) * (365/tState.days))} €</div><div className="text-base font-bold text-blue-200 bg-blue-900/30 inline-block px-4 py-2 rounded-full">{formatDecimal(diff > 0 ? billA.pricePerKwh : billB.pricePerKwh, 4)} €/kWh <span className="text-xs font-normal opacity-70">(Impuestos Inc)</span></div><div className="mt-4 pt-4 border-t border-slate-700/50"><div className="text-xs uppercase font-bold text-slate-400 mb-1">Coste Estimado Recarga VE (P2 + Energía P3 VE)</div><div className="flex justify-center items-baseline gap-2"><span className="text-2xl font-bold text-blue-300">{formatDecimal(winnerEVCost.total)} €</span><span className="text-sm font-bold text-slate-400">➜ {formatDecimal(winnerEVCost.pricePerKwh, 4)} €/kWh (Impuestos inc)</span></div></div></>
-                             )}
+                        <h3 className="text-center text-sm uppercase tracking-widest text-slate-300 font-bold mb-4">Resultado Comparativa (3 Compañías)</h3>
+                        <div className={`text-center p-6 rounded-xl border mb-6 bg-green-900/20 border-green-500/30`}>
+                             <div className="text-sm text-green-400 uppercase font-bold mb-2">🏆 Opción Ganadora: {winner.name}</div>
+                             <div className="text-4xl font-bold text-white mb-2">Ahorro Máx: {formatDecimal(totalSavings)} € <span className="text-base font-normal text-slate-400">/ factura</span></div>
+                             <div className="text-sm font-bold text-slate-300 mb-4">vs la opción más cara ({loser.name})</div>
+                             <div className="text-base font-bold text-blue-200 bg-blue-900/30 inline-block px-4 py-2 rounded-full">{formatDecimal(winner.data.pricePerKwh, 4)} €/kWh <span className="text-xs font-normal opacity-70">(Impuestos Inc)</span></div>
+                             <div className="mt-4 pt-4 border-t border-slate-700/50">
+                                 <div className="text-xs uppercase font-bold text-slate-400 mb-1">Coste Estimado Recarga VE (P2 + Energía P3 VE)</div>
+                                 <div className="flex justify-center items-baseline gap-2"><span className="text-2xl font-bold text-blue-300">{formatDecimal(winner.ev.total)} €</span><span className="text-sm font-bold text-slate-400">➜ {formatDecimal(winner.ev.pricePerKwh, 4)} €/kWh</span></div>
+                             </div>
                         </div>
-                        {diff !== 0 && (<div className="mb-6 bg-slate-800/50 p-4 rounded-lg text-sm font-bold"><div className="text-slate-400 uppercase mb-3 text-xs">Desglose del Ahorro</div><div className="flex justify-between mb-2"><span>En Potencia:</span><span className={diffPot > 0 ? "text-green-400" : "text-red-400"}>{diffPot > 0 ? 'Ahorras' : 'Pierdes'} {formatDecimal(Math.abs(diffPot))} €</span></div><div className="flex justify-between"><span>En Energía:</span><span className={diffEn > 0 ? "text-green-400" : "text-red-400"}>{diffEn > 0 ? 'Ahorras' : 'Pierdes'} {formatDecimal(Math.abs(diffEn))} €</span></div></div>)}
-                        <div className="overflow-x-auto"><table className="w-full text-sm border-collapse"><thead className="border-b border-slate-700"><tr><th className="text-left py-2 text-slate-400 font-bold">Concepto</th><th className="text-right py-2 text-blue-300 font-bold">{tState.propA.name}</th><th className="text-right py-2 text-blue-300 font-bold">{tState.propB.name}</th></tr></thead><tbody className="divide-y divide-slate-800"><tr><td className="py-2 text-slate-300">Potencia</td><td className={`py-2 text-right font-mono font-bold ${billA.termPotDisc < billB.termPotDisc ? 'text-green-400' : 'text-slate-300'}`}>{formatDecimal(billA.termPotDisc)} €</td><td className={`py-2 text-right font-mono font-bold ${billB.termPotDisc < billA.termPotDisc ? 'text-green-400' : 'text-slate-300'}`}>{formatDecimal(billB.termPotDisc)} €</td></tr><tr><td className="py-2 text-slate-300">Energía (Neto Solar)</td><td className={`py-2 text-right font-mono font-bold ${billA.termEnNet < billB.termEnNet ? 'text-green-400' : 'text-slate-300'}`}>{formatDecimal(billA.termEnNet)} €</td><td className={`py-2 text-right font-mono font-bold ${billB.termEnNet < billA.termEnNet ? 'text-green-400' : 'text-slate-300'}`}>{formatDecimal(billB.termEnNet)} €</td></tr>{tState.solarExp > 0 && (<tr><td className="py-1 text-yellow-600 text-xs font-bold pl-2">↳ Comp. Excedentes</td><td className="py-1 text-right font-mono font-bold text-yellow-600 text-xs">-{formatDecimal(billA.solarReturn)} €</td><td className="py-1 text-right font-mono font-bold text-yellow-600 text-xs">-{formatDecimal(billB.solarReturn)} €</td></tr>)}<tr><td className="py-2 text-slate-300">Fijos (Alq+Bono+Com)</td><td className="py-2 text-right font-mono font-bold text-slate-300">{formatDecimal(billA.fixedCosts)} €</td><td className="py-2 text-right font-mono font-bold text-slate-300">{formatDecimal(billB.fixedCosts)} €</td></tr><tr><td className="py-2 text-slate-300">Impuestos (IEE+IVA)</td><td className="py-2 text-right font-mono font-bold text-slate-300">{formatDecimal(billA.taxes)} €</td><td className="py-2 text-right font-mono font-bold text-slate-300">{formatDecimal(billB.taxes)} €</td></tr></tbody><tfoot className="border-t border-slate-600 bg-slate-800/30">{diff !== 0 && (<><tr className="text-xs font-bold text-slate-400 bg-slate-800/50"><td className="py-2 pl-2 font-bold uppercase tracking-wide">Diferencial</td><td colSpan="2" className="py-0"></td></tr><tr className="text-xs"><td className="py-1 pl-4 text-slate-400 font-bold">En Potencia</td><td className="text-right py-1 pr-2 font-mono font-bold"><span className={diffPot > 0 ? "text-green-400" : "text-red-400"}>{diffPot > 0 ? '-' : '+'}{formatDecimal(Math.abs(diffPot))} €</span></td><td className="text-left py-1 pl-2 font-mono text-xs text-slate-500 font-bold">({formatDecimal(diffPotPct)}%)</td></tr><tr className="text-xs border-b border-slate-700"><td className="py-1 pl-4 text-slate-400 font-bold">En Energía</td><td className="text-right py-1 pr-2 font-mono font-bold"><span className={diffEn > 0 ? "text-green-400" : "text-red-400"}>{diffEn > 0 ? '-' : '+'}{formatDecimal(Math.abs(diffEn))} €</span></td><td className="text-left py-1 pl-2 font-mono text-xs text-slate-500 font-bold">({formatDecimal(diffEnPct)}%)</td></tr><tr className="text-sm font-bold text-white bg-slate-700/30"><td className="py-2 pl-2">AHORRO TOTAL</td><td colSpan="2" className="text-center py-2"><span className={diff > 0 ? "text-green-400" : "text-red-400"}>{diff > 0 ? 'Ahorras' : 'Pierdes'} {formatDecimal(Math.abs(diff))} € <span className="opacity-70">({formatDecimal(diffPercent)}%)</span></span></td></tr></>)}<tr><td className="py-3 font-bold text-white text-base">TOTAL FACTURA</td><td className={`py-3 text-right font-bold text-xl ${diff > 0 ? 'text-green-400' : 'text-white'}`}>{formatDecimal(billA.total)} €</td><td className={`py-3 text-right font-bold text-xl ${diff < 0 ? 'text-green-400' : 'text-white'}`}>{formatDecimal(billB.total)} €</td></tr></tfoot></table></div>
+                        
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm border-collapse table-fixed">
+                                <thead className="border-b border-slate-700">
+                                    <tr>
+                                        <th className="text-left py-2 text-slate-400 font-bold w-1/4">Concepto</th>
+                                        <th className="text-right py-2 text-blue-300 font-bold w-1/4">{tState.propA.name}</th>
+                                        <th className="text-right py-2 text-blue-300 font-bold w-1/4">{tState.propB.name}</th>
+                                        <th className="text-right py-2 text-blue-300 font-bold w-1/4">{tState.propC.name}</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-800">
+                                    <tr><td className="py-2 text-slate-300">Potencia</td>
+                                        <td className={`py-2 text-right font-mono font-bold ${getMinClass(billA.termPotDisc, billB.termPotDisc, billC.termPotDisc, billA.termPotDisc)}`}>{formatDecimal(billA.termPotDisc)} €</td>
+                                        <td className={`py-2 text-right font-mono font-bold ${getMinClass(billA.termPotDisc, billB.termPotDisc, billC.termPotDisc, billB.termPotDisc)}`}>{formatDecimal(billB.termPotDisc)} €</td>
+                                        <td className={`py-2 text-right font-mono font-bold ${getMinClass(billA.termPotDisc, billB.termPotDisc, billC.termPotDisc, billC.termPotDisc)}`}>{formatDecimal(billC.termPotDisc)} €</td>
+                                    </tr>
+                                    <tr><td className="py-2 text-slate-300">Energía (Neto Solar)</td>
+                                        <td className={`py-2 text-right font-mono font-bold ${getMinClass(billA.termEnNet, billB.termEnNet, billC.termEnNet, billA.termEnNet)}`}>{formatDecimal(billA.termEnNet)} €</td>
+                                        <td className={`py-2 text-right font-mono font-bold ${getMinClass(billA.termEnNet, billB.termEnNet, billC.termEnNet, billB.termEnNet)}`}>{formatDecimal(billB.termEnNet)} €</td>
+                                        <td className={`py-2 text-right font-mono font-bold ${getMinClass(billA.termEnNet, billB.termEnNet, billC.termEnNet, billC.termEnNet)}`}>{formatDecimal(billC.termEnNet)} €</td>
+                                    </tr>
+                                    {tState.solarExp > 0 && (
+                                    <tr><td className="py-1 text-yellow-600 text-xs font-bold pl-2">↳ Comp. Excedentes</td>
+                                        <td className="py-1 text-right font-mono font-bold text-yellow-600 text-xs">-{formatDecimal(billA.solarReturn)} €</td>
+                                        <td className="py-1 text-right font-mono font-bold text-yellow-600 text-xs">-{formatDecimal(billB.solarReturn)} €</td>
+                                        <td className="py-1 text-right font-mono font-bold text-yellow-600 text-xs">-{formatDecimal(billC.solarReturn)} €</td>
+                                    </tr>)}
+                                    <tr><td className="py-2 text-slate-300">Fijos (Alq+Bono+Com)</td>
+                                        <td className="py-2 text-right font-mono font-bold text-slate-300">{formatDecimal(billA.fixedCosts)} €</td>
+                                        <td className="py-2 text-right font-mono font-bold text-slate-300">{formatDecimal(billB.fixedCosts)} €</td>
+                                        <td className="py-2 text-right font-mono font-bold text-slate-300">{formatDecimal(billC.fixedCosts)} €</td>
+                                    </tr>
+                                    <tr><td className="py-2 text-slate-300">Impuestos (IEE+IVA)</td>
+                                        <td className="py-2 text-right font-mono font-bold text-slate-300">{formatDecimal(billA.taxes)} €</td>
+                                        <td className="py-2 text-right font-mono font-bold text-slate-300">{formatDecimal(billB.taxes)} €</td>
+                                        <td className="py-2 text-right font-mono font-bold text-slate-300">{formatDecimal(billC.taxes)} €</td>
+                                    </tr>
+                                </tbody>
+                                <tfoot className="border-t border-slate-600 bg-slate-800/30">
+                                    <tr>
+                                        <td className="py-3 font-bold text-white text-base">TOTAL FACTURA</td>
+                                        <td className={`py-3 text-right font-bold text-xl ${getMinClass(billA.total, billB.total, billC.total, billA.total)}`}>{formatDecimal(billA.total)} €</td>
+                                        <td className={`py-3 text-right font-bold text-xl ${getMinClass(billA.total, billB.total, billC.total, billB.total)}`}>{formatDecimal(billB.total)} €</td>
+                                        <td className={`py-3 text-right font-bold text-xl ${getMinClass(billA.total, billB.total, billC.total, billC.total)}`}>{formatDecimal(billC.total)} €</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
                 <div className="lg:col-span-12">
                     <Tariff3DChart 
-                        billA={billA} 
-                        billB={billB} 
-                        nameA={tState.propA.name} 
-                        nameB={tState.propB.name} 
+                        billA={billA} billB={billB} billC={billC}
+                        nameA={tState.propA.name} nameB={tState.propB.name} nameC={tState.propC.name}
                     />
                 </div>
 
-                {/* --- NUEVO PANEL DE ESTIMACIÓN --- */}
+                {/* --- PANEL DE ESTIMACIÓN --- */}
                 <div className="lg:col-span-12 mt-8 animate-fade-in">
                     <div className="bg-slate-900/90 border-2 border-slate-700/50 rounded-2xl p-6 relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
@@ -3515,9 +3603,10 @@
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-4">
                                 <div>
                                     <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Tarifa a Usar</label>
-                                    <div className="flex bg-slate-900 rounded p-1">
-                                        <button onClick={() => setEstState(p => ({...p, selectedProp: 'A'}))} className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${estState.selectedProp === 'A' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>{tState.propA.name || 'Propuesta A'}</button>
-                                        <button onClick={() => setEstState(p => ({...p, selectedProp: 'B'}))} className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${estState.selectedProp === 'B' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300'}`}>{tState.propB.name || 'Propuesta B'}</button>
+                                    <div className="flex bg-slate-900 rounded p-1 gap-1">
+                                        <button onClick={() => setEstState(p => ({...p, selectedProp: 'A'}))} className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${estState.selectedProp === 'A' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300 bg-slate-800'}`}>{tState.propA.name}</button>
+                                        <button onClick={() => setEstState(p => ({...p, selectedProp: 'B'}))} className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${estState.selectedProp === 'B' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300 bg-slate-800'}`}>{tState.propB.name}</button>
+                                        <button onClick={() => setEstState(p => ({...p, selectedProp: 'C'}))} className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${estState.selectedProp === 'C' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300 bg-slate-800'}`}>{tState.propC.name}</button>
                                     </div>
                                 </div>
                                 <div>
@@ -3536,7 +3625,7 @@
                                 </div>
                             </div>
 
-                            {/* NUEVO: CONFIGURACIÓN DE HORARIOS P1/P2/P3 - DISEÑO VERTICAL CORREGIDO */}
+                            {/* CONFIGURACIÓN DE HORARIOS P1/P2/P3 */}
                             <div className="pt-4 border-t border-slate-700">
                                 <div className="flex justify-between items-center mb-3">
                                     <label className="text-sm font-bold text-slate-300 uppercase">Configuración de Horarios (Periodos Energía)</label>
@@ -3721,7 +3810,7 @@
             </div>
         );
       };
-
+ 
 
  
 
