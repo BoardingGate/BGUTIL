@@ -6200,8 +6200,304 @@
             </div>
         );
       };  
-  
 
+
+
+      // --- CALCULADORA SOLAR FOTOVOLTAICA V2 (DESGLOSE EV/CASA + PRECIOS DUALES) ---
+      const SolarCalculator = () => {
+        const [solar, setSolar] = usePersistentState('solarStateV2', {
+            // Hardware
+            panels: 10,
+            powerPerPanel: 450, // W
+            efficiency: 0.85, // Pérdidas del sistema
+            
+            // Ubicación y Orientación
+            latitude: 40.41, 
+            userAzimuth: 180, // 180 = Sur
+            tilt: 30,
+
+            // Consumo y Batería
+            annualConsumption: 5000, // kWh casa
+            batteryKwh: 0,
+            
+            // Financiero Avanzado
+            investment: 6000, 
+            priceBuyPeak: 0.22, // €/kWh Punta (Ahorro Casa)
+            priceBuyValley: 0.10, // €/kWh Valle (Ahorro Coche)
+            priceSell: 0.08, // €/kWh Excedente
+            
+            // EV Integration
+            evConsumption: 16.0, 
+            evSolarChargePct: 50 // % del excedente destinado al coche
+        });
+
+        const handleNum = (k, v) => setSolar(prev => ({...prev, [k]: parseFloat(v) || 0}));
+
+        // --- MOTOR DE CÁLCULO SOLAR AVANZADO ---
+        const calculateSolarData = () => {
+            const installedPowerKw = (solar.panels * solar.powerPerPanel) / 1000;
+            
+            // Factores geográficos (Simplificados para España)
+            const latFactor = 1 + ((40.4 - solar.latitude) * 0.025);
+            const azimRad = (solar.userAzimuth - 180) * (Math.PI / 180);
+            const orientFactor = Math.max(0.6, Math.cos(azimRad / 1.5)); 
+            const baseHSP = 1550; 
+            const estimatedGeneration = installedPowerKw * baseHSP * latFactor * orientFactor * solar.efficiency;
+
+            // Distribución mensual
+            const monthWeights = [0.045, 0.055, 0.075, 0.095, 0.115, 0.125, 0.130, 0.115, 0.090, 0.070, 0.050, 0.040];
+            
+            const monthlyData = monthWeights.map((weight, idx) => {
+                const prod = estimatedGeneration * weight;
+                const consHouse = solar.annualConsumption / 12; // Consumo base casa
+                
+                // 1. Autoconsumo VIVIENDA
+                // Sin batería ~35%, Con batería sube según capacidad
+                let ratioHouse = solar.batteryKwh > 0 ? 0.70 + (solar.batteryKwh * 0.02) : 0.35;
+                if (prod < consHouse * 0.5) ratioHouse = 1.0; // Poca producción = todo pa casa
+                ratioHouse = Math.min(0.98, ratioHouse);
+                
+                const selfHouse = Math.min(prod, consHouse * ratioHouse);
+                const surplusAfterHouse = Math.max(0, prod - selfHouse);
+
+                // 2. Autoconsumo COCHE (EV)
+                // Se lleva un % del excedente que sobra de la casa
+                const selfEV = surplusAfterHouse * (solar.evSolarChargePct / 100);
+                
+                // 3. Vertido a RED
+                const exported = Math.max(0, surplusAfterHouse - selfEV);
+
+                return { 
+                    month: idx, 
+                    prod, 
+                    consHouse, 
+                    selfHouse, 
+                    selfEV, 
+                    exported 
+                };
+            });
+
+            // Totales Anuales kWh
+            const sumProd = monthlyData.reduce((acc, m) => acc + m.prod, 0);
+            const sumHouse = monthlyData.reduce((acc, m) => acc + m.selfHouse, 0);
+            const sumEV = monthlyData.reduce((acc, m) => acc + m.selfEV, 0);
+            const sumExport = monthlyData.reduce((acc, m) => acc + m.exported, 0);
+
+            // Totales Económicos
+            const savingHouse = sumHouse * solar.priceBuyPeak; // Se ahorra a precio caro (día)
+            const savingEV = sumEV * solar.priceBuyValley;     // Se ahorra a precio barato (noche)
+            const incomeExport = sumExport * solar.priceSell;  // Compensación
+            
+            const totalBenefitAnnual = savingHouse + savingEV + incomeExport;
+            const roiYears = totalBenefitAnnual > 0 ? solar.investment / totalBenefitAnnual : 99;
+            const evKmAdded = solar.evConsumption > 0 ? (sumEV / solar.evConsumption) * 100 : 0;
+
+            return { 
+                installedPowerKw, 
+                monthlyData,
+                totals: { kwh: sumProd, eur: totalBenefitAnnual },
+                house: { kwh: sumHouse, eur: savingHouse },
+                ev: { kwh: sumEV, eur: savingEV, km: evKmAdded },
+                grid: { kwh: sumExport, eur: incomeExport },
+                roiYears
+            };
+        };
+
+        const results = calculateSolarData();
+        // Max value for chart Y-axis scaling
+        const maxChartVal = Math.max(...results.monthlyData.map(m => Math.max(m.prod, m.consHouse)));
+
+        return (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in pb-10">
+                
+                {/* COLUMNA IZQUIERDA: CONFIGURACIÓN */}
+                <div className="lg:col-span-4 space-y-6">
+                    <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
+                        <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
+                            <Icons.Sun className="text-yellow-500"/> Configuración Solar
+                        </h2>
+                        
+                        <div className="space-y-4">
+                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Inversión Total (€)</label><FormattedInput value={solar.investment} onChange={v => handleNum('investment', v)} grouped={true} /></div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="text-xs font-bold text-slate-400 block mb-1">Nº Paneles</label><FormattedInput value={solar.panels} decimals={0} onChange={v => handleNum('panels', v)} /></div>
+                                <div><label className="text-xs font-bold text-slate-400 block mb-1">Potencia (Wp)</label><FormattedInput value={solar.powerPerPanel} decimals={0} onChange={v => handleNum('powerPerPanel', v)} /></div>
+                            </div>
+                            <div className="p-2 bg-slate-800 rounded border border-slate-700 text-center mb-2">
+                                <span className="text-xs text-slate-400 uppercase font-bold">Potencia Pico:</span> <span className="text-lg font-bold text-yellow-400">{formatDecimal(results.installedPowerKw, 2)} kWp</span>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 pt-4 border-t border-slate-800 space-y-4">
+                            <label className="text-sm font-bold text-blue-400 block uppercase">Ubicación</label>
+                            <div><label className="text-xs font-bold text-slate-400 block mb-1">Latitud</label><FormattedInput value={solar.latitude} decimals={4} onChange={v => handleNum('latitude', v)} /></div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 block mb-2">Orientación ({solar.userAzimuth}º)</label>
+                                <input type="range" min="0" max="360" value={solar.userAzimuth} onChange={e => handleNum('userAzimuth', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-yellow-500"/>
+                                <div className="flex justify-between text-[9px] text-slate-500 font-bold mt-1"><span>N(0)</span><span>E(90)</span><span className="text-yellow-500">S(180)</span><span>O(270)</span><span>N</span></div>
+                            </div>
+                        </div>
+
+                        <div className="mt-6 pt-4 border-t border-slate-800 space-y-4">
+                            <label className="text-sm font-bold text-green-400 block uppercase">Consumo y Precios</label>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="text-xs font-bold text-slate-400 block mb-1">Consumo Casa (kWh/año)</label><FormattedInput value={solar.annualConsumption} grouped={true} onChange={v => handleNum('annualConsumption', v)} /></div>
+                                <div><label className="text-xs font-bold text-slate-400 block mb-1">Batería (kWh)</label><FormattedInput value={solar.batteryKwh} decimals={1} onChange={v => handleNum('batteryKwh', v)} /></div>
+                            </div>
+                            <div className="bg-slate-800/50 p-3 rounded border border-slate-700">
+                                <label className="text-[10px] font-bold text-slate-300 uppercase mb-2 block">Tarifas Compra (Ahorro)</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div><label className="text-[9px] text-red-300 block">Punta (Casa)</label><FormattedInput value={solar.priceBuyPeak} decimals={3} onChange={v => handleNum('priceBuyPeak', v)} /></div>
+                                    <div><label className="text-[9px] text-blue-300 block">Valle (Coche)</label><FormattedInput value={solar.priceBuyValley} decimals={3} onChange={v => handleNum('priceBuyValley', v)} /></div>
+                                </div>
+                            </div>
+                            <div><label className="text-xs font-bold text-slate-400 block mb-1">Precio Excedentes (€/kWh)</label><FormattedInput value={solar.priceSell} decimals={3} onChange={v => handleNum('priceSell', v)} /></div>
+                        </div>
+
+                        <div className="mt-6 pt-4 border-t border-slate-800 space-y-4">
+                            <label className="text-sm font-bold text-purple-400 block uppercase">Carga Vehículo</label>
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 block mb-2">% Excedente destinado al Coche</label>
+                                <div className="flex items-center gap-3">
+                                    <input type="range" min="0" max="100" value={solar.evSolarChargePct} onChange={e => handleNum('evSolarChargePct', e.target.value)} className="flex-1 h-2 bg-slate-700 rounded-lg cursor-pointer accent-blue-500"/>
+                                    <span className="text-sm font-bold text-white w-8">{solar.evSolarChargePct}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* COLUMNA DERECHA: RESULTADOS */}
+                <div className="lg:col-span-8 space-y-6">
+                    
+                    {/* KPI AMORTIZACIÓN */}
+                    <div className="flex flex-col md:flex-row gap-4">
+                        <div className="flex-1 bg-gradient-to-r from-green-900/40 to-slate-900 border border-green-500/30 p-5 rounded-xl shadow-lg flex items-center justify-between">
+                            <div>
+                                <div className="text-xs font-bold text-green-400 uppercase tracking-wider mb-1">Retorno Económico</div>
+                                <div className="text-3xl font-display font-bold text-white">{formatMoney(results.totals.eur)} <span className="text-sm font-sans text-slate-400">€/año</span></div>
+                            </div>
+                            <div className="text-right">
+                                <div className="text-xs font-bold text-slate-400 uppercase">Amortización</div>
+                                <div className="text-2xl font-bold text-white">{formatDecimal(results.roiYears, 1)} <span className="text-sm text-slate-500">años</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* GRÁFICA DE BARRAS APILADAS */}
+                    <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 h-96 flex flex-col relative">
+                        <h3 className="text-sm font-bold text-slate-300 uppercase mb-6 flex justify-between items-center">
+                            <span>Distribución de Energía (kWh)</span>
+                            <div className="flex gap-3 text-[9px] uppercase font-bold bg-slate-800 p-2 rounded border border-slate-700">
+                                <div className="flex items-center gap-1"><div className="w-2 h-2 bg-yellow-500 rounded-sm"></div> Red</div>
+                                <div className="flex items-center gap-1"><div className="w-2 h-2 bg-blue-500 rounded-sm"></div> Coche</div>
+                                <div className="flex items-center gap-1"><div className="w-2 h-2 bg-green-500 rounded-sm"></div> Casa</div>
+                                <div className="w-px h-3 bg-slate-600 mx-1"></div>
+                                <div className="flex items-center gap-1"><div className="w-2 h-2 border border-slate-500 rounded-sm"></div> Demanda Casa</div>
+                            </div>
+                        </h3>
+                        
+                        {/* Eje Y (kWh) */}
+                        <div className="absolute top-12 bottom-8 left-0 w-8 flex flex-col justify-between text-[9px] text-slate-500 font-bold text-right pr-1 pointer-events-none">
+                            <span>{Math.round(maxChartVal)}</span>
+                            <span>{Math.round(maxChartVal * 0.75)}</span>
+                            <span>{Math.round(maxChartVal * 0.5)}</span>
+                            <span>{Math.round(maxChartVal * 0.25)}</span>
+                            <span>0</span>
+                        </div>
+
+                        <div className="flex-1 flex items-end gap-2 relative z-10 pl-8 border-l border-slate-700/50 border-b">
+                            {results.monthlyData.map((m, i) => {
+                                const hTotal = (m.prod / maxChartVal) * 100;
+                                const hCons = (m.consHouse / maxChartVal) * 100;
+                                
+                                // Alturas relativas dentro de la barra apilada
+                                const pExport = (m.exported / m.prod) * 100;
+                                const pEV = (m.selfEV / m.prod) * 100;
+                                const pHouse = (m.selfHouse / m.prod) * 100;
+
+                                const monthName = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'][i];
+
+                                return (
+                                    <div key={i} className="flex-1 flex flex-col justify-end items-center h-full group relative">
+                                        <div className="w-full flex items-end justify-center h-full relative">
+                                            {/* Barra Demanda Casa (Fondo transparente con borde) */}
+                                            <div className="absolute bottom-0 w-full rounded-t-sm border-x border-t border-slate-600/30 bg-slate-700/10 z-0 pointer-events-none" style={{height: `${hCons}%`}}></div>
+                                            
+                                            {/* Barra Producción Apilada */}
+                                            <div className="w-2/3 bg-slate-800 rounded-t-sm relative overflow-hidden flex flex-col justify-end transition-all hover:scale-105 z-10 shadow-lg" style={{height: `${hTotal}%`}}>
+                                                {/* Tooltip */}
+                                                <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-3 bg-slate-900 border border-slate-500 rounded text-[10px] text-white z-50 whitespace-nowrap shadow-2xl backdrop-blur-md">
+                                                    <div className="font-bold border-b border-slate-700 pb-1 mb-1 text-center text-slate-300">{monthName}</div>
+                                                    <div className="flex justify-between gap-4"><span className="text-yellow-400">A Red:</span> <span>{Math.round(m.exported)} kWh</span></div>
+                                                    <div className="flex justify-between gap-4"><span className="text-blue-400">Coche:</span> <span>{Math.round(m.selfEV)} kWh</span></div>
+                                                    <div className="flex justify-between gap-4"><span className="text-green-400">Casa:</span> <span>{Math.round(m.selfHouse)} kWh</span></div>
+                                                    <div className="border-t border-slate-700 mt-1 pt-1 text-slate-500 text-right">Prod Total: {Math.round(m.prod)}</div>
+                                                </div>
+
+                                                {/* Segmentos */}
+                                                <div className="w-full bg-yellow-500/80 border-t border-white/10" style={{height: `${pExport}%`}}></div>
+                                                <div className="w-full bg-blue-600/80 border-t border-white/10" style={{height: `${pEV}%`}}></div>
+                                                <div className="w-full bg-green-600/80" style={{height: `${pHouse}%`}}></div>
+                                            </div>
+                                        </div>
+                                        <span className="text-[9px] font-bold text-slate-500 mt-2">{monthName.charAt(0)}</span>
+                                    </div>
+                                );
+                            })}
+                            
+                            {/* Grid lines */}
+                            <div className="absolute inset-0 pointer-events-none flex flex-col justify-between z-0">
+                                <div className="border-t border-slate-700/20 w-full h-0"></div>
+                                <div className="border-t border-slate-700/20 w-full h-0"></div>
+                                <div className="border-t border-slate-700/20 w-full h-0"></div>
+                                <div className="border-t border-slate-700/20 w-full h-0"></div>
+                                <div className="border-t border-slate-700/20 w-full h-0"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* RESUMEN FINAL DETALLADO */}
+                    <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden">
+                        <div className="bg-slate-800/50 px-6 py-3 border-b border-slate-700 flex justify-between items-center">
+                            <h4 className="text-sm font-bold text-white uppercase flex items-center gap-2"><Icons.Activity className="w-4 h-4"/> Balance Anual Total</h4>
+                            <div className="text-xs text-slate-400 font-bold">PRODUCIDO: <span className="text-white text-lg ml-1">{formatMoney(results.totals.kwh)} kWh</span></div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-700">
+                            {/* BLOQUE CASA */}
+                            <div className="p-5 flex flex-col items-center text-center">
+                                <div className="bg-green-500/10 p-3 rounded-full mb-3"><Icons.Home className="w-6 h-6 text-green-500"/></div>
+                                <div className="text-xs font-bold text-slate-400 uppercase mb-1">Consumido en Vivienda</div>
+                                <div className="text-2xl font-bold text-white mb-1">{formatMoney(results.house.kwh)} <span className="text-sm text-slate-500">kWh</span></div>
+                                <div className="text-sm font-bold text-green-400">+{formatMoney(results.house.eur)}€ <span className="text-[10px] text-slate-500 font-normal uppercase">Ahorro vs Punta</span></div>
+                            </div>
+
+                            {/* BLOQUE COCHE */}
+                            <div className="p-5 flex flex-col items-center text-center bg-blue-900/5">
+                                <div className="bg-blue-500/10 p-3 rounded-full mb-3"><Icons.Truck className="w-6 h-6 text-blue-500"/></div>
+                                <div className="text-xs font-bold text-slate-400 uppercase mb-1">Carga Solar EV</div>
+                                <div className="text-2xl font-bold text-white mb-1">{formatMoney(results.ev.kwh)} <span className="text-sm text-slate-500">kWh</span></div>
+                                <div className="text-sm font-bold text-blue-400 mb-1">+{formatMoney(results.ev.eur)}€ <span className="text-[10px] text-slate-500 font-normal uppercase">Ahorro vs Valle</span></div>
+                                <div className="text-xs font-bold text-slate-300 bg-blue-900/30 px-2 py-1 rounded border border-blue-500/20">~{formatMoney(results.ev.km)} km Gratis</div>
+                            </div>
+
+                            {/* BLOQUE RED */}
+                            <div className="p-5 flex flex-col items-center text-center">
+                                <div className="bg-yellow-500/10 p-3 rounded-full mb-3"><Icons.TrendingUp className="w-6 h-6 text-yellow-500"/></div>
+                                <div className="text-xs font-bold text-slate-400 uppercase mb-1">Vertido a Red</div>
+                                <div className="text-2xl font-bold text-white mb-1">{formatMoney(results.grid.kwh)} <span className="text-sm text-slate-500">kWh</span></div>
+                                <div className="text-sm font-bold text-yellow-400">+{formatMoney(results.grid.eur)}€ <span className="text-[10px] text-slate-500 font-normal uppercase">Compensación</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        );
+      };
+
+        
     
         
       // --- APP PRINCIPAL ---
@@ -6238,6 +6534,7 @@
                 case 'tirelab': return <TirePressureLab />;   
                 case 'rotation': return <TireRotationGuide />;
                 case 'wheels': return <TireCalculator />;    
+                case 'solar': return <SolarCalculator />;    
                 case 'vin': return <VinDecoder />;    
                 case 'updates': return <UpdateTracker />;    
                 case 'nyland': return <NylandCalculator />;
@@ -6278,6 +6575,7 @@
                             <TabButton id="rotation" label="Rotación" />
                             <TabButton id="wheels" label="Llantas" />
                             <TabButton id="vin" label="DECODE VIN" />
+                            <TabButton id="solar" label="SOLAR" />
                             <TabButton id="updates" label="UPDATES" />
                             <TabButton id="nyland" label="Bjørn Nyland" />
                             <TabButton id="equiv" label="Equivalencia" />
