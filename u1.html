@@ -6503,7 +6503,7 @@
       };
 
 
-      // --- NUEVO: SIMULADOR DE REGENERACIÓN (S3XY / MODO VELA) ---
+      // --- NUEVO COMPONENTE: SIMULADOR DE REGENERACIÓN (S3XY / MODO VELA) ---
       const RegenSimulator = ({ params, costs }) => {
         const [regenState, setRegenState] = usePersistentState('regenState_v1', {
             stdPowerKw: 85, // Potencia standard de frenada regenerativa
@@ -6568,7 +6568,7 @@
 
         const distStopStd = kineticEnergy / (fResistAvg + fRegenStd);
         const distStopCustom = kineticEnergy / (fResistAvg + fRegenCustom);
-        const distGain = distStopCustom - distStopStd; // Metros ganados por ir a vela
+        const distGain = Math.max(0, distStopCustom - distStopStd); // Metros ganados por ir a vela
 
         // Monetización de la ganancia a vela
         // Si ganas X metros a vela, te ahorras la energía de recorrer esos metros empujando.
@@ -6600,18 +6600,18 @@
                                     <div className="w-12 text-right font-bold text-white">{regenState.customPct}%</div>
                                 </div>
                                 <div className="text-[10px] text-slate-500 mt-1 flex justify-between">
-                                    <span>0% (Vela)</span>
+                                    <span>0% (Vela Total)</span>
                                     <span>100% (Serie)</span>
                                 </div>
                             </div>
                         </div>
                         <div className="p-4 bg-purple-900/10 border border-purple-500/20 rounded-xl">
                             <p className="text-xs text-slate-300 leading-relaxed">
-                                Este simulador calcula cómo cambia el comportamiento del coche al reducir la frenada regenerativa (ej. con S3XY Buttons).
+                                Este simulador calcula el impacto físico de alterar la regeneración:
                                 <br/><br/>
-                                <strong>• En Bajada:</strong> Muestra cuánta energía dejas de recuperar.
+                                <strong>• Bajadas:</strong> Pérdida de energía recuperada (kWh/100km).
                                 <br/>
-                                <strong>• En Llano:</strong> Muestra cuántos metros "gratis" ganas por inercia (Modo Vela) y el ahorro que supone no acelerar.
+                                <strong>• Llano (Vela):</strong> Metros extra ganados por inercia al soltar el pedal desde <strong>{params.speed} km/h</strong> hasta parar.
                             </p>
                         </div>
                     </div>
@@ -6629,7 +6629,7 @@
                                     <div className="flex justify-between text-sm"><span className="text-slate-300">Recuperación Serie:</span> <span className="text-green-400 font-bold">+{formatDecimal(regenStdKwh, 2)} kWh/100</span></div>
                                     <div className="flex justify-between text-sm"><span className="text-slate-300">Recuperación Alterada:</span> <span className="text-orange-400 font-bold">+{formatDecimal(regenCustomKwh, 2)} kWh/100</span></div>
                                     <div className="mt-2 pt-2 border-t border-white/10 text-right">
-                                        <div className="text-xs text-slate-400">Energía perdida (Calor frenos):</div>
+                                        <div className="text-xs text-slate-400">Energía perdida (Freno mecánico):</div>
                                         <div className="text-red-400 font-bold text-lg">{formatDecimal(wastedKwh, 2)} kWh/100 <span className="text-xs font-normal text-slate-500">({formatDecimal(wastedKwh * costs.electricityPrice, 2)} €)</span></div>
                                     </div>
                                 </div>
@@ -6642,16 +6642,18 @@
 
                         {/* Panel Vela */}
                         <div className="p-4 bg-orange-900/10 border border-orange-500/30 rounded-xl">
-                            <div className="text-xs font-bold text-slate-400 uppercase mb-3">2. Ganancia Inercia (Modo Vela)</div>
+                            <div className="text-xs font-bold text-slate-400 uppercase mb-3">2. Ganancia Inercia (Por Evento)</div>
                             <div className="flex justify-between items-end mb-2">
-                                <div className="text-xs text-slate-300">Distancia extra al soltar acelerador:</div>
+                                <div className="text-xs text-slate-300">
+                                    Distancia extra al soltar desde <span className="text-white font-bold">{params.speed} km/h</span>:
+                                </div>
                                 <div className="text-xl font-bold text-white">+{formatMoney(distGain)} <span className="text-sm text-slate-500">metros</span></div>
                             </div>
                             <div className="w-full bg-slate-700 h-2 rounded-full mb-3 overflow-hidden">
                                 <div className="h-full bg-orange-500" style={{width: '100%'}}></div>
                             </div>
                             <div className="bg-black/20 p-2 rounded flex justify-between items-center">
-                                <span className="text-xs text-slate-400">Ahorro equivalente:</span>
+                                <span className="text-xs text-slate-400">Ahorro por cada "dejada caer":</span>
                                 <div className="text-right">
                                     <div className="text-green-400 font-bold text-sm">~{formatDecimal(kwhSavedCoasting, 3)} kWh</div>
                                     <div className="text-green-600 text-xs font-bold">{formatDecimal(euroSavedCoasting, 4)} €</div>
@@ -6672,7 +6674,7 @@
                 </div>
             </div>
         );
-      };
+      }; 
 
 
         
