@@ -454,6 +454,271 @@
         );
       };
 
+
+
+Aquí tienes el código completo de la pestaña **Simulador** actualizado. Se ha añadido la sección **"SIMULADOR DE REGENERACIÓN (S3XY / MODO VELA)"** al final de la vista del simulador, cumpliendo exactamente con tus indicaciones:
+
+1.  Permite definir la **Potencia Estándar** (85kW por defecto).
+2.  Permite alterar el **% de Regeneración** (para simular S3XY Buttons al 0%, 25%, etc.).
+3.  Calcula la **alteración del consumo** en función de si el coche debería estar regenerando (bajadas) o aprovechando la inercia (llano).
+4.  Incluye el cálculo específico de **"Modo Vela"**: Cuánta distancia recorres gratis por inercia si anulas la regeneración vs cuánto consumirías para recorrer esa misma distancia si el coche se frenara solo.
+5.  Incluye el enlace de referido de Amazon al producto Commander al pie.
+
+Solo tienes que sustituir el bloque `case 'simulator':` dentro de la función `renderContent` o copiar este componente `RegenSimulator` nuevo y añadirlo al renderizado.
+
+Para facilitar la integración sin tocar nada más, aquí tienes el código completo del componente `RegenSimulator` (actualizado con tu lógica) y la sección del `App` donde se inserta:
+
+```javascript
+      // --- NUEVO: SIMULADOR DE REGENERACIÓN (S3XY / MODO VELA) ---
+      const RegenSimulator = ({ params, costs }) => {
+        const [regenParams, setRegenParams] = usePersistentState('regenSimParams_v2', {
+            standardRegenPower: 85, // kW (Aprox Model 3 Highland/Y)
+            customRegenPct: 100 // % sobre el estándar
+        });
+
+        const handleChange = (k, v) => setRegenParams(prev => ({...prev, [k]: parseFloat(v)}));
+
+        // FÍSICA DEL VEHÍCULO (Copia de la lógica central para consistencia)
+        const mass = 1850; const g = 9.81;
+        const cr = 0.006; const rho = 1.225; const cd = 0.219; const area = 2.22;
+        const speedMs = params.speed / 3.6;
+        
+        // 1. CÁLCULO DE FUERZAS
+        const gradientRad = Math.atan(params.gradient / 100);
+        const fGrade = mass * g * Math.sin(gradientRad); // Positivo subiendo, Negativo bajando (ayuda)
+        const fRoll = mass * g * cr * Math.cos(gradientRad); // Siempre en contra
+        const relativeSpeed = speedMs - (params.windSpeed / 3.6);
+        const fAero = 0.5 * rho * cd * area * Math.sign(relativeSpeed) * (relativeSpeed ** 2); // Siempre en contra
+        
+        const totalResistiveForce = fRoll + fAero; // Fuerzas que frenan el coche naturalmente
+        const netForce = totalResistiveForce + fGrade; // Balance total
+        
+        // 2. POTENCIAS DE REGENERACIÓN
+        const maxRegenKw_Std = regenParams.standardRegenPower;
+        const maxRegenKw_Custom = regenParams.standardRegenPower * (regenParams.customRegenPct / 100);
+
+        // 3. ESCENARIO A: CONSUMO REAL (Impacto en Bajadas)
+        // Si netForce < 0, el coche "cae" y genera energía.
+        // Si netForce > 0, el motor empuja (consumo).
+        
+        // Consumo Teórico (Motor empujando o reteniendo todo lo posible)
+        let powerWatts_Std = netForce * speedMs;
+        let powerWatts_Custom = netForce * speedMs;
+
+        // Aplicamos límites de regeneración (Solo si la potencia es negativa/generación)
+        if (powerWatts_Std < 0) {
+            // Si genera más de lo que la batería admite, el resto se pierde en frenos mecánicos
+            powerWatts_Std = Math.max(powerWatts_Std, -maxRegenKw_Std * 1000); 
+        }
+        if (powerWatts_Custom < 0) {
+            // Aquí aplicamos el "recorte" de los S3XY Buttons
+            powerWatts_Custom = Math.max(powerWatts_Custom, -maxRegenKw_Custom * 1000);
+        }
+
+        // Convertimos a kWh/100km
+        const efficiency = 0.90; // Eficiencia motor/inversor
+        // Si power > 0 (Consumo): Se divide por eficiencia (gastamos más de lo que llega a rueda)
+        // Si power < 0 (Regen): Se multiplica por eficiencia (recuperamos menos de lo que hay en rueda)
+        
+        const getConsumption = (watts) => {
+            if (params.speed === 0) return 0;
+            let wallWatts = watts > 0 ? watts / efficiency : watts * efficiency;
+            return (wallWatts / 1000 / params.speed) * 100;
+        };
+
+        const consStd = getConsumption(powerWatts_Std);
+        const consCustom = getConsumption(powerWatts_Custom);
+        
+        // Diferencial (Lo que pierdes por anular la regen en bajadas)
+        const diffKwh = consCustom - consStd; // Si custom consume más (o regenera menos), es positivo (pérdida)
+        const diffEuro = diffKwh * costs.electricityPrice;
+        const diffPct = Math.abs(consStd) > 0 ? (diffKwh / Math.abs(consStd)) * 100 : 0;
+
+
+        // 4. ESCENARIO B: MODO VELA (COASTING) EN LLANO
+        // Cálculo: ¿Cuánta distancia recorro por inercia desde la velocidad actual hasta 0?
+        // Trabajo (W) = Fuerza * Distancia  =>  Energía Cinética = Fuerza_Promedio * Distancia
+        // Distancia = E_cinética / Fuerza_Frenado_Promedio
+        
+        const kineticJoules = 0.5 * mass * (speedMs ** 2);
+        
+        // Fuerza de frenado promedio (aproximada, ya que aero depende de v^2, tomamos v media)
+        const vAvg = speedMs / 1.5; // Aproximación para integral de desaceleración
+        const fAeroAvg = 0.5 * rho * cd * area * (vAvg ** 2);
+        const fResistAvg = fRoll + fAeroAvg; // Resistencia natural (Vela pura)
+        
+        // Fuerza Regen (F = P / v). Asumimos un torque de frenado regenerativo promedio
+        // Regen 100%: Fuerte retención. Regen 0%: Solo resistencia natural.
+        
+        // Simulación simplificada de distancia hasta detenerse
+        const getCoastingDistance = (regenKwLimit) => {
+            // Si regen es 0, solo frena fResistAvg.
+            // Si regen es alta, frena fResistAvg + fRegenAvg.
+            // fRegenAvg estimada: Potencia media / Velocidad media
+            const regenPowerAvg = Math.min(regenKwLimit * 1000, 40000); // Limitamos a 40kW promedio de frenada suave
+            const fRegenAvg = vAvg > 1 ? regenPowerAvg / vAvg : 0; 
+            const totalBrakingForce = fResistAvg + fRegenAvg;
+            return kineticJoules / totalBrakingForce;
+        };
+
+        const distCoasting_Std = getCoastingDistance(maxRegenKw_Std);
+        const distCoasting_Custom = getCoastingDistance(maxRegenKw_Custom);
+        
+        const gainedDistanceMeters = distCoasting_Custom - distCoasting_Std;
+        
+        // Valoración Económica del Modo Vela:
+        // Si recorres X metros "gratis" a vela, te ahorras la energía de recorrer esos X metros manteniendo velocidad.
+        // Energía ahorrada = (Consumo a velocidad constante / 100) * (Distancia ganada / 1000)
+        const consumptionAtSpeed = getConsumption(netForce * speedMs); // Consumo para mantener la velocidad
+        // Solo es ahorro si estamos en llano/subida (donde netForce > 0). En bajada fuerte no ahorras, pierdes regen.
+        const coastingSavingsKwh = consumptionAtSpeed > 0 ? (consumptionAtSpeed * (gainedDistanceMeters / 100000)) : 0; 
+        const coastingSavingsEur = coastingSavingsKwh * costs.electricityPrice;
+
+        return (
+            <div className="mt-8 bg-slate-900/50 backdrop-blur-lg border border-purple-500/30 rounded-2xl p-6 shadow-xl animate-fade-in">
+                <h3 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2 border-b border-purple-500/30 pb-4">
+                    <Icons.Activity className="w-6 h-6 text-purple-400" /> SIMULADOR DE REGENERACIÓN (S3XY)
+                </h3>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-6">
+                    {/* CONTROLES */}
+                    <div className="lg:col-span-5 space-y-6">
+                        <div className="bg-slate-800/50 p-5 rounded-xl border border-slate-700">
+                            <label className="text-sm font-bold text-purple-300 block mb-4 uppercase">Ajuste de Regeneración</label>
+                            
+                            <div className="mb-6">
+                                <label className="text-xs font-bold text-slate-400 block mb-1">Potencia Standard (Model 3/Y)</label>
+                                <FormattedInput value={regenParams.standardRegenPower} onChange={v => handleChange('standardRegenPower', v)} decimals={0} />
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between mb-2">
+                                    <label className="text-xs font-bold text-slate-400">Nivel Alterado (S3XY Knob/Buttons)</label>
+                                    <span className={`text-sm font-bold ${regenParams.customRegenPct < 100 ? 'text-orange-400' : 'text-white'}`}>{regenParams.customRegenPct}%</span>
+                                </div>
+                                <input type="range" min="0" max="100" step="5" value={regenParams.customRegenPct} onChange={e => handleChange('customRegenPct', e.target.value)} className="w-full h-3 bg-slate-700 rounded-lg cursor-pointer accent-purple-500" />
+                                <div className="flex justify-between text-[10px] text-slate-500 mt-1 font-bold">
+                                    <span>0% (Vela Real)</span>
+                                    <span>100% (Serie)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-4 bg-blue-900/10 border border-blue-500/20 rounded-xl">
+                            <div className="text-xs font-bold text-blue-300 uppercase mb-2">¿Qué estamos calculando?</div>
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                                Comparamos el comportamiento del coche con la regeneración de serie vs la alterada.
+                                <br/><br/>
+                                <strong>1. En Bajadas:</strong> Calculamos cuánta energía dejas de recuperar (pierdes) al limitar el freno motor.
+                                <br/>
+                                <strong>2. En Llano (Vela):</strong> Calculamos cuántos metros extra recorres por inercia al levantar el pie y cuánto ahorras por no tener que acelerar para cubrir esa distancia.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* RESULTADOS */}
+                    <div className="lg:col-span-7 space-y-6">
+                        
+                        {/* ESCENARIO 1: BAJADA / CONSUMO INSTANTÁNEO */}
+                        <div className={`p-5 rounded-xl border transition-colors ${consStd < 0 ? 'bg-green-900/10 border-green-500/30' : 'bg-slate-800/30 border-slate-700'}`}>
+                            <h4 className="text-sm font-bold text-white uppercase mb-4 flex items-center justify-between">
+                                <span>Impacto en Consumo (Situación Actual)</span>
+                                {consStd < 0 ? <span className="text-[10px] bg-green-500 text-black px-2 py-1 rounded font-bold">REGENERANDO</span> : <span className="text-[10px] bg-slate-600 text-white px-2 py-1 rounded font-bold">CONSUMIENDO</span>}
+                            </h4>
+                            
+                            <div className="grid grid-cols-2 gap-4 text-center mb-4">
+                                <div>
+                                    <div className="text-xs text-slate-500 uppercase font-bold">Consumo Standard</div>
+                                    <div className={`text-xl font-mono font-bold ${consStd < 0 ? 'text-green-400' : 'text-white'}`}>{formatDecimal(consStd, 1)} <span className="text-xs">kWh/100</span></div>
+                                </div>
+                                <div>
+                                    <div className="text-xs text-slate-500 uppercase font-bold">Consumo Alterado</div>
+                                    <div className={`text-xl font-mono font-bold ${consCustom < 0 ? 'text-green-400' : 'text-white'}`}>{formatDecimal(consCustom, 1)} <span className="text-xs">kWh/100</span></div>
+                                </div>
+                            </div>
+
+                            {consStd < 0 && (
+                                <div className="bg-black/20 p-3 rounded border border-white/5 flex justify-between items-center">
+                                    <div className="text-xs text-slate-400">Energía desperdiciada (Freno Mecánico):</div>
+                                    <div className="text-right">
+                                        <div className="text-red-400 font-bold text-lg">+{formatDecimal(diffKwh, 2)} kWh/100</div>
+                                        <div className="text-slate-500 text-xs">Perdido: {formatDecimal(diffEuro)} €/100km</div>
+                                    </div>
+                                </div>
+                            )}
+                            {consStd >= 0 && (
+                                <div className="text-center text-xs text-slate-500 italic">
+                                    En subida o llano con el acelerador pisado, el nivel de regeneración no afecta al consumo instantáneo. Mira el "Efecto Vela" abajo.
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ESCENARIO 2: MODO VELA (COASTING) */}
+                        <div className="p-5 bg-orange-900/10 border border-orange-500/30 rounded-xl">
+                            <h4 className="text-sm font-bold text-orange-200 uppercase mb-4 flex items-center gap-2">
+                                <Icons.Wind className="w-4 h-4"/> Ganancia por Inercia (Modo Vela)
+                            </h4>
+                            
+                            <div className="flex gap-4 items-end mb-4">
+                                <div className="flex-1">
+                                    <div className="text-xs text-slate-400 mb-1">Distancia recorrida al soltar pedal (hasta detenerse):</div>
+                                    <div className="w-full bg-slate-700 h-4 rounded-full overflow-hidden relative">
+                                        <div className="absolute top-0 left-0 h-full bg-slate-500" style={{width: '10%'}}></div>
+                                        <div className="absolute top-0 left-0 h-full bg-orange-500/50" style={{width: '100%'}}></div>
+                                    </div>
+                                    <div className="flex justify-between text-[10px] font-bold mt-1">
+                                        <span className="text-slate-400">Std: {formatDecimal(distCoasting_Std, 0)} m</span>
+                                        <span className="text-orange-400">Alt: {formatDecimal(distCoasting_Custom, 0)} m</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-orange-500/10 p-4 rounded-lg border border-orange-500/20 flex justify-between items-center">
+                                <div>
+                                    <div className="text-xs font-bold text-orange-200 uppercase">Distancia "Gratis" Ganada</div>
+                                    <div className="text-3xl font-display font-bold text-white">+{formatMoney(gainedDistanceMeters)} <span className="text-sm text-slate-400 font-sans">metros</span></div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-xs font-bold text-slate-400 uppercase">Ahorro Equivalente</div>
+                                    <div className="text-xl font-bold text-green-400">~{formatDecimal(coastingSavingsKwh, 3)} kWh</div>
+                                    <div className="text-xs text-green-600 font-bold">{formatDecimal(coastingSavingsEur, 4)} €</div>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-2 italic text-center">
+                                * Cálculo teórico asumiendo que aprovechas toda esa inercia en lugar de acelerar para cubrir la misma distancia.
+                            </p>
+                        </div>
+
+                    </div>
+                </div>
+
+                {/* REFERIDO AMAZON */}
+                <div className="mt-4 p-4 bg-slate-800 border border-slate-700 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="text-left flex items-start gap-3">
+                        <div className="bg-purple-900/30 p-2 rounded text-purple-400"><Icons.Settings className="w-6 h-6" /></div>
+                        <div>
+                            <span className="text-sm font-bold text-white uppercase tracking-wider block mb-1">Enhance Commander (S3XY Buttons)</span>
+                            <p className="text-xs text-slate-400 max-w-lg leading-relaxed">
+                                Este dispositivo permite (entre muchas otras funciones) <strong>alterar el nivel de regeneración</strong> en tiempo real, activando un "Modo Vela" real o ajustando la frenada al 0%, 25%, 50% o 100% con los botones o el Knob.
+                            </p>
+                        </div>
+                    </div>
+                    <a 
+                        href="https://amzn.to/4aDc6dn" 
+                        target="_blank" 
+                        className="bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-purple-500/20 transform hover:-translate-y-1 flex items-center gap-2 whitespace-nowrap"
+                    >
+                        VER EN AMAZON ➜
+                    </a>
+                </div>
+            </div>
+        );
+      };
+
+        
+
+
+        
     
      const SimpleSavingsSimulator = ({ params, costs }) => {
         // Usamos una nueva clave para asegurar que el valor por defecto de 500.000 se aplique
@@ -6497,6 +6762,254 @@
         );
       };
 
+
+      // --- NUEVO: SIMULADOR DE REGENERACIÓN (S3XY / MODO VELA) ---
+      const RegenSimulator = ({ params, costs }) => {
+        const [regenParams, setRegenParams] = usePersistentState('regenSimParams_v2', {
+            standardRegenPower: 85, // kW (Aprox Model 3 Highland/Y)
+            customRegenPct: 100 // % sobre el estándar
+        });
+
+        const handleChange = (k, v) => setRegenParams(prev => ({...prev, [k]: parseFloat(v)}));
+
+        // FÍSICA DEL VEHÍCULO (Copia de la lógica central para consistencia)
+        const mass = 1850; const g = 9.81;
+        const cr = 0.006; const rho = 1.225; const cd = 0.219; const area = 2.22;
+        const speedMs = params.speed / 3.6;
+        
+        // 1. CÁLCULO DE FUERZAS
+        const gradientRad = Math.atan(params.gradient / 100);
+        const fGrade = mass * g * Math.sin(gradientRad); // Positivo subiendo, Negativo bajando (ayuda)
+        const fRoll = mass * g * cr * Math.cos(gradientRad); // Siempre en contra
+        const relativeSpeed = speedMs - (params.windSpeed / 3.6);
+        const fAero = 0.5 * rho * cd * area * Math.sign(relativeSpeed) * (relativeSpeed ** 2); // Siempre en contra
+        
+        const totalResistiveForce = fRoll + fAero; // Fuerzas que frenan el coche naturalmente
+        const netForce = totalResistiveForce + fGrade; // Balance total
+        
+        // 2. POTENCIAS DE REGENERACIÓN
+        const maxRegenKw_Std = regenParams.standardRegenPower;
+        const maxRegenKw_Custom = regenParams.standardRegenPower * (regenParams.customRegenPct / 100);
+
+        // 3. ESCENARIO A: CONSUMO REAL (Impacto en Bajadas)
+        // Si netForce < 0, el coche "cae" y genera energía.
+        // Si netForce > 0, el motor empuja (consumo).
+        
+        // Consumo Teórico (Motor empujando o reteniendo todo lo posible)
+        let powerWatts_Std = netForce * speedMs;
+        let powerWatts_Custom = netForce * speedMs;
+
+        // Aplicamos límites de regeneración (Solo si la potencia es negativa/generación)
+        if (powerWatts_Std < 0) {
+            // Si genera más de lo que la batería admite, el resto se pierde en frenos mecánicos
+            powerWatts_Std = Math.max(powerWatts_Std, -maxRegenKw_Std * 1000); 
+        }
+        if (powerWatts_Custom < 0) {
+            // Aquí aplicamos el "recorte" de los S3XY Buttons
+            powerWatts_Custom = Math.max(powerWatts_Custom, -maxRegenKw_Custom * 1000);
+        }
+
+        // Convertimos a kWh/100km
+        const efficiency = 0.90; // Eficiencia motor/inversor
+        // Si power > 0 (Consumo): Se divide por eficiencia (gastamos más de lo que llega a rueda)
+        // Si power < 0 (Regen): Se multiplica por eficiencia (recuperamos menos de lo que hay en rueda)
+        
+        const getConsumption = (watts) => {
+            if (params.speed === 0) return 0;
+            let wallWatts = watts > 0 ? watts / efficiency : watts * efficiency;
+            return (wallWatts / 1000 / params.speed) * 100;
+        };
+
+        const consStd = getConsumption(powerWatts_Std);
+        const consCustom = getConsumption(powerWatts_Custom);
+        
+        // Diferencial (Lo que pierdes por anular la regen en bajadas)
+        const diffKwh = consCustom - consStd; // Si custom consume más (o regenera menos), es positivo (pérdida)
+        const diffEuro = diffKwh * costs.electricityPrice;
+        const diffPct = Math.abs(consStd) > 0 ? (diffKwh / Math.abs(consStd)) * 100 : 0;
+
+
+        // 4. ESCENARIO B: MODO VELA (COASTING) EN LLANO
+        // Cálculo: ¿Cuánta distancia recorro por inercia desde la velocidad actual hasta 0?
+        // Trabajo (W) = Fuerza * Distancia  =>  Energía Cinética = Fuerza_Promedio * Distancia
+        // Distancia = E_cinética / Fuerza_Frenado_Promedio
+        
+        const kineticJoules = 0.5 * mass * (speedMs ** 2);
+        
+        // Fuerza de frenado promedio (aproximada, ya que aero depende de v^2, tomamos v media)
+        const vAvg = speedMs / 1.5; // Aproximación para integral de desaceleración
+        const fAeroAvg = 0.5 * rho * cd * area * (vAvg ** 2);
+        const fResistAvg = fRoll + fAeroAvg; // Resistencia natural (Vela pura)
+        
+        // Fuerza Regen (F = P / v). Asumimos un torque de frenado regenerativo promedio
+        // Regen 100%: Fuerte retención. Regen 0%: Solo resistencia natural.
+        
+        // Simulación simplificada de distancia hasta detenerse
+        const getCoastingDistance = (regenKwLimit) => {
+            // Si regen es 0, solo frena fResistAvg.
+            // Si regen es alta, frena fResistAvg + fRegenAvg.
+            // fRegenAvg estimada: Potencia media / Velocidad media
+            const regenPowerAvg = Math.min(regenKwLimit * 1000, 40000); // Limitamos a 40kW promedio de frenada suave
+            const fRegenAvg = vAvg > 1 ? regenPowerAvg / vAvg : 0; 
+            const totalBrakingForce = fResistAvg + fRegenAvg;
+            return kineticJoules / totalBrakingForce;
+        };
+
+        const distCoasting_Std = getCoastingDistance(maxRegenKw_Std);
+        const distCoasting_Custom = getCoastingDistance(maxRegenKw_Custom);
+        
+        const gainedDistanceMeters = distCoasting_Custom - distCoasting_Std;
+        
+        // Valoración Económica del Modo Vela:
+        // Si recorres X metros "gratis" a vela, te ahorras la energía de recorrer esos X metros manteniendo velocidad.
+        // Energía ahorrada = (Consumo a velocidad constante / 100) * (Distancia ganada / 1000)
+        const consumptionAtSpeed = getConsumption(netForce * speedMs); // Consumo para mantener la velocidad
+        // Solo es ahorro si estamos en llano/subida (donde netForce > 0). En bajada fuerte no ahorras, pierdes regen.
+        const coastingSavingsKwh = consumptionAtSpeed > 0 ? (consumptionAtSpeed * (gainedDistanceMeters / 100000)) : 0; 
+        const coastingSavingsEur = coastingSavingsKwh * costs.electricityPrice;
+
+        return (
+            <div className="mt-8 bg-slate-900/50 backdrop-blur-lg border border-purple-500/30 rounded-2xl p-6 shadow-xl animate-fade-in">
+                <h3 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2 border-b border-purple-500/30 pb-4">
+                    <Icons.Activity className="w-6 h-6 text-purple-400" /> SIMULADOR DE REGENERACIÓN (S3XY)
+                </h3>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-6">
+                    {/* CONTROLES */}
+                    <div className="lg:col-span-5 space-y-6">
+                        <div className="bg-slate-800/50 p-5 rounded-xl border border-slate-700">
+                            <label className="text-sm font-bold text-purple-300 block mb-4 uppercase">Ajuste de Regeneración</label>
+                            
+                            <div className="mb-6">
+                                <label className="text-xs font-bold text-slate-400 block mb-1">Potencia Standard (Model 3/Y)</label>
+                                <FormattedInput value={regenParams.standardRegenPower} onChange={v => handleChange('standardRegenPower', v)} decimals={0} />
+                            </div>
+
+                            <div>
+                                <div className="flex justify-between mb-2">
+                                    <label className="text-xs font-bold text-slate-400">Nivel Alterado (S3XY Knob/Buttons)</label>
+                                    <span className={`text-sm font-bold ${regenParams.customRegenPct < 100 ? 'text-orange-400' : 'text-white'}`}>{regenParams.customRegenPct}%</span>
+                                </div>
+                                <input type="range" min="0" max="100" step="5" value={regenParams.customRegenPct} onChange={e => handleChange('customRegenPct', e.target.value)} className="w-full h-3 bg-slate-700 rounded-lg cursor-pointer accent-purple-500" />
+                                <div className="flex justify-between text-[10px] text-slate-500 mt-1 font-bold">
+                                    <span>0% (Vela Real)</span>
+                                    <span>100% (Serie)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-4 bg-blue-900/10 border border-blue-500/20 rounded-xl">
+                            <div className="text-xs font-bold text-blue-300 uppercase mb-2">¿Qué estamos calculando?</div>
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                                Comparamos el comportamiento del coche con la regeneración de serie vs la alterada.
+                                <br/><br/>
+                                <strong>1. En Bajadas:</strong> Calculamos cuánta energía dejas de recuperar (pierdes) al limitar el freno motor.
+                                <br/>
+                                <strong>2. En Llano (Vela):</strong> Calculamos cuántos metros extra recorres por inercia al levantar el pie y cuánto ahorras por no tener que acelerar para cubrir esa distancia.
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* RESULTADOS */}
+                    <div className="lg:col-span-7 space-y-6">
+                        
+                        {/* ESCENARIO 1: BAJADA / CONSUMO INSTANTÁNEO */}
+                        <div className={`p-5 rounded-xl border transition-colors ${consStd < 0 ? 'bg-green-900/10 border-green-500/30' : 'bg-slate-800/30 border-slate-700'}`}>
+                            <h4 className="text-sm font-bold text-white uppercase mb-4 flex items-center justify-between">
+                                <span>Impacto en Consumo (Situación Actual)</span>
+                                {consStd < 0 ? <span className="text-[10px] bg-green-500 text-black px-2 py-1 rounded font-bold">REGENERANDO</span> : <span className="text-[10px] bg-slate-600 text-white px-2 py-1 rounded font-bold">CONSUMIENDO</span>}
+                            </h4>
+                            
+                            <div className="grid grid-cols-2 gap-4 text-center mb-4">
+                                <div>
+                                    <div className="text-xs text-slate-500 uppercase font-bold">Consumo Standard</div>
+                                    <div className={`text-xl font-mono font-bold ${consStd < 0 ? 'text-green-400' : 'text-white'}`}>{formatDecimal(consStd, 1)} <span className="text-xs">kWh/100</span></div>
+                                </div>
+                                <div>
+                                    <div className="text-xs text-slate-500 uppercase font-bold">Consumo Alterado</div>
+                                    <div className={`text-xl font-mono font-bold ${consCustom < 0 ? 'text-green-400' : 'text-white'}`}>{formatDecimal(consCustom, 1)} <span className="text-xs">kWh/100</span></div>
+                                </div>
+                            </div>
+
+                            {consStd < 0 && (
+                                <div className="bg-black/20 p-3 rounded border border-white/5 flex justify-between items-center">
+                                    <div className="text-xs text-slate-400">Energía desperdiciada (Freno Mecánico):</div>
+                                    <div className="text-right">
+                                        <div className="text-red-400 font-bold text-lg">+{formatDecimal(diffKwh, 2)} kWh/100</div>
+                                        <div className="text-slate-500 text-xs">Perdido: {formatDecimal(diffEuro)} €/100km</div>
+                                    </div>
+                                </div>
+                            )}
+                            {consStd >= 0 && (
+                                <div className="text-center text-xs text-slate-500 italic">
+                                    En subida o llano con el acelerador pisado, el nivel de regeneración no afecta al consumo instantáneo. Mira el "Efecto Vela" abajo.
+                                </div>
+                            )}
+                        </div>
+
+                        {/* ESCENARIO 2: MODO VELA (COASTING) */}
+                        <div className="p-5 bg-orange-900/10 border border-orange-500/30 rounded-xl">
+                            <h4 className="text-sm font-bold text-orange-200 uppercase mb-4 flex items-center gap-2">
+                                <Icons.Wind className="w-4 h-4"/> Ganancia por Inercia (Modo Vela)
+                            </h4>
+                            
+                            <div className="flex gap-4 items-end mb-4">
+                                <div className="flex-1">
+                                    <div className="text-xs text-slate-400 mb-1">Distancia recorrida al soltar pedal (hasta detenerse):</div>
+                                    <div className="w-full bg-slate-700 h-4 rounded-full overflow-hidden relative">
+                                        <div className="absolute top-0 left-0 h-full bg-slate-500" style={{width: '10%'}}></div>
+                                        <div className="absolute top-0 left-0 h-full bg-orange-500/50" style={{width: '100%'}}></div>
+                                    </div>
+                                    <div className="flex justify-between text-[10px] font-bold mt-1">
+                                        <span className="text-slate-400">Std: {formatDecimal(distCoasting_Std, 0)} m</span>
+                                        <span className="text-orange-400">Alt: {formatDecimal(distCoasting_Custom, 0)} m</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-orange-500/10 p-4 rounded-lg border border-orange-500/20 flex justify-between items-center">
+                                <div>
+                                    <div className="text-xs font-bold text-orange-200 uppercase">Distancia "Gratis" Ganada</div>
+                                    <div className="text-3xl font-display font-bold text-white">+{formatMoney(gainedDistanceMeters)} <span className="text-sm text-slate-400 font-sans">metros</span></div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-xs font-bold text-slate-400 uppercase">Ahorro Equivalente</div>
+                                    <div className="text-xl font-bold text-green-400">~{formatDecimal(coastingSavingsKwh, 3)} kWh</div>
+                                    <div className="text-xs text-green-600 font-bold">{formatDecimal(coastingSavingsEur, 4)} €</div>
+                                </div>
+                            </div>
+                            <p className="text-[10px] text-slate-500 mt-2 italic text-center">
+                                * Cálculo teórico asumiendo que aprovechas toda esa inercia en lugar de acelerar para cubrir la misma distancia.
+                            </p>
+                        </div>
+
+                    </div>
+                </div>
+
+                {/* REFERIDO AMAZON */}
+                <div className="mt-4 p-4 bg-slate-800 border border-slate-700 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="text-left flex items-start gap-3">
+                        <div className="bg-purple-900/30 p-2 rounded text-purple-400"><Icons.Settings className="w-6 h-6" /></div>
+                        <div>
+                            <span className="text-sm font-bold text-white uppercase tracking-wider block mb-1">Enhance Commander (S3XY Buttons)</span>
+                            <p className="text-xs text-slate-400 max-w-lg leading-relaxed">
+                                Este dispositivo permite (entre muchas otras funciones) <strong>alterar el nivel de regeneración</strong> en tiempo real, activando un "Modo Vela" real o ajustando la frenada al 0%, 25%, 50% o 100% con los botones o el Knob.
+                            </p>
+                        </div>
+                    </div>
+                    <a 
+                        href="https://amzn.to/4aDc6dn" 
+                        target="_blank" 
+                        className="bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold px-6 py-3 rounded-xl transition-all shadow-lg hover:shadow-purple-500/20 transform hover:-translate-y-1 flex items-center gap-2 whitespace-nowrap"
+                    >
+                        VER EN AMAZON ➜
+                    </a>
+                </div>
+            </div>
+        );
+      };
+
+        
         
     
         
@@ -6526,6 +7039,7 @@
                         <ResultsDisplay consumption={consumption} params={simParams} costs={simCosts} />
                         <AdvancedConfig params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
                         <SimpleSavingsSimulator params={simParams} costs={simCosts} />
+                        <RegenSimulator params={simParams} costs={simCosts} />
                     </>
                 );      
                 case 'amortization': return <AmortizationCalculator />;
