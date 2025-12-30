@@ -6503,6 +6503,7 @@
       };
 
 
+
       // --- NUEVO COMPONENTE: SIMULADOR DE REGENERACIÓN (S3XY / MODO VELA) ---
       const RegenSimulator = ({ params, costs }) => {
         const [regenState, setRegenState] = usePersistentState('regenState_v1', {
@@ -6529,7 +6530,6 @@
         const powerNeeded = netForce * speedMs; // Watios necesarios para mantener velocidad
 
         // CÁLCULO 1: BAJADA (Freno Motor vs Vela)
-        // Si powerNeeded es negativo, estamos bajando y regenerando.
         let regenStdKwh = 0;
         let regenCustomKwh = 0;
         let wastedKwh = 0;
@@ -6539,40 +6539,36 @@
             // Potencia que el coche podría generar por gravedad
             const potentialGenKw = Math.abs(powerNeeded) / 1000;
             
-            // Lo que captura el coche de serie (limitado por hardware 85kW)
+            // 1. REGEN DE SERIE: Limitada solo por el hardware (85kW)
             const capturedStd = Math.min(potentialGenKw, regenState.stdPowerKw);
             regenStdKwh = (capturedStd / params.speed) * 100; // kWh/100km recuperados
 
-            // Lo que captura con la modificación (ej. 0% o 50%)
-            const limitCustom = regenState.stdPowerKw * (regenState.customPct / 100);
-            const capturedCustom = Math.min(potentialGenKw, limitCustom);
+            // 2. REGEN ALTERADA (LÓGICA PROPORCIONAL)
+            // Aplicamos el % directamente sobre lo que el coche recuperaría de serie.
+            // Si el coche iba a recuperar 10kW y ponemos 50%, recuperamos 5kW.
+            const capturedCustom = capturedStd * (regenState.customPct / 100);
             regenCustomKwh = (capturedCustom / params.speed) * 100;
 
-            // Diferencia (Energía perdida en frenos mecánicos o ganancia de velocidad no deseada)
+            // Diferencia (Energía perdida en frenos mecánicos)
             wastedKwh = regenStdKwh - regenCustomKwh;
         }
 
         // CÁLCULO 2: LLANO/INERCIA (Modo Vela)
-        // Distancia recorrida soltando el acelerador hasta parar
         const kineticEnergy = 0.5 * mass * (speedMs * speedMs); // Julios
         
-        // Fuerza de frenado promedio (Aero + Rodadura + Regen)
-        // Simplificamos la aero a la velocidad media del intervalo de frenada
         const vAvg = speedMs / 1.5; 
         const fResistAvg = (mass * g * cr) + (0.5 * rho * cd * area * (vAvg * vAvg));
         
         // Fuerza Regen Promedio (Std vs Custom)
-        // Asumimos una curva de frenado donde la regen media efectiva es aprox el 30% del pico en una deceleración normal
         const fRegenStd = (regenState.stdPowerKw * 1000 * 0.3) / vAvg;
-        const fRegenCustom = ((regenState.stdPowerKw * (regenState.customPct/100)) * 1000 * 0.3) / vAvg;
+        // Aplicamos el mismo factor proporcional a la fuerza de frenado
+        const fRegenCustom = fRegenStd * (regenState.customPct / 100);
 
         const distStopStd = kineticEnergy / (fResistAvg + fRegenStd);
         const distStopCustom = kineticEnergy / (fResistAvg + fRegenCustom);
         const distGain = Math.max(0, distStopCustom - distStopStd); // Metros ganados por ir a vela
 
         // Monetización de la ganancia a vela
-        // Si ganas X metros a vela, te ahorras la energía de recorrer esos metros empujando.
-        // Consumo medio para mantener esa velocidad (si es llano):
         const powerToMaintain = Math.max(0, (fRoll + fAero) * speedMs);
         const consumptionKwh100 = params.speed > 0 ? (powerToMaintain / 1000 / params.speed) * 100 : 0;
         const kwhSavedCoasting = (distGain / 100000) * consumptionKwh100;
@@ -6674,8 +6670,7 @@
                 </div>
             </div>
         );
-      }; 
-
+      };
 
         
         
