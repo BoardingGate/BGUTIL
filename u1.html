@@ -5528,7 +5528,7 @@
 
 
 
-      // --- COMPONENTE: GUÍA Y CALCULADORA ITV (V8 - CON BOTONES MANTENIMIENTO) ---
+      // --- COMPONENTE: GUÍA Y CALCULADORA ITV (V9 - COMPLETO Y CORREGIDO) ---
       const ITVGuide = () => {
         const [state, setState] = usePersistentState('itvState_v2', {
             purchaseDate: '',
@@ -5626,7 +5626,7 @@
         return (
             <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-10">
                 
-                {/* --- CALCULADORA ITV (EXISTENTE) --- */}
+                {/* --- CALCULADORA ITV --- */}
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 shadow-xl">
                     <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
                         <Icons.Calendar /> Calculadora Próxima ITV
@@ -5672,7 +5672,7 @@
                     )}
                 </div>
 
-                {/* --- PROTOCOLO DE INSPECCIÓN (EXISTENTE) --- */}
+                {/* --- PROTOCOLO DE INSPECCIÓN --- */}
                 <div className="space-y-4">
                     <h3 className="text-lg font-bold text-slate-300 uppercase tracking-widest pl-2 border-l-4 border-blue-500">Protocolo de Inspección</h3>
                     
@@ -5747,6 +5747,7 @@
                     </StepCard>
                 </div>
 
+                {/* --- CHECKLIST DOCUMENTACIÓN Y VISUAL (CON NOTA SEGURO RESTAURADA) --- */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                     <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-6 h-full">
                         <h3 className="text-sm font-bold text-blue-300 uppercase mb-4 flex items-center gap-2">
@@ -5769,6 +5770,9 @@
                                 <input type="checkbox" className="w-5 h-5 accent-blue-500" /> 
                                 <div><strong className="block text-white">DNI / NIE</strong><span className="text-xs text-slate-400">Del conductor que pasa la ITV</span></div>
                             </div>
+                            <p className="text-[10px] text-blue-300/70 italic mt-2 leading-tight">
+                                * Normalmente lo comprueban telemáticamente, pero si el sistema falla, te pedirán el recibo físico o en el móvil.
+                            </p>
                         </div>
                     </div>
 
@@ -5788,7 +5792,7 @@
                     </div>
                 </div>
 
-                {/* --- SECCIÓN: MANTENIMIENTOS PREVENTIVOS (CON BOTONES) --- */}
+                {/* --- MANTENIMIENTOS PREVENTIVOS (CON BOTONES) --- */}
                 <div className="mt-12 animate-fade-in">
                     <h3 className="text-lg font-bold text-slate-300 uppercase tracking-widest pl-2 border-l-4 border-yellow-500 mb-6 flex items-center gap-2">
                         Mantenimientos Preventivos Recomendados
@@ -5854,7 +5858,7 @@
                     </div>
                 </div>
 
-                {/* --- BOTÓN LUZ V16 (EXISTENTE) --- */}
+                {/* --- BOTÓN V16 --- */}
                 <div className="mt-6 p-6 bg-slate-800 border border-slate-700 rounded-xl flex flex-col items-center gap-4 text-center">
                     <div className="flex items-center gap-2 mb-1">
                         <Icons.AlertTriangle className="w-5 h-5 text-orange-500" />
@@ -5875,7 +5879,7 @@
             </div>
         );
       };
-    
+ 
 
 
      
