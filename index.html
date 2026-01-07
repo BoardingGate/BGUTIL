@@ -459,22 +459,17 @@
         
     
      const SimpleSavingsSimulator = ({ params, costs }) => {
-        // Usamos una nueva clave para asegurar que el valor por defecto de 500.000 se aplique
         const [distance, setDistance] = usePersistentState('simpleSimDistance_v500', 500000);
         const presets = [100, 1000, 10000, 20000, 50000, 100000, 200000, 300000, 400000, 500000];
         
-        // Cálculos Económicos
         const costEV = (distance / 100) * params.electricConsumptionRef * costs.electricityPrice;
         const costICE = (distance / 100) * costs.gasConsumptionRef * costs.gasPrice;
         const savings = costICE - costEV;
         const percent = costICE > 0 ? (savings / costICE) * 100 : 0;
 
-        // Cálculos de Emisiones CO2 (Valores promedio industria)
-        // Fabricación: Térmico ~8.500kg | Eléctrico ~14.500kg (incluye batería)
         const mfgCO2_ICE = 8500; 
         const mfgCO2_EV = 14500;
         
-        // Uso: Gasolina ~2.31kg CO2/L | Electricidad (Mix España) ~0.18kg CO2/kWh
         const opCO2_ICE = (distance / 100) * costs.gasConsumptionRef * 2.31;
         const opCO2_EV = (distance / 100) * params.electricConsumptionRef * 0.18;
         
@@ -511,9 +506,7 @@
                         </div>
                     </div>
 
-                    {/* COLUMNA DERECHA: RESULTADOS */}
                     <div className="space-y-4">
-                        {/* BLOQUE ECONÓMICO */}
                         <div className="bg-slate-900/80 rounded-xl p-6 border border-slate-700">
                             <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-slate-700/50">
                                 <div className="text-center">
@@ -534,7 +527,6 @@
                             </div>
                         </div>
 
-                        {/* BLOQUE EMISIONES */}
                         <div className="bg-slate-900/80 rounded-xl p-6 border border-slate-700">
                             <div className="grid grid-cols-2 gap-4 mb-4 pb-4 border-b border-slate-700/50 text-center">
                                 <div>
@@ -638,7 +630,6 @@
         const breakEvenRow = tableRows.find(r => r.diff >= 0);
         const breakEvenYear = breakEvenRow ? breakEvenRow.year : 0;
 
-        // --- GRÁFICA CSS APILADA ---
         const AmortizationCSSChart = ({ rows }) => {
             const maxVal = Math.max(...rows.map(r => Math.max(r.ev, r.ice)));
             const step = 5000;
@@ -733,7 +724,6 @@
 
         return (
             <div className="space-y-6">
-                {/* KPI HEADER */}
                 <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-8 text-center shadow-2xl">
                     <h3 className="text-slate-300 text-sm font-display uppercase tracking-widest mb-4 font-bold">Análisis de Rentabilidad</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
@@ -773,7 +763,6 @@
                                 <div className="grid grid-cols-3 gap-4">
                                     <div><label className="text-xs font-bold text-slate-400 block mb-1">Mtto. Anual</label><FormattedInput value={data.maintenanceEV} onChange={val=>handleChange('maintenanceEV', val)} /></div>
                                     
-                                    {/* CAMPO CORREGIDO CON DETALLE DE COSTE */}
                                     <div>
                                         <label className="text-xs font-bold text-slate-400 block mb-1 whitespace-nowrap">
                                             % Averías <span className="text-slate-500 font-normal">[{formatMoney(totalBrkAmountEV)}€]</span>
@@ -1766,7 +1755,6 @@
         const monthlyCost = (totalCost / 7) * 30.41;
         const annualCost = (totalCost / 7) * 365;
 
-        // Cálculos de Ciclos y Longevidad
         const totalDrivingKwh = (state.currentKm / 100) * state.consumption;
         const daysOwned = carAge ? carAge.days : 0; 
         const totalVampireKwh = daysOwned * state.vampireRate;
@@ -1775,11 +1763,6 @@
         const totalGrossKwh = totalNetKwh / efficiencyFactor;
         const totalLossKwh = totalGrossKwh - totalNetKwh;
         
-        // --- CÁLCULO DE REGENERACIÓN (NUEVO) ---
-        // Formula: Si el consumo medio (state.consumption) es NETO (lo habitual en la pantalla del coche), 
-        // la energía física total requerida para mover el coche es mayor.
-        // TotalFísica = Neto / (1 - %Regen).
-        // Regenerado = TotalFísica - Neto.
         const regenFactor = state.regenPct / 100;
         const totalPhysicalKwh = regenFactor < 1 ? totalDrivingKwh / (1 - regenFactor) : totalDrivingKwh;
         const totalRegenKwh = totalPhysicalKwh - totalDrivingKwh;
@@ -1859,7 +1842,6 @@
                             <div><label className="text-sm font-bold text-purple-400 block mb-2">Vampiro (kWh/día)</label><FormattedInput decimals={1} value={state.vampireRate} onChange={v => handleNumChange('vampireRate', v)} /></div>
                             <div><label className="text-sm font-bold text-red-400 block mb-2">Eficiencia Carga (%)</label><FormattedInput decimals={1} value={state.chargingEfficiency} onChange={v => handleNumChange('chargingEfficiency', v)} /></div>
                             
-                            {/* NUEVO INPUT: REGENERACIÓN */}
                             <div><label className="text-sm font-bold text-cyan-400 block mb-2">Regeneración Media (%)</label><FormattedInput decimals={1} value={state.regenPct} onChange={v => handleNumChange('regenPct', v)} /></div>
                             
                             <div>
@@ -1875,7 +1857,6 @@
                             </div>
                         </div>
                         
-                        {/* El campo de carga profunda se mueve aquí si no cabe arriba o se mantiene si cabe, pero la estructura previa tenia 2 filas. El deep discharge estaba antes. Lo reinserto en el flujo si es necesario o lo dejo. En el código original estaba en la fila 2. Como he añadido Regen, ahora hay 5 items para 4 columnas en la fila 2. Reorganizo ligeramente para que quede bien. */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                              <div><label className="text-sm font-bold text-yellow-500 block mb-2">Carga Profunda (%)</label><FormattedInput decimals={0} value={state.deepDischargeLimit} onChange={v => handleNumChange('deepDischargeLimit', v)} /></div>
                         </div>
@@ -1897,7 +1878,6 @@
                     </div>
                 </div>
 
-                {/* 2. Weekly Grid */}
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
                     <div className="overflow-x-auto">
                         <table className="w-full text-base">
@@ -1958,7 +1938,6 @@
                     </div>
                 </div>
 
-                {/* 3. Graph + Summary */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 mt-6">
                     <div className="lg:col-span-8 bg-slate-900/50 border border-slate-800 rounded-xl p-6">
                         <h4 className="text-sm font-bold text-slate-300 uppercase mb-4 flex items-center gap-2"><Icons.Activity className="w-4 h-4" /> Evolución de Carga Diaria (Matriz 3D)</h4>
@@ -2047,7 +2026,6 @@
                     </div>
                 </div>
 
-                {/* 5. Reintegración Ciclos y Vida Útil */}
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                     <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
                         <Icons.Activity /> Estimación de ciclos de carga
@@ -2063,7 +2041,6 @@
                                 </div>
                             </div>
                             
-                            {/* NUEVA GRID CON TARJETA DE REGENERACIÓN */}
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 text-center">
                                     <div className="text-xs font-bold text-slate-400 uppercase mb-2">Consumo Conducción</div>
@@ -2081,7 +2058,6 @@
                                     <div className="text-sm font-bold text-slate-400 mt-1 flex flex-col"><span>~{formatMoney(estimatedSessions)} sesiones*</span><span className="text-red-400 text-lg font-bold mt-1">{formatDecimal(costLossHistory)}€</span></div>
                                     <div className="absolute top-1 right-1 text-[9px] text-red-500/50 font-bold">*Est. al 40%</div>
                                 </div>
-                                {/* NUEVA TARJETA REGENERACIÓN */}
                                 <div className="bg-slate-800/50 p-4 rounded-xl border border-cyan-900/30 text-center relative overflow-hidden">
                                     <div className="text-xs font-bold text-cyan-400 uppercase mb-2">Energía Regenerada</div>
                                     <div className="text-xl font-bold text-cyan-300">+{formatMoney(totalRegenKwh)} <span className="text-sm text-cyan-400/70 font-normal">kWh</span></div>
@@ -2123,7 +2099,6 @@
                     </div>
                 </div>
 
-                {/* 6. Buttons */}
                 <div className="flex flex-col md:flex-row gap-6 justify-center items-center p-6 bg-slate-900/50 rounded-xl border border-slate-700/50 mt-4">
                     <div className="flex flex-col items-center gap-2 w-full md:w-auto"><button onClick={handleSaveSnapshot} className="w-full md:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"><Icons.Settings className="w-5 h-5" /> GUARDAR DATOS (solo guarda 1 copia)</button>{savedDate && (<span className="text-xs font-bold text-slate-400">Copia actual: <span className="text-blue-300">{savedDate}</span></span>)}</div>
                     {savedDate && (<div className="flex flex-col items-center gap-2 w-full md:w-auto"><button onClick={handleRestoreSnapshot} className="w-full md:w-auto px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"><Icons.Activity className="w-5 h-5" /> RESTAURAR DATOS</button></div>)}
@@ -2132,8 +2107,6 @@
         );
       };
              
-
-
 
 
   
@@ -2284,7 +2257,6 @@
 
 
 
-      // --- COMPONENTE: CURVA DE CARGA (MODIFICADO: INPUTS DE PRECISIÓN Y KWH EDITABLE) ---
       const ChargeCurveCalculator = () => {
         const [state, setState] = usePersistentState('curveState', { 
             batType: 'LFP', 
@@ -2298,7 +2270,6 @@
             targetRange: 300
         });
 
-        // CURVAS REALISTAS 2024
         const curvePoints = {
             LFP: [{p:0, v:170}, {p:10, v:168}, {p:20, v:155}, {p:30, v:135}, {p:45, v:110}, {p:55, v:85}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}],
             NCA: [{p:0, v:200}, {p:5, v:250}, {p:15, v:250}, {p:25, v:210}, {p:40, v:150}, {p:60, v:100}, {p:80, v:55}, {p:90, v:35}, {p:100, v:10}]
@@ -2347,7 +2318,6 @@
             setState(prev => ({ ...prev, startPct: newStart, endPct: newEnd, optimizationTime: Math.round(metrics.minutes), targetRange: Math.round(metrics.totalRange) }));
         };
 
-        // NUEVO: Editar energía directamente y ajustar endPct
         const handleEnergyEdit = (kWh) => {
             if (state.capacity <= 0) return;
             const pctToAdd = (kWh / state.capacity) * 100;
@@ -2770,7 +2740,6 @@
         );
       };
 
-      // --- EXTERNALIZED COMPONENTS FOR STABILITY ---
       const DualDisplay = ({ label, linearVal, curveVal, unit, digits=2, isTime=false }) => (
             <div className="flex justify-between items-center text-sm font-bold">
                 <span className="text-slate-300 uppercase">{label}</span>
@@ -2959,7 +2928,6 @@
 
      // --- TARIFF COMPARATOR (FINAL: 3 COMPAÑÍAS, % RESTAURADO, OCTOPUS RELAX) ---
       const TariffComparator = () => {
-        // 1. ESTADO CON 3 PROPUESTAS (Cambiado nombre a Octopus Relax)
         const [tState, setTState] = usePersistentState('tariffCompV9_final', {
             days: 30,
             potP1: 4.6, potP2: 7.4,
@@ -2995,7 +2963,6 @@
             }
         });
 
-        // 2. ESTADO PARA ESTIMACIÓN
         const [estState, setEstState] = usePersistentState('estConsV3_restored', {
             selectedProp: 'A',
             withTaxes: true,
@@ -3020,7 +2987,6 @@
             } catch (e) { console.error(e); }
         }, []);
 
-        // --- SUBCOMPONENTE GRÁFICA 3D ---
         const Tariff3DChart = ({ billA, billB, billC, nameA, nameB, nameC }) => {
             const mountRef = useRef(null);
             const maxTotal = Math.max(billA.total, billB.total, billC.total);
@@ -3112,7 +3078,6 @@
             );
         };
 
-        // --- HANDLERS Y CÁLCULOS ---
         const handleSaveSnapshot = () => { try { localStorage.setItem('tariffCompSnapshot', JSON.stringify(tState)); setSavedDate(new Date().toLocaleString('es-ES')); } catch (e) {} };
         const handleRestoreSnapshot = () => { try { const data = localStorage.getItem('tariffCompSnapshot'); if (data) setTState(JSON.parse(data)); } catch (e) {} };
         const handleConsChange = (key, val) => {
@@ -3124,7 +3089,6 @@
         };
         const handlePropChange = (propKey, field, val) => { setTState(prev => ({ ...prev, [propKey]: { ...prev[propKey], [field]: val } })); };
 
-        // --- HANDLERS ESTIMADOR (RESTAURADOS) ---
         const handleDeviceChange = (id, field, value) => {
             setEstState(prev => ({ ...prev, devices: prev.devices.map(d => d.id === id ? { ...d, [field]: value } : d) }));
         };
@@ -3138,7 +3102,6 @@
         const deleteDevice = (id) => { setEstState(prev => ({ ...prev, devices: prev.devices.filter(d => d.id !== id) })); };
         const handleScheduleConfig = (period, index, value) => { setEstState(prev => { const newArr = [...prev.scheduleConfig[period]]; newArr[index] = value; return { ...prev, scheduleConfig: { ...prev.scheduleConfig, [period]: newArr } }; }); };
 
-        // --- CÁLCULOS FACTURAS ---
         const calculateBill = (proposal) => {
             const termPotDisc = ((tState.potP1 * proposal.pricePotP1 * tState.days) + (tState.potP2 * proposal.pricePotP2 * tState.days)) * (1 - proposal.discPot / 100);
             const termEnRaw = (tState.p1Kwh * proposal.priceEnP1) + (tState.p2Kwh * proposal.priceEnP2) + (tState.p3Kwh * proposal.priceEnP3) + (tState.p3VeKwh * proposal.priceEnP3Ve) + (tState.p4Kwh * proposal.priceEnP4);
@@ -3161,7 +3124,6 @@
             return { total, pricePerKwh: tState.p3VeKwh > 0 ? total / tState.p3VeKwh : 0 };
         };
 
-        // --- LÓGICA DE RANKING ---
         const billA = { ...calculateBill(tState.propA), name: tState.propA.name, ev: calculateEVCost(tState.propA) };
         const billB = { ...calculateBill(tState.propB), name: tState.propB.name, ev: calculateEVCost(tState.propB) };
         const billC = { ...calculateBill(tState.propC), name: tState.propC.name, ev: calculateEVCost(tState.propC) };
@@ -3169,7 +3131,6 @@
         const rankedBills = [billA, billB, billC].sort((a,b) => a.total - b.total);
         const best = rankedBills[0];
         
-        // Rankings para sub-apartados
         const rankedEnergy = [billA, billB, billC].sort((a,b) => a.termEnNet - b.termEnNet);
         const rankedPower = [billA, billB, billC].sort((a,b) => a.termPotDisc - b.termPotDisc);
 
@@ -3177,7 +3138,6 @@
         const consumptionData = { p1Kwh: tState.p1Kwh, p2Kwh: tState.p2Kwh, p3Kwh: tState.p3Kwh, p3VeKwh: tState.p3VeKwh, p4Kwh: tState.p4Kwh, totalKwh: tState.consTotal };
         const getMinClass = (valA, valB, valC, currentVal) => { const min = Math.min(valA, valB, valC); return Math.abs(currentVal - min) < 0.001 ? 'text-green-400' : 'text-slate-300'; };
 
-        // --- CÁLCULO ESTIMADOR ---
         const calculateEstimation = () => {
             const start = new Date(estState.startDate);
             const end = new Date(estState.endDate);
@@ -3246,11 +3206,9 @@
         };
         const estResult = calculateEstimation();
 
-        // --- RENDER ---
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
                 
-                {/* 1. SECCIÓN SUPERIOR: DATOS Y GRÁFICAS DE CONSUMO (RESTAURADOS %) */}
                 <div className="lg:col-span-12 space-y-4">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5">
                         <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2"><Icons.Euro className="w-5 h-5 text-slate-400" /><h3 className="text-sm text-slate-300 font-bold uppercase">DATOS COMUNES</h3></div>
@@ -3276,12 +3234,10 @@
                     </div>
                 </div>
 
-                {/* 2. COLUMNAS DE PROPUESTAS */}
                 <div className="lg:col-span-4"><ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
                 <div className="lg:col-span-4"><ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
                 <div className="lg:col-span-4"><ProposalColumn propKey="propC" title="Propuesta C" data={tState.propC} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
 
-                {/* 3. SECCIÓN RESULTADOS: RANKING INTELIGENTE (ACTUALIZADO % Y €) */}
                 <div className="lg:col-span-12 space-y-6">
                     <div className="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 rounded-xl p-6">
                         <div className="flex items-center justify-center gap-3 mb-6">
@@ -3289,7 +3245,6 @@
                             <h3 className="text-2xl font-display font-bold text-white uppercase tracking-widest">Ranking Final</h3>
                         </div>
 
-                        {/* RANKING PRINCIPAL */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                             {rankedBills.map((item, index) => {
                                 const isWinner = index === 0;
@@ -3331,10 +3286,8 @@
                             })}
                         </div>
 
-                        {/* SUB-RANKINGS: ENERGÍA VS POTENCIA (ACTUALIZADO % Y €) */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             
-                            {/* RANKING ENERGÍA */}
                             <div className="bg-slate-900/50 border border-blue-900/30 rounded-xl p-5 relative overflow-hidden">
                                 <div className="flex justify-between items-center mb-4 border-b border-blue-900/50 pb-2">
                                     <h4 className="text-sm font-bold text-blue-400 uppercase flex items-center gap-2"><Icons.Zap className="w-4 h-4"/> Top 3 Precio Energía</h4>
@@ -3360,7 +3313,6 @@
                                 </div>
                             </div>
 
-                            {/* RANKING POTENCIA */}
                             <div className="bg-slate-900/50 border border-green-900/30 rounded-xl p-5 relative overflow-hidden">
                                 <div className="flex justify-between items-center mb-4 border-b border-green-900/50 pb-2">
                                     <h4 className="text-sm font-bold text-green-400 uppercase flex items-center gap-2"><Icons.Activity className="w-4 h-4"/> Top 3 Precio Potencia</h4>
@@ -3445,7 +3397,6 @@
                     </div>
                 </div>
 
-                {/* --- PANEL DE ESTIMACIÓN RESTAURADO --- */}
                 <div className="lg:col-span-12 mt-8 animate-fade-in">
                     <div className="bg-slate-900/90 border-2 border-slate-700/50 rounded-2xl p-6 relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
@@ -5117,7 +5068,6 @@
 
                 {selectedModel && data && (
                     <>
-                        {/* SECCIÓN SUPERIOR: ENLACES GENERALES */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 animate-fade-in">
                             {data.mainLinks.map(link => {
                                 const IconComponent = link.icon || Icons.FileText;
@@ -5626,7 +5576,6 @@
         return (
             <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-10">
                 
-                {/* --- CALCULADORA ITV --- */}
                 <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6 shadow-xl">
                     <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
                         <Icons.Calendar /> Calculadora Próxima ITV
@@ -5672,7 +5621,6 @@
                     )}
                 </div>
 
-                {/* --- PROTOCOLO DE INSPECCIÓN --- */}
                 <div className="space-y-4">
                     <h3 className="text-lg font-bold text-slate-300 uppercase tracking-widest pl-2 border-l-4 border-blue-500">Protocolo de Inspección</h3>
                     
@@ -5747,7 +5695,6 @@
                     </StepCard>
                 </div>
 
-                {/* --- CHECKLIST DOCUMENTACIÓN Y VISUAL (CON NOTA SEGURO RESTAURADA) --- */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                     <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-6 h-full">
                         <h3 className="text-sm font-bold text-blue-300 uppercase mb-4 flex items-center gap-2">
@@ -5792,7 +5739,6 @@
                     </div>
                 </div>
 
-                {/* --- MANTENIMIENTOS PREVENTIVOS (CON BOTONES) --- */}
                 <div className="mt-12 animate-fade-in">
                     <h3 className="text-lg font-bold text-slate-300 uppercase tracking-widest pl-2 border-l-4 border-yellow-500 mb-6 flex items-center gap-2">
                         Mantenimientos Preventivos Recomendados
@@ -5911,30 +5857,21 @@
         const num = (v) => parseFloat(v) || 0;
         const yearsProjected = Math.max(1, Math.round(num(data.years)));
 
-        // Costes Energéticos
         const propAnnualEnergy = (num(data.kmPerYear) / 100) * num(data.propCons) * num(data.propEnergyPrice);
         const rentAnnualEnergy = (num(data.kmPerYear) / 100) * num(data.rentCons) * num(data.rentEnergyPrice);
 
-        // Costes Averías
-        // Interpretamos el % de averías como un porcentaje sobre el valor del coche a gastar en TOTAL durante esos años
         const propTotalBreakdownCost = num(data.propPrice) * (num(data.propBreakdownPct) / 100);
         const propAnnualBreakdown = propTotalBreakdownCost / yearsProjected;
 
-        // Totales Anuales Operativos
         const propAnnualTotal = num(data.propInsurance) + num(data.propTax) + num(data.propMaint) + propAnnualBreakdown + propAnnualEnergy;
         const rentAnnualTotal = (num(data.rentMonthly) * 12) + num(data.rentExtraAnnual) + rentAnnualEnergy;
 
-        // Desembolsos Iniciales y Finales (Usuario)
         const propInitialOut = num(data.propPrice) - num(data.propAid);
         const rentInitialOut = num(data.rentEntry);
         const finalResidualValue = num(data.propPrice) * (num(data.propResaleValuePct) / 100);
 
-        // --- CÁLCULO PRECIO EQUILIBRIO ---
-        // Coste Total Renting Absoluto
         const totalRentingAbsolute = rentInitialOut + (rentAnnualTotal * yearsProjected);
-        // Coste Total Compra (Sin vender el coche)
         const totalPropAbsoluteNoSale = propInitialOut + (propAnnualTotal * yearsProjected);
-        // Para que (Compra - Venta) = Renting  ->  Venta = Compra - Renting
         const equilibriumPrice = totalPropAbsoluteNoSale - totalRentingAbsolute;
 
         const tableRows = useMemo(() => {
@@ -6046,7 +5983,6 @@
 
         const handleChange = (field, value) => setData({...data, [field]: parseFloat(value) || 0});
         
-        // Manejador especial para editar el valor de reventa en Euros y recalcular el %
         const handleResaleEuroChange = (euroValue) => {
             const price = num(data.propPrice);
             if (price > 0) {
@@ -6057,13 +5993,11 @@
 
         return (
             <div className="space-y-6">
-                {/* KPI HEADER */}
                 <div className="bg-gradient-to-r from-slate-900 to-slate-800 border border-slate-700 rounded-2xl p-6 text-center shadow-2xl">
                     <h3 className="text-slate-300 text-sm font-display uppercase tracking-widest mb-6 font-bold">Resumen Económico Final ({data.years} años)</h3>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
                         
-                        {/* 1. OPCIÓN MÁS RENTABLE (DATOS COMBINADOS) */}
                         <div className={`rounded-xl p-5 border-2 flex flex-col justify-center lg:col-span-1 shadow-lg ${totalSavings > 0 ? 'bg-blue-900/20 border-blue-500/50' : 'bg-orange-900/20 border-orange-500/50'}`}>
                              <div className="text-xs text-slate-300 mb-2 uppercase font-bold tracking-wider">Mejor Opción: {winner}</div>
                              
@@ -6083,13 +6017,11 @@
                                     <div className="font-mono font-bold text-slate-200">{formatMoney(finalRow.rentVal)}€</div>
                                 </div>
                              </div>
-                             {/* NUEVO: Dato de Equilibrio en Estadísticas */}
                              <div className="mt-3 text-[10px] text-slate-400 bg-black/20 rounded p-1">
                                  Precio Venta Equilibrio: <span className="font-bold text-white">{formatMoney(equilibriumPrice)}€</span>
                              </div>
                         </div>
                         
-                        {/* 2. COSTE MENSUAL */}
                         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 flex flex-col justify-center">
                             <div className="text-[10px] text-slate-400 mb-3 uppercase font-bold tracking-wider text-center">Coste Medio Neto / Mes</div>
                             <div className="grid grid-cols-2 gap-4 text-center divide-x divide-slate-700">
@@ -6106,7 +6038,6 @@
                             </div>
                         </div>
 
-                        {/* 3. PUNTO DE INFLEXIÓN */}
                         <div className="bg-slate-900/50 rounded-xl p-4 border border-slate-600 flex flex-col justify-center">
                             <div className="text-[10px] text-slate-300 mb-2 uppercase font-bold">Punto de Inflexión (Cruce)</div>
                             <div className="text-3xl font-bold font-display text-white">
@@ -6122,7 +6053,6 @@
                     </div>
                 </div>
 
-                {/* INPUTS */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div className="bg-blue-900/10 border border-blue-800/50 rounded-xl p-6">
                         <h4 className="text-blue-400 font-display font-bold mb-4 flex items-center gap-2 text-lg"><Icons.Home /> Compra en Propiedad</h4>
@@ -6159,18 +6089,15 @@
                             <div className="pt-2 border-t border-slate-700/50">
                                 <label className="text-sm font-bold text-green-400 block mb-1">Valor Venta Final (Año {data.years})</label>
                                 <div className="flex items-center gap-4 mb-2">
-                                    {/* Slider de Porcentaje */}
                                     <input type="range" min="0" max="100" step="1" value={data.propResaleValuePct} onChange={(e) => handleChange('propResaleValuePct', e.target.value)} className="flex-grow h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-green-500" />
                                     <div className="text-xs font-bold text-slate-400 w-12 text-right">{formatDecimal(data.propResaleValuePct, 0)}%</div>
                                 </div>
-                                {/* NUEVO: Input editable del valor resultante en Euros */}
                                 <div className="bg-slate-800/50 p-2 rounded border border-slate-700 flex justify-between items-center">
                                     <label className="text-[10px] font-bold text-slate-400 uppercase mr-2">Valor Estimado:</label>
                                     <div className="w-32">
                                         <FormattedInput value={finalResidualValue} onChange={handleResaleEuroChange} grouped={true} />
                                     </div>
                                 </div>
-                                {/* NUEVO: Leyenda Informativa de Equilibrio bajo el slider */}
                                 <div className="text-xs text-slate-500 mt-2 space-y-1 bg-black/20 p-2 rounded">
                                     <div className="text-blue-300">
                                         Para igualar el coste neto del Renting, deberías vender el coche por <span className="font-bold border-b border-blue-500/50">{formatMoney(equilibriumPrice)}€</span>.
@@ -6245,7 +6172,6 @@
                     )}
                 </div>
 
-                {/* NUEVA SECCIÓN INFORMATIVA */}
                 <div className="mt-8 p-6 bg-slate-800 border border-slate-700 rounded-xl">
                     <h5 className="text-sm font-bold text-white uppercase mb-2 flex items-center gap-2"><Icons.Book className="w-4 h-4"/> Guía de Uso de la Herramienta</h5>
                     <p className="text-xs text-slate-400 leading-relaxed">
@@ -6269,53 +6195,43 @@
       // --- CALCULADORA SOLAR FOTOVOLTAICA V2 (DESGLOSE EV/CASA + PRECIOS DUALES) ---
       const SolarCalculator = () => {
         const [solar, setSolar] = usePersistentState('solarStateV2', {
-            // Hardware
             panels: 10,
             powerPerPanel: 450, // W
             efficiency: 0.85, // Pérdidas del sistema
             
-            // Ubicación y Orientación
             latitude: 40.41, 
             userAzimuth: 180, // 180 = Sur
             tilt: 30,
 
-            // Consumo y Batería
             annualConsumption: 5000, // kWh casa
             batteryKwh: 0,
             
-            // Financiero Avanzado
             investment: 6000, 
             priceBuyPeak: 0.22, // €/kWh Punta (Ahorro Casa)
             priceBuyValley: 0.10, // €/kWh Valle (Ahorro Coche)
             priceSell: 0.08, // €/kWh Excedente
             
-            // EV Integration
             evConsumption: 16.0, 
             evSolarChargePct: 50 // % del excedente destinado al coche
         });
 
         const handleNum = (k, v) => setSolar(prev => ({...prev, [k]: parseFloat(v) || 0}));
 
-        // --- MOTOR DE CÁLCULO SOLAR AVANZADO ---
         const calculateSolarData = () => {
             const installedPowerKw = (solar.panels * solar.powerPerPanel) / 1000;
             
-            // Factores geográficos (Simplificados para España)
             const latFactor = 1 + ((40.4 - solar.latitude) * 0.025);
             const azimRad = (solar.userAzimuth - 180) * (Math.PI / 180);
             const orientFactor = Math.max(0.6, Math.cos(azimRad / 1.5)); 
             const baseHSP = 1550; 
             const estimatedGeneration = installedPowerKw * baseHSP * latFactor * orientFactor * solar.efficiency;
 
-            // Distribución mensual
             const monthWeights = [0.045, 0.055, 0.075, 0.095, 0.115, 0.125, 0.130, 0.115, 0.090, 0.070, 0.050, 0.040];
             
             const monthlyData = monthWeights.map((weight, idx) => {
                 const prod = estimatedGeneration * weight;
                 const consHouse = solar.annualConsumption / 12; // Consumo base casa
                 
-                // 1. Autoconsumo VIVIENDA
-                // Sin batería ~35%, Con batería sube según capacidad
                 let ratioHouse = solar.batteryKwh > 0 ? 0.70 + (solar.batteryKwh * 0.02) : 0.35;
                 if (prod < consHouse * 0.5) ratioHouse = 1.0; // Poca producción = todo pa casa
                 ratioHouse = Math.min(0.98, ratioHouse);
@@ -6323,11 +6239,8 @@
                 const selfHouse = Math.min(prod, consHouse * ratioHouse);
                 const surplusAfterHouse = Math.max(0, prod - selfHouse);
 
-                // 2. Autoconsumo COCHE (EV)
-                // Se lleva un % del excedente que sobra de la casa
                 const selfEV = surplusAfterHouse * (solar.evSolarChargePct / 100);
                 
-                // 3. Vertido a RED
                 const exported = Math.max(0, surplusAfterHouse - selfEV);
 
                 return { 
@@ -6340,13 +6253,11 @@
                 };
             });
 
-            // Totales Anuales kWh
             const sumProd = monthlyData.reduce((acc, m) => acc + m.prod, 0);
             const sumHouse = monthlyData.reduce((acc, m) => acc + m.selfHouse, 0);
             const sumEV = monthlyData.reduce((acc, m) => acc + m.selfEV, 0);
             const sumExport = monthlyData.reduce((acc, m) => acc + m.exported, 0);
 
-            // Totales Económicos
             const savingHouse = sumHouse * solar.priceBuyPeak; // Se ahorra a precio caro (día)
             const savingEV = sumEV * solar.priceBuyValley;     // Se ahorra a precio barato (noche)
             const incomeExport = sumExport * solar.priceSell;  // Compensación
@@ -6367,13 +6278,11 @@
         };
 
         const results = calculateSolarData();
-        // Max value for chart Y-axis scaling
         const maxChartVal = Math.max(...results.monthlyData.map(m => Math.max(m.prod, m.consHouse)));
 
         return (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-fade-in pb-10">
                 
-                {/* COLUMNA IZQUIERDA: CONFIGURACIÓN */}
                 <div className="lg:col-span-4 space-y-6">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-6">
                         <h2 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2">
@@ -6430,10 +6339,8 @@
                     </div>
                 </div>
 
-                {/* COLUMNA DERECHA: RESULTADOS */}
                 <div className="lg:col-span-8 space-y-6">
                     
-                    {/* KPI AMORTIZACIÓN */}
                     <div className="flex flex-col md:flex-row gap-4">
                         <div className="flex-1 bg-gradient-to-r from-green-900/40 to-slate-900 border border-green-500/30 p-5 rounded-xl shadow-lg flex items-center justify-between">
                             <div>
@@ -6447,7 +6354,6 @@
                         </div>
                     </div>
 
-                    {/* GRÁFICA DE BARRAS APILADAS */}
                     <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 h-96 flex flex-col relative">
                         <h3 className="text-sm font-bold text-slate-300 uppercase mb-6 flex justify-between items-center">
                             <span>Distribución de Energía (kWh)</span>
@@ -6460,7 +6366,6 @@
                             </div>
                         </h3>
                         
-                        {/* Eje Y (kWh) */}
                         <div className="absolute top-12 bottom-8 left-0 w-8 flex flex-col justify-between text-[9px] text-slate-500 font-bold text-right pr-1 pointer-events-none">
                             <span>{Math.round(maxChartVal)}</span>
                             <span>{Math.round(maxChartVal * 0.75)}</span>
@@ -6474,7 +6379,6 @@
                                 const hTotal = (m.prod / maxChartVal) * 100;
                                 const hCons = (m.consHouse / maxChartVal) * 100;
                                 
-                                // Alturas relativas dentro de la barra apilada
                                 const pExport = (m.exported / m.prod) * 100;
                                 const pEV = (m.selfEV / m.prod) * 100;
                                 const pHouse = (m.selfHouse / m.prod) * 100;
@@ -6484,12 +6388,9 @@
                                 return (
                                     <div key={i} className="flex-1 flex flex-col justify-end items-center h-full group relative">
                                         <div className="w-full flex items-end justify-center h-full relative">
-                                            {/* Barra Demanda Casa (Fondo transparente con borde) */}
                                             <div className="absolute bottom-0 w-full rounded-t-sm border-x border-t border-slate-600/30 bg-slate-700/10 z-0 pointer-events-none" style={{height: `${hCons}%`}}></div>
                                             
-                                            {/* Barra Producción Apilada */}
                                             <div className="w-2/3 bg-slate-800 rounded-t-sm relative overflow-hidden flex flex-col justify-end transition-all hover:scale-105 z-10 shadow-lg" style={{height: `${hTotal}%`}}>
-                                                {/* Tooltip */}
                                                 <div className="opacity-0 group-hover:opacity-100 absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-3 bg-slate-900 border border-slate-500 rounded text-[10px] text-white z-50 whitespace-nowrap shadow-2xl backdrop-blur-md">
                                                     <div className="font-bold border-b border-slate-700 pb-1 mb-1 text-center text-slate-300">{monthName}</div>
                                                     <div className="flex justify-between gap-4"><span className="text-yellow-400">A Red:</span> <span>{Math.round(m.exported)} kWh</span></div>
@@ -6498,7 +6399,6 @@
                                                     <div className="border-t border-slate-700 mt-1 pt-1 text-slate-500 text-right">Prod Total: {Math.round(m.prod)}</div>
                                                 </div>
 
-                                                {/* Segmentos */}
                                                 <div className="w-full bg-yellow-500/80 border-t border-white/10" style={{height: `${pExport}%`}}></div>
                                                 <div className="w-full bg-blue-600/80 border-t border-white/10" style={{height: `${pEV}%`}}></div>
                                                 <div className="w-full bg-green-600/80" style={{height: `${pHouse}%`}}></div>
@@ -6509,7 +6409,6 @@
                                 );
                             })}
                             
-                            {/* Grid lines */}
                             <div className="absolute inset-0 pointer-events-none flex flex-col justify-between z-0">
                                 <div className="border-t border-slate-700/20 w-full h-0"></div>
                                 <div className="border-t border-slate-700/20 w-full h-0"></div>
@@ -6520,7 +6419,6 @@
                         </div>
                     </div>
 
-                    {/* RESUMEN FINAL DETALLADO */}
                     <div className="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden">
                         <div className="bg-slate-800/50 px-6 py-3 border-b border-slate-700 flex justify-between items-center">
                             <h4 className="text-sm font-bold text-white uppercase flex items-center gap-2"><Icons.Activity className="w-4 h-4"/> Balance Anual Total</h4>
@@ -6528,7 +6426,6 @@
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-700">
-                            {/* BLOQUE CASA */}
                             <div className="p-5 flex flex-col items-center text-center">
                                 <div className="bg-green-500/10 p-3 rounded-full mb-3"><Icons.Home className="w-6 h-6 text-green-500"/></div>
                                 <div className="text-xs font-bold text-slate-400 uppercase mb-1">Consumido en Vivienda</div>
@@ -6536,7 +6433,6 @@
                                 <div className="text-sm font-bold text-green-400">+{formatMoney(results.house.eur)}€ <span className="text-[10px] text-slate-500 font-normal uppercase">Ahorro vs Punta</span></div>
                             </div>
 
-                            {/* BLOQUE COCHE */}
                             <div className="p-5 flex flex-col items-center text-center bg-blue-900/5">
                                 <div className="bg-blue-500/10 p-3 rounded-full mb-3"><Icons.Truck className="w-6 h-6 text-blue-500"/></div>
                                 <div className="text-xs font-bold text-slate-400 uppercase mb-1">Carga Solar EV</div>
@@ -6571,23 +6467,19 @@
 
         const handleChange = (k, v) => setRegenState(prev => ({...prev, [k]: parseFloat(v)}));
 
-        // FÍSICA PARA EL CÁLCULO
         const mass = 1850; const g = 9.81;
         const cr = 0.006; const rho = 1.225; const cd = 0.219; const area = 2.22;
         const speedMs = params.speed / 3.6;
         
-        // Fuerzas
         const gradientRad = Math.atan(params.gradient / 100);
         const fGrade = mass * g * Math.sin(gradientRad);
         const fRoll = mass * g * cr * Math.cos(gradientRad);
         const relativeSpeed = speedMs - (params.windSpeed / 3.6);
         const fAero = 0.5 * rho * cd * area * Math.sign(relativeSpeed) * (relativeSpeed ** 2);
         
-        // Balance de Potencia
         const netForce = fGrade + fRoll + fAero; // Si es < 0, el coche "cae" solo (bajada fuerte)
         const powerNeeded = netForce * speedMs; // Watios necesarios para mantener velocidad
 
-        // CÁLCULO 1: BAJADA (Freno Motor vs Vela)
         let regenStdKwh = 0;
         let regenCustomKwh = 0;
         let wastedKwh = 0;
@@ -6601,32 +6493,24 @@
             const capturedStd = Math.min(potentialGenKw, regenState.stdPowerKw);
             regenStdKwh = (capturedStd / params.speed) * 100; // kWh/100km recuperados
 
-            // 2. REGEN ALTERADA (LÓGICA PROPORCIONAL)
-            // Aplicamos el % directamente sobre lo que el coche recuperaría de serie.
-            // Si el coche iba a recuperar 10kW y ponemos 50%, recuperamos 5kW.
             const capturedCustom = capturedStd * (regenState.customPct / 100);
             regenCustomKwh = (capturedCustom / params.speed) * 100;
 
-            // Diferencia (Energía perdida en frenos mecánicos)
             wastedKwh = regenStdKwh - regenCustomKwh;
         }
 
-        // CÁLCULO 2: LLANO/INERCIA (Modo Vela)
         const kineticEnergy = 0.5 * mass * (speedMs * speedMs); // Julios
         
         const vAvg = speedMs / 1.5; 
         const fResistAvg = (mass * g * cr) + (0.5 * rho * cd * area * (vAvg * vAvg));
         
-        // Fuerza Regen Promedio (Std vs Custom)
         const fRegenStd = (regenState.stdPowerKw * 1000 * 0.3) / vAvg;
-        // Aplicamos el mismo factor proporcional a la fuerza de frenado
         const fRegenCustom = fRegenStd * (regenState.customPct / 100);
 
         const distStopStd = kineticEnergy / (fResistAvg + fRegenStd);
         const distStopCustom = kineticEnergy / (fResistAvg + fRegenCustom);
         const distGain = Math.max(0, distStopCustom - distStopStd); // Metros ganados por ir a vela
 
-        // Monetización de la ganancia a vela
         const powerToMaintain = Math.max(0, (fRoll + fAero) * speedMs);
         const consumptionKwh100 = params.speed > 0 ? (powerToMaintain / 1000 / params.speed) * 100 : 0;
         const kwhSavedCoasting = (distGain / 100000) * consumptionKwh100;
@@ -6730,7 +6614,341 @@
         );
       };
 
-        
+
+
+      // --- NUEVO COMPONENTE: SEGURIDAD VIAL (V4 - LEGAL, MÉDICO Y SAURAS MODE) ---
+      const RoadSafetySimulator = ({ currentSpeed, currentGradient, currentWind }) => {
+        const [safetyState, setSafetyState] = useState({
+            speed1: currentSpeed,
+            speed2: 120,
+            limit: 120, // Límite legal vía
+            vehicleType: 'sedan', 
+            reactionTimeMs: 1000,
+            roadCondition: 'dry', 
+            gradient: currentGradient, 
+            windSpeed: currentWind 
+        });
+
+        useEffect(() => {
+            setSafetyState(prev => ({ 
+                ...prev, 
+                speed1: currentSpeed,
+                gradient: currentGradient,
+                windSpeed: currentWind
+            }));
+        }, [currentSpeed, currentGradient, currentWind]);
+
+        const vehicles = {
+            compact: { name: "Turismo Pequeño", mass: 1200, height: 1.4, latGLimit: 0.90, wheelbase: 2.5 },
+            sedan: { name: "Berlina (Model 3)", mass: 1850, height: 1.44, latGLimit: 1.15, wheelbase: 2.87 }, 
+            suv: { name: "SUV (Model Y)", mass: 2000, height: 1.6, latGLimit: 1.05, wheelbase: 2.89 },
+            van: { name: "Furgoneta", mass: 2500, height: 1.95, latGLimit: 0.75, wheelbase: 3.0 }
+        };
+
+        const calculatePenalty = (speed, limit) => {
+            if (speed <= limit) return { status: "Legal", color: "text-green-400", fine: 0, points: 0, crime: false };
+            
+            const diff = speed - limit;
+            let fine = 100;
+            let points = 0;
+            let crime = false;
+
+            if (limit >= 60) {
+                if (diff <= 30) { fine = 100; points = 0; }
+                else if (diff <= 50) { fine = 300; points = 2; }
+                else if (diff <= 60) { fine = 400; points = 4; }
+                else if (diff <= 70) { fine = 500; points = 6; }
+                else { fine = 600; points = 6; }
+                
+                if (diff > 80) crime = true;
+            } else {
+                if (diff <= 20) { fine = 100; points = 0; }
+                else if (diff <= 30) { fine = 300; points = 2; }
+                else if (diff <= 40) { fine = 400; points = 4; }
+                else if (diff <= 50) { fine = 500; points = 6; }
+                else { fine = 600; points = 6; }
+
+                if (diff > 60) crime = true;
+            }
+
+            return { 
+                status: crime ? "DELITO PENAL" : "Infracción", 
+                color: crime ? "text-purple-500" : "text-red-400", 
+                fine, 
+                points, 
+                crime 
+            };
+        };
+
+        const calculateInjury = (speedKmH) => {
+            const v = speedKmH;
+            let probDeath = 0;
+            let severity = "Leve";
+            let color = "text-green-400";
+
+            if (v < 30) { probDeath = 1; severity = "Leve (Chapa)"; }
+            else if (v < 50) { probDeath = 5; severity = "Moderada"; color = "text-yellow-400"; }
+            else if (v < 70) { probDeath = 15; severity = "Grave"; color = "text-orange-400"; }
+            else if (v < 90) { probDeath = 40; severity = "Muy Grave"; color = "text-red-400"; }
+            else if (v < 120) { probDeath = 80; severity = "Crítica"; color = "text-red-600"; }
+            else { probDeath = 99; severity = "MORTAL"; color = "text-purple-500"; }
+
+            return { prob: probDeath, label: severity, color };
+        };
+
+        const calculatePhysics = (speedKmH, type) => {
+            const v = Math.max(1, speedKmH) / 3.6; // m/s
+            const veh = vehicles[type];
+            const g = 9.81;
+            const steeringRatio = 14; 
+
+            const muBase = safetyState.roadCondition === 'dry' ? 0.8 : 0.5;
+            const slopeFactor = safetyState.gradient / 100;
+            const effectiveFriction = Math.max(0.1, muBase + slopeFactor);
+
+            const reactionDist = v * (safetyState.reactionTimeMs / 1000);
+            const windMs = safetyState.windSpeed / 3.6;
+            const aeroAssist = (windMs < 0) ? 0.02 : -0.01; 
+            const brakingDist = (v ** 2) / (2 * g * (effectiveFriction + (Math.abs(windMs) > 5 ? aeroAssist : 0)));
+            const totalDist = reactionDist + brakingDist;
+
+            const energyJoules = 0.5 * veh.mass * (v ** 2);
+            const impactForceTons = (energyJoules / 0.6) / 9806; 
+
+            const gripFactor = safetyState.roadCondition === 'dry' ? 1.0 : 0.6;
+            const maxLatA = veh.latGLimit * g * gripFactor;
+            const maxWheelAngleRad = (maxLatA * veh.wheelbase) / (v ** 2);
+            const maxSteeringWheelAngle = maxWheelAngleRad * steeringRatio * (180 / Math.PI);
+            const safeSteer = Math.min(180, maxSteeringWheelAngle);
+
+            let rolloverRisk = "Estable";
+            if (safeSteer < 15) rolloverRisk = "PÉRDIDA TOTAL";
+            else if (safeSteer < 35) rolloverRisk = "Derrape Crítico";
+            else if (safeSteer < 60) rolloverRisk = safetyState.roadCondition === 'wet' ? "Aquaplaning" : "Inestable";
+
+            const legal = calculatePenalty(speedKmH, safetyState.limit);
+            const injury = calculateInjury(speedKmH);
+
+            return {
+                kmh: speedKmH,
+                ms: v,
+                reactionDist,
+                brakingDist,
+                totalDist,
+                energy: energyJoules,
+                impactForce: impactForceTons,
+                safeSteer,
+                rolloverRisk,
+                legal,
+                injury
+            };
+        };
+
+        const s1 = calculatePhysics(safetyState.speed1, safetyState.vehicleType);
+        const s2 = calculatePhysics(safetyState.speed2, safetyState.vehicleType);
+
+        const diffSpeed = s2.kmh - s1.kmh;
+        const diffMs = s2.ms - s1.ms;
+        const diffDist = s2.totalDist - s1.totalDist;
+        const diffAngle = s2.safeSteer - s1.safeSteer; 
+        const diffEnergy = ((s2.energy - s1.energy) / s1.energy) * 100;
+
+        const maxDistScale = Math.max(s1.totalDist, s2.totalDist) * 1.15; 
+
+        const DiffBadge = ({ val, unit, inverse = false, digits = 1 }) => {
+            if (Math.abs(val) < 0.1) return <span className="text-slate-500 font-mono text-sm">=</span>;
+            const isBad = inverse ? val < 0 : val > 0; 
+            const color = isBad ? "text-red-400" : "text-green-400";
+            return <span className={`${color} font-mono font-bold text-sm`}>{val > 0 ? '+' : ''}{formatDecimal(val, digits)}{unit}</span>;
+        };
+
+        const handleEnvChange = (k, v) => setSafetyState(p => ({...p, [k]: parseFloat(v)}));
+
+        return (
+            <div className="bg-slate-900/50 backdrop-blur-lg border border-red-500/30 rounded-2xl p-6 shadow-xl animate-fade-in mt-6">
+                <h3 className="text-xl font-display font-bold text-white mb-6 flex items-center gap-2 border-b border-red-500/30 pb-4">
+                    <Icons.Shield className="w-6 h-6 text-red-500" /> LABORATORIO DE SEGURIDAD VIAL
+                </h3>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                        <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Límite Vía</label>
+                        <div className="flex items-center gap-2">
+                            <input type="range" min="30" max="130" step="10" value={safetyState.limit} onChange={(e) => setSafetyState({...safetyState, limit: Number(e.target.value)})} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-white" />
+                            <div className="w-10 h-10 rounded-full border-4 border-red-600 bg-white flex items-center justify-center text-black font-bold text-xs shrink-0">{safetyState.limit}</div>
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                        <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Vehículo 1 (Velocidad)</label>
+                        <div className="flex items-center gap-2">
+                            <input type="range" min="10" max="300" step="5" value={safetyState.speed1} onChange={(e) => setSafetyState({...safetyState, speed1: Number(e.target.value)})} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-blue-500" />
+                            <span className="text-xl font-bold text-blue-400 w-24 text-right">{safetyState.speed1} <span className="text-xs">km/h</span></span>
+                        </div>
+                    </div>
+                    
+                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                        <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Vehículo 2 (Velocidad)</label>
+                        <div className="flex items-center gap-2">
+                            <input type="range" min="10" max="300" step="5" value={safetyState.speed2} onChange={(e) => setSafetyState({...safetyState, speed2: Number(e.target.value)})} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-red-500" />
+                            <span className="text-xl font-bold text-red-400 w-24 text-right">{safetyState.speed2} <span className="text-xs">km/h</span></span>
+                        </div>
+                    </div>
+
+                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                        <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Tipo de Vehículo</label>
+                        <div className="flex gap-1 flex-wrap">
+                            {Object.entries(vehicles).map(([k, v]) => (
+                                <button key={k} onClick={() => setSafetyState({...safetyState, vehicleType: k})} className={`flex-1 min-w-[50px] py-2 text-[9px] uppercase font-bold rounded border transition-all ${safetyState.vehicleType === k ? 'bg-slate-200 text-slate-900 border-white' : 'bg-slate-900 text-slate-500 border-slate-700 hover:bg-slate-800'}`}>
+                                    {v.name.split(' ')[0]}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                <div className="bg-black/20 p-4 rounded-xl border border-slate-700/50 mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Estado Asfalto</label>
+                        <div className="flex bg-slate-900 rounded p-1 border border-slate-700">
+                            <button onClick={() => setSafetyState({...safetyState, roadCondition: 'dry'})} className={`flex-1 py-1.5 text-xs font-bold rounded transition-colors ${safetyState.roadCondition === 'dry' ? 'bg-slate-600 text-white' : 'text-slate-500'}`}>☀️ Seco</button>
+                            <button onClick={() => setSafetyState({...safetyState, roadCondition: 'wet'})} className={`flex-1 py-1.5 text-xs font-bold rounded transition-colors ${safetyState.roadCondition === 'wet' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>🌧️ Mojado</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 block mb-1 uppercase flex justify-between"><span>Inclinación</span> <span className={safetyState.gradient > 0 ? 'text-green-400' : safetyState.gradient < 0 ? 'text-red-400' : 'text-white'}>{safetyState.gradient > 0 ? 'Subida' : safetyState.gradient < 0 ? 'Bajada' : 'Llano'} {safetyState.gradient}%</span></label>
+                        <input type="range" min="-15" max="15" step="1" value={safetyState.gradient} onChange={(e) => handleEnvChange('gradient', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-slate-400" />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 block mb-1 uppercase flex justify-between"><span>Viento</span> <span className={safetyState.windSpeed > 0 ? 'text-green-400' : safetyState.windSpeed < 0 ? 'text-red-400' : 'text-white'}>{Math.abs(safetyState.windSpeed)} km/h {safetyState.windSpeed < 0 ? 'Contra' : 'Favor'}</span></label>
+                        <input type="range" min="-50" max="50" step="5" value={safetyState.windSpeed} onChange={(e) => handleEnvChange('windSpeed', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-blue-400" />
+                    </div>
+                </div>
+
+                <div className="relative w-full h-52 bg-[#1e293b] rounded-xl overflow-hidden mb-8 border border-slate-700 shadow-inner group">
+                    <div className={`absolute inset-0 flex flex-col justify-center gap-8 py-6 transition-colors duration-500 ${safetyState.roadCondition === 'wet' ? 'bg-[#0f172a]' : 'bg-[#1e293b]'}`}>
+                        {safetyState.roadCondition === 'wet' && <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiMwZjE3MmEiLz48cGF0aCBkPSJNMCAwTDggOFpNOCAwTDAgOFoiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIvPjwvc3ZnPg==')] opacity-30"></div>}
+                        
+                        <div className="relative h-12 w-full flex items-center px-4 z-10">
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0 border-t border-dashed border-slate-600"></div>
+                            <div className="z-10 flex flex-col items-center justify-center gap-0 text-white bg-blue-600 w-12 h-8 rounded shadow-lg mr-2">
+                                <span className="text-[10px] font-bold">V1</span>
+                            </div>
+                            <div className="h-3 bg-yellow-500 rounded-l relative flex items-center justify-center overflow-hidden" style={{width: `${(s1.reactionDist / maxDistScale) * 85}%`}}>
+                                {s1.reactionDist / maxDistScale > 0.1 && <span className="text-[9px] text-black/70 font-bold whitespace-nowrap px-1">Reacción</span>}
+                            </div>
+                            <div className="h-3 bg-blue-400 rounded-r relative flex items-center justify-center overflow-hidden" style={{width: `${(s1.brakingDist / maxDistScale) * 85}%`}}>
+                                {s1.brakingDist / maxDistScale > 0.1 && <span className="text-[9px] text-black/70 font-bold whitespace-nowrap px-1">Frenada</span>}
+                            </div>
+                            <div className="h-6 w-0.5 bg-white ml-1"></div>
+                            <span className="ml-2 text-xs font-bold text-white">{formatDecimal(s1.totalDist, 1)} m</span>
+                        </div>
+
+                        <div className="relative h-12 w-full flex items-center px-4 z-10">
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0 border-t border-dashed border-slate-600"></div>
+                            <div className="z-10 flex flex-col items-center justify-center gap-0 text-white bg-red-600 w-12 h-8 rounded shadow-lg mr-2">
+                                <span className="text-[10px] font-bold">V2</span>
+                            </div>
+                            <div className="h-3 bg-yellow-500 rounded-l relative" style={{width: `${(s2.reactionDist / maxDistScale) * 85}%`}}></div>
+                            <div className="h-3 bg-red-400 rounded-r relative" style={{width: `${(s2.brakingDist / maxDistScale) * 85}%`}}></div>
+                            <div className="h-6 w-0.5 bg-white ml-1"></div>
+                            <span className="ml-2 text-xs font-bold text-white">{formatDecimal(s2.totalDist, 1)} m</span>
+                        </div>
+                    </div>
+                    {/* Grid */}
+                    <div className="absolute bottom-2 w-full flex justify-between px-16 text-[9px] text-slate-500 font-mono pointer-events-none z-20">
+                        <span>0m</span>
+                        <span>{Math.round(maxDistScale * 0.5)}m</span>
+                        <span>{Math.round(maxDistScale)}m</span>
+                    </div>
+                </div>
+
+                <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                    <div className="grid grid-cols-4 bg-slate-800 border-b border-slate-700 py-3 px-4">
+                        <div className="text-xs font-bold text-slate-400 uppercase">Parámetro</div>
+                        <div className="text-xs font-bold text-blue-400 uppercase text-right">Vehículo 1</div>
+                        <div className="text-xs font-bold text-slate-300 uppercase text-center bg-black/20 rounded mx-2">Diferencial (Δ)</div>
+                        <div className="text-xs font-bold text-red-400 uppercase text-right">Vehículo 2</div>
+                    </div>
+
+                    <div className="divide-y divide-slate-800 text-sm">
+                        
+                        <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30">
+                            <div className="text-slate-300 font-bold">Avance (Ceguera)</div>
+                            <div className="text-right font-mono text-slate-400">{formatDecimal(s1.ms, 1)} m/s</div>
+                            <div className="text-center font-mono"><DiffBadge val={diffMs} unit=" m/s" /></div>
+                            <div className="text-right font-mono text-slate-400">{formatDecimal(s2.ms, 1)} m/s</div>
+                        </div>
+
+                        <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30 bg-white/5">
+                            <div className="text-slate-200 font-bold">Distancia Detención</div>
+                            <div className="text-right font-mono font-bold text-blue-300">{formatDecimal(s1.totalDist, 1)} m</div>
+                            <div className="text-center font-mono"><DiffBadge val={diffDist} unit=" m" /></div>
+                            <div className="text-right font-mono font-bold text-red-300">{formatDecimal(s2.totalDist, 1)} m</div>
+                        </div>
+
+                        <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30">
+                            <div className="text-slate-300 font-bold flex flex-col">
+                                <span>Volantazo Seguro</span>
+                                <span className="text-[9px] text-slate-500 font-normal">Máx giro sin perder control</span>
+                            </div>
+                            <div className="text-right font-mono text-slate-400">{formatDecimal(s1.safeSteer, 0)}º</div>
+                            <div className="text-center font-mono"><DiffBadge val={diffAngle} unit="º" inverse={true} digits={0} /></div>
+                            <div className="text-right font-mono text-slate-400">{formatDecimal(s2.safeSteer, 0)}º</div>
+                        </div>
+
+                        <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30">
+                            <div className="text-slate-300 font-bold flex items-center gap-1"><Icons.FileText className="w-3 h-3"/> Legalidad</div>
+                            <div className={`text-right font-bold text-xs flex flex-col items-end ${s1.legal.color}`}>
+                                <span>{s1.legal.status}</span>
+                                {s1.legal.fine > 0 && <span>{s1.legal.fine}€ / {s1.legal.points} pts</span>}
+                            </div>
+                            <div className="text-center text-[10px] text-slate-600 flex items-center justify-center">VS</div>
+                            <div className={`text-right font-bold text-xs flex flex-col items-end ${s2.legal.color}`}>
+                                <span>{s2.legal.status}</span>
+                                {s2.legal.fine > 0 && <span>{s2.legal.fine}€ / {s2.legal.points} pts</span>}
+                            </div>
+                        </div>
+
+                        {/* ANÁLISIS MÉDICO */}
+                        <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30 border-t border-slate-700/50">
+                            <div className="text-slate-300 font-bold flex items-center gap-1"><Icons.Activity className="w-3 h-3"/> Lesividad (Impacto)</div>
+                            <div className={`text-right font-bold text-xs flex flex-col items-end ${s1.injury.color}`}>
+                                <span>{s1.injury.label}</span>
+                                <span className="text-[9px] opacity-70">Mortalidad ~{s1.injury.prob}%</span>
+                            </div>
+                            <div className="text-center font-mono"><DiffBadge val={diffEnergy} unit="%" /></div>
+                            <div className={`text-right font-bold text-xs flex flex-col items-end ${s2.injury.color}`}>
+                                <span>{s2.injury.label}</span>
+                                <span className="text-[9px] opacity-70">Mortalidad ~{s2.injury.prob}%</span>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+                
+                <div className="mt-6 space-y-4">
+                    <div className="text-[10px] text-slate-400 bg-slate-800 p-3 rounded border border-slate-700 leading-relaxed">
+                        <strong>Metodología de cálculo:</strong> 
+                        <ul className="list-disc pl-4 mt-1 space-y-1">
+                            <li><strong>Distancia de Frenado:</strong> Basada en física newtoniana (Energía/Trabajo) considerando coeficiente de fricción (0.8 seco / 0.5 mojado), gravedad, viento y pendiente.</li>
+                            <li><strong>Límite de Giro:</strong> Cálculo dinámico de aceleración lateral máxima soportable por el chasis antes de perder adherencia (Ackermann inverso).</li>
+                            <li><strong>Sanciones:</strong> Baremo aproximado DGT (España) según límite de vía. El término "Delito" refiere al Código Penal (Art. 379) por exceso >60/80 km/h.</li>
+                            <li><strong>Lesividad:</strong> Estimación basada en Curvas de Riesgo de Rosén/Sander para ocupantes en impacto frontal moderno. La energía cinética crece al cuadrado de la velocidad ($E_c = 0.5 \cdot m \cdot v^2$).</li>
+                        </ul>
+                    </div>
+
+                    <div className="text-[10px] text-slate-500 italic text-center leading-relaxed max-w-3xl mx-auto">
+                        (*) El movimiento de un vehículo se rige principalmente por las Leyes de Newton (inercia, fuerza y aceleración, acción y reacción), que explican cómo acelera, frena y se mantiene en movimiento, enfrentándose a fuerzas como la resistencia al avance (aire, rodadura, rozamiento) y la adherencia a la carretera, junto con las leyes de circulación que regulan la interacción entre vehículos y usuarios. 
+                        <br/><br/>
+                        <span className="text-purple-400 font-bold">No obstante si el vehículo es conducido por Álvaro Sauras @AlvSauras inexplicablemente no aplican (está el CERN investigando el caso).</span>
+                    </div>
+                </div>
+            </div>
+        );
+      };
+  
+       
         
     
         
@@ -6761,6 +6979,11 @@
                         <AdvancedConfig params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
                         <SimpleSavingsSimulator params={simParams} costs={simCosts} />
                         <RegenSimulator params={simParams} costs={simCosts} />
+                        <RoadSafetySimulator 
+                            currentSpeed={simParams.speed} 
+                           currentGradient={simParams.gradient} 
+                           currentWind={simParams.windSpeed} 
+                        />
                     </>
                 );      
                 case 'amortization': return <AmortizationCalculator />;
@@ -6833,4 +7056,3 @@
     </script>
 </body>
 </html>
-
