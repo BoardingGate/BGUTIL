@@ -6732,18 +6732,19 @@
 
 
 
-        
-      // --- NUEVO COMPONENTE: SEGURIDAD VIAL (V2 - EDICIÓN LIBRE Y FÍSICA MEJORADA) ---
+      // --- NUEVO COMPONENTE: SEGURIDAD VIAL (V3 - FÍSICA AMBIENTAL & SAURAS MODE) ---
       const RoadSafetySimulator = ({ currentSpeed }) => {
-        // Estado local. Inicializamos speed1 con el valor global, pero permitimos edición.
         const [safetyState, setSafetyState] = useState({
             speed1: currentSpeed,
             speed2: 120,
             vehicleType: 'sedan', 
-            reactionTimeMs: 1000 
+            reactionTimeMs: 1000,
+            roadCondition: 'dry', // dry, wet
+            gradient: 0, // %
+            windSpeed: 0 // km/h (negativo contra, positivo favor)
         });
 
-        // Sincronizar si cambia el slider de arriba, pero solo si el usuario no está editando activamente este (UX simple)
+        // Sincronización suave con el panel superior
         useEffect(() => {
             setSafetyState(prev => ({ ...prev, speed1: currentSpeed }));
         }, [currentSpeed]);
@@ -6756,34 +6757,55 @@
         };
 
         const calculatePhysics = (speedKmH, type) => {
-            const v = Math.max(1, speedKmH) / 3.6; // m/s (evitar div por 0)
+            const v = Math.max(1, speedKmH) / 3.6; // m/s
             const veh = vehicles[type];
             const g = 9.81;
-            const steeringRatio = 14; // Promedio dirección Tesla
+            const steeringRatio = 14; 
 
-            // 1. Distancias
+            // --- 1. FACTORES AMBIENTALES ---
+            // Coeficiente de fricción (mu). Seco ~0.8, Mojado ~0.5
+            const muBase = safetyState.roadCondition === 'dry' ? 0.8 : 0.5;
+            
+            // Efecto de la pendiente en la frenada (física simplificada)
+            // Cuesta arriba (+) ayuda a frenar, cuesta abajo (-) empeora
+            const slopeFactor = safetyState.gradient / 100;
+            
+            // Coeficiente efectivo de frenado (Fricción + Gravedad)
+            const effectiveFriction = Math.max(0.1, muBase + slopeFactor);
+
+            // --- 2. DISTANCIAS ---
             const reactionDist = v * (safetyState.reactionTimeMs / 1000);
-            const brakingDist = (v ** 2) / (2 * 0.75 * g); // 0.75 coef fricción (seco moderno)
+            
+            // Distancia frenado: d = v^2 / (2 * g * mu_eff)
+            // *Nota: El viento influye marginalmente en la frenada de emergencia comparado con la fricción, 
+            // pero se incluye como pequeña resistencia aerodinámica extra si es en contra.
+            const windMs = safetyState.windSpeed / 3.6;
+            const aeroAssist = (windMs < 0) ? 0.02 : -0.01; // Pequeño factor ajuste
+            const brakingDist = (v ** 2) / (2 * g * (effectiveFriction + (Math.abs(windMs) > 5 ? aeroAssist : 0)));
+            
             const totalDist = reactionDist + brakingDist;
 
-            // 2. Energía
+            // --- 3. ENERGÍA ---
             const energyJoules = 0.5 * veh.mass * (v ** 2);
-            const impactForceTons = (energyJoules / 0.6) / 9806; // impacto en 0.6m deformación
+            // Fuerza impacto en Toneladas (parada en 0.6m)
+            const impactForceTons = (energyJoules / 0.6) / 9806; 
 
-            // 3. Física de Giro (Ackermann dinámico)
-            // Calculamos el ángulo máximo de volante antes de superar el límite G lateral del coche
-            // a_lat = (v^2 * delta) / L  -> delta_max = (a_max * L) / v^2
-            const maxLatA = veh.latGLimit * g;
+            // --- 4. ESTABILIDAD (CURVA / ESQUIVA) ---
+            // Si el suelo está mojado, el límite de G lateral baja drásticamente
+            const gripFactor = safetyState.roadCondition === 'dry' ? 1.0 : 0.6;
+            const maxLatA = veh.latGLimit * g * gripFactor;
+            
+            // Ángulo máximo de ruedas (Ackermann inverso): delta = (a_lat * L) / v^2
             const maxWheelAngleRad = (maxLatA * veh.wheelbase) / (v ** 2);
+            // Ángulo volante
             const maxSteeringWheelAngle = maxWheelAngleRad * steeringRatio * (180 / Math.PI);
             
-            // Limitamos visualmente a 180º (media vuelta) para la UI, aunque físicamente sea más a baja velocidad
             const safeSteer = Math.min(180, maxSteeringWheelAngle);
 
             let rolloverRisk = "Estable";
-            if (safeSteer < 15) rolloverRisk = "CRÍTICO";
-            else if (safeSteer < 35) rolloverRisk = "Alto Riesgo";
-            else if (safeSteer < 60) rolloverRisk = "Moderado";
+            if (safeSteer < 15) rolloverRisk = "PÉRDIDA TOTAL";
+            else if (safeSteer < 35) rolloverRisk = "Derrape Crítico";
+            else if (safeSteer < 60) rolloverRisk = safetyState.roadCondition === 'wet' ? "Aquaplaning/Derrape" : "Inestable";
 
             return {
                 kmh: speedKmH,
@@ -6794,7 +6816,8 @@
                 energy: energyJoules,
                 impactForce: impactForceTons,
                 safeSteer,
-                rolloverRisk
+                rolloverRisk,
+                mu: effectiveFriction
             };
         };
 
@@ -6805,18 +6828,19 @@
         const diffSpeed = s2.kmh - s1.kmh;
         const diffMs = s2.ms - s1.ms;
         const diffDist = s2.totalDist - s1.totalDist;
-        const diffAngle = s2.safeSteer - s1.safeSteer; // Si es negativo, V2 permite menos giro
+        const diffAngle = s2.safeSteer - s1.safeSteer; 
         const diffEnergy = ((s2.energy - s1.energy) / s1.energy) * 100;
 
         const maxDistScale = Math.max(s1.totalDist, s2.totalDist) * 1.15; 
 
-        // Helper para mostrar diferencias con color y signo
         const DiffBadge = ({ val, unit, inverse = false, digits = 1 }) => {
             if (Math.abs(val) < 0.1) return <span className="text-slate-500 font-mono text-sm">=</span>;
-            const isBad = inverse ? val < 0 : val > 0; // Para distancia, más es malo. Para ángulo, menos es malo (inverse).
+            const isBad = inverse ? val < 0 : val > 0; 
             const color = isBad ? "text-red-400" : "text-green-400";
             return <span className={`${color} font-mono font-bold text-sm`}>{val > 0 ? '+' : ''}{formatDecimal(val, digits)}{unit}</span>;
         };
+
+        const handleEnvChange = (k, v) => setSafetyState(p => ({...p, [k]: parseFloat(v)}));
 
         return (
             <div className="bg-slate-900/50 backdrop-blur-lg border border-red-500/30 rounded-2xl p-6 shadow-xl animate-fade-in mt-6">
@@ -6824,8 +6848,8 @@
                     <Icons.Shield className="w-6 h-6 text-red-500" /> LABORATORIO DE SEGURIDAD VIAL
                 </h3>
 
-                {/* CONTROLES */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                {/* CONTROLES PRINCIPALES */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                     <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
                         <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Vehículo 1 (Velocidad)</label>
                         <div className="flex items-center gap-2">
@@ -6854,30 +6878,49 @@
                     </div>
                 </div>
 
+                {/* CONTROLES AMBIENTALES */}
+                <div className="bg-black/20 p-4 rounded-xl border border-slate-700/50 mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Estado Asfalto</label>
+                        <div className="flex bg-slate-900 rounded p-1 border border-slate-700">
+                            <button onClick={() => setSafetyState({...safetyState, roadCondition: 'dry'})} className={`flex-1 py-1.5 text-xs font-bold rounded transition-colors ${safetyState.roadCondition === 'dry' ? 'bg-slate-600 text-white' : 'text-slate-500'}`}>☀️ Seco</button>
+                            <button onClick={() => setSafetyState({...safetyState, roadCondition: 'wet'})} className={`flex-1 py-1.5 text-xs font-bold rounded transition-colors ${safetyState.roadCondition === 'wet' ? 'bg-blue-600 text-white' : 'text-slate-500'}`}>🌧️ Mojado</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 block mb-1 uppercase flex justify-between"><span>Inclinación</span> <span className={safetyState.gradient > 0 ? 'text-green-400' : safetyState.gradient < 0 ? 'text-red-400' : 'text-white'}>{safetyState.gradient > 0 ? 'Subida' : safetyState.gradient < 0 ? 'Bajada' : 'Llano'} {safetyState.gradient}%</span></label>
+                        <input type="range" min="-15" max="15" step="1" value={safetyState.gradient} onChange={(e) => handleEnvChange('gradient', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-slate-400" />
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 block mb-1 uppercase flex justify-between"><span>Viento</span> <span className={safetyState.windSpeed > 0 ? 'text-green-400' : safetyState.windSpeed < 0 ? 'text-red-400' : 'text-white'}>{Math.abs(safetyState.windSpeed)} km/h {safetyState.windSpeed < 0 ? 'Contra' : 'Favor'}</span></label>
+                        <input type="range" min="-50" max="50" step="5" value={safetyState.windSpeed} onChange={(e) => handleEnvChange('windSpeed', e.target.value)} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-blue-400" />
+                    </div>
+                </div>
+
                 {/* VISUALIZACIÓN VIAL */}
                 <div className="relative w-full h-52 bg-[#1e293b] rounded-xl overflow-hidden mb-8 border border-slate-700 shadow-inner group">
-                    <div className="absolute inset-0 flex flex-col justify-center gap-8 py-6">
+                    <div className={`absolute inset-0 flex flex-col justify-center gap-8 py-6 transition-colors duration-500 ${safetyState.roadCondition === 'wet' ? 'bg-[#0f172a]' : 'bg-[#1e293b]'}`}>
+                        {/* Efecto lluvia */}
+                        {safetyState.roadCondition === 'wet' && <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiMwZjE3MmEiLz48cGF0aCBkPSJNMCAwTDggOFpNOCAwTDAgOFoiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIvPjwvc3ZnPg==')] opacity-30"></div>}
+                        
                         {/* Carril 1 */}
-                        <div className="relative h-12 w-full flex items-center px-4">
+                        <div className="relative h-12 w-full flex items-center px-4 z-10">
                             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0 border-t border-dashed border-slate-600"></div>
                             <div className="z-10 flex flex-col items-center justify-center gap-0 text-white bg-blue-600 w-12 h-8 rounded shadow-lg mr-2">
                                 <span className="text-[10px] font-bold">V1</span>
                             </div>
-                            {/* Barra Reacción */}
-                            <div className="h-3 bg-yellow-500 rounded-l relative group-hover:opacity-100 transition-all flex items-center justify-center overflow-hidden" style={{width: `${(s1.reactionDist / maxDistScale) * 85}%`}}>
+                            <div className="h-3 bg-yellow-500 rounded-l relative flex items-center justify-center overflow-hidden" style={{width: `${(s1.reactionDist / maxDistScale) * 85}%`}}>
                                 {s1.reactionDist / maxDistScale > 0.1 && <span className="text-[9px] text-black/70 font-bold whitespace-nowrap px-1">Reacción</span>}
                             </div>
-                            {/* Barra Frenada */}
                             <div className="h-3 bg-blue-400 rounded-r relative flex items-center justify-center overflow-hidden" style={{width: `${(s1.brakingDist / maxDistScale) * 85}%`}}>
                                 {s1.brakingDist / maxDistScale > 0.1 && <span className="text-[9px] text-black/70 font-bold whitespace-nowrap px-1">Frenada</span>}
                             </div>
-                            {/* Marca Final */}
                             <div className="h-6 w-0.5 bg-white ml-1"></div>
                             <span className="ml-2 text-xs font-bold text-white">{formatDecimal(s1.totalDist, 1)} m</span>
                         </div>
 
                         {/* Carril 2 */}
-                        <div className="relative h-12 w-full flex items-center px-4">
+                        <div className="relative h-12 w-full flex items-center px-4 z-10">
                             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0 border-t border-dashed border-slate-600"></div>
                             <div className="z-10 flex flex-col items-center justify-center gap-0 text-white bg-red-600 w-12 h-8 rounded shadow-lg mr-2">
                                 <span className="text-[10px] font-bold">V2</span>
@@ -6888,17 +6931,15 @@
                             <span className="ml-2 text-xs font-bold text-white">{formatDecimal(s2.totalDist, 1)} m</span>
                         </div>
                     </div>
-                    {/* Grid de metros */}
-                    <div className="absolute bottom-2 w-full flex justify-between px-16 text-[9px] text-slate-500 font-mono pointer-events-none">
+                    {/* Grid */}
+                    <div className="absolute bottom-2 w-full flex justify-between px-16 text-[9px] text-slate-500 font-mono pointer-events-none z-20">
                         <span>0m</span>
-                        <span>{Math.round(maxDistScale * 0.25)}m</span>
                         <span>{Math.round(maxDistScale * 0.5)}m</span>
-                        <span>{Math.round(maxDistScale * 0.75)}m</span>
                         <span>{Math.round(maxDistScale)}m</span>
                     </div>
                 </div>
 
-                {/* TABLA DE ANÁLISIS DIFERENCIAL */}
+                {/* TABLA DE ANÁLISIS */}
                 <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                     <div className="grid grid-cols-4 bg-slate-800 border-b border-slate-700 py-3 px-4">
                         <div className="text-xs font-bold text-slate-400 uppercase">Parámetro</div>
@@ -6909,7 +6950,6 @@
 
                     <div className="divide-y divide-slate-800 text-sm">
                         
-                        {/* Velocidad */}
                         <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30">
                             <div className="text-slate-300 font-bold">Velocidad</div>
                             <div className="text-right font-mono text-white">{s1.kmh} km/h</div>
@@ -6917,7 +6957,6 @@
                             <div className="text-right font-mono text-white">{s2.kmh} km/h</div>
                         </div>
 
-                        {/* Metros por segundo */}
                         <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30">
                             <div className="text-slate-300 font-bold">Avance (Ceguera)</div>
                             <div className="text-right font-mono text-slate-400">{formatDecimal(s1.ms, 1)} m/s</div>
@@ -6925,7 +6964,6 @@
                             <div className="text-right font-mono text-slate-400">{formatDecimal(s2.ms, 1)} m/s</div>
                         </div>
 
-                        {/* Distancia Total */}
                         <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30 bg-white/5">
                             <div className="text-slate-200 font-bold">Distancia Detención</div>
                             <div className="text-right font-mono font-bold text-blue-300">{formatDecimal(s1.totalDist, 1)} m</div>
@@ -6933,18 +6971,16 @@
                             <div className="text-right font-mono font-bold text-red-300">{formatDecimal(s2.totalDist, 1)} m</div>
                         </div>
 
-                        {/* Capacidad de Giro */}
                         <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30">
                             <div className="text-slate-300 font-bold flex flex-col">
                                 <span>Volantazo Seguro</span>
-                                <span className="text-[9px] text-slate-500 font-normal">Sin derrape/vuelco</span>
+                                <span className="text-[9px] text-slate-500 font-normal">Máximo giro sin perder control</span>
                             </div>
                             <div className="text-right font-mono text-slate-400">{formatDecimal(s1.safeSteer, 0)}º</div>
                             <div className="text-center font-mono"><DiffBadge val={diffAngle} unit="º" inverse={true} digits={0} /></div>
                             <div className="text-right font-mono text-slate-400">{formatDecimal(s2.safeSteer, 0)}º</div>
                         </div>
 
-                        {/* Energía */}
                         <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30">
                             <div className="text-slate-300 font-bold">Energía Cinética</div>
                             <div className="text-right font-mono text-slate-500">{formatDecimal(s1.energy/1000, 0)} kJ</div>
@@ -6955,12 +6991,27 @@
                     </div>
                 </div>
                 
-                <div className="mt-4 text-[10px] text-slate-500 text-center leading-relaxed">
-                    * Cálculos basados en física newtoniana para pavimento seco (Coef. 0.75) y tiempos de reacción promedio (1s). El "Volantazo Seguro" estima el ángulo máximo de volante permitido por la física (Límite G Lateral) antes de perder el control o volcar, asumiendo una relación de dirección estándar de 14:1.
+                <div className="mt-6 space-y-4">
+                    <div className="text-[10px] text-slate-400 bg-slate-800 p-3 rounded border border-slate-700 leading-relaxed">
+                        <strong>Metodología de cálculo:</strong> 
+                        <ul className="list-disc pl-4 mt-1 space-y-1">
+                            <li><strong>Distancia de Frenado:</strong> Basada en física newtoniana (Energía/Trabajo) considerando coeficiente de fricción (0.8 seco / 0.5 mojado), gravedad y pendiente.</li>
+                            <li><strong>Tiempo de Reacción:</strong> Estándar promedio de 1 segundo (distancia recorrida sin frenar).</li>
+                            <li><strong>Límite de Giro (Volantazo):</strong> Cálculo dinámico de aceleración lateral máxima soportable por el vehículo (0.75G - 1.15G según tipo y estado suelo) antes de perder adherencia o estabilidad.</li>
+                            <li><strong>Energía:</strong> $E_c = 0.5 \cdot m \cdot v^2$. El daño en impacto crece exponencialmente con la velocidad.</li>
+                        </ul>
+                    </div>
+
+                    <div className="text-[10px] text-slate-500 italic text-center leading-relaxed max-w-3xl mx-auto">
+                        (*) El movimiento de un vehículo se rige principalmente por las Leyes de Newton (inercia, fuerza y aceleración, acción y reacción), que explican cómo acelera, frena y se mantiene en movimiento, enfrentándose a fuerzas como la resistencia al avance (aire, rodadura, rozamiento) y la adherencia a la carretera, junto con las leyes de circulación que regulan la interacción entre vehículos y usuarios. 
+                        <br/><br/>
+                        <span className="text-purple-400 font-bold">No obstante si el vehículo es conducido por Álvaro Sauras @AlvSauras inexplicablemente no aplican (está el CERN investigando el caso).</span>
+                    </div>
                 </div>
             </div>
         );
       };
+     
        
         
     
