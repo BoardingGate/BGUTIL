@@ -6616,21 +6616,28 @@
 
 
 
-      // --- NUEVO COMPONENTE: SEGURIDAD VIAL (V3 - FÍSICA AMBIENTAL & SAURAS MODE) ---
-      const RoadSafetySimulator = ({ currentSpeed }) => {
+      // --- NUEVO COMPONENTE: SEGURIDAD VIAL (V4 - LEGAL, MÉDICO Y SAURAS MODE) ---
+      const RoadSafetySimulator = ({ currentSpeed, currentGradient, currentWind }) => {
         const [safetyState, setSafetyState] = useState({
             speed1: currentSpeed,
             speed2: 120,
+            limit: 120, // Límite legal vía
             vehicleType: 'sedan', 
             reactionTimeMs: 1000,
-            roadCondition: 'dry', // dry, wet
-            gradient: 0, // %
-            windSpeed: 0 // km/h (negativo contra, positivo favor)
+            roadCondition: 'dry', 
+            gradient: currentGradient, 
+            windSpeed: currentWind 
         });
 
+        // Sincronización con paneles superiores (Propuesta inicial)
         useEffect(() => {
-            setSafetyState(prev => ({ ...prev, speed1: currentSpeed }));
-        }, [currentSpeed]);
+            setSafetyState(prev => ({ 
+                ...prev, 
+                speed1: currentSpeed,
+                gradient: currentGradient,
+                windSpeed: currentWind
+            }));
+        }, [currentSpeed, currentGradient, currentWind]);
 
         const vehicles = {
             compact: { name: "Turismo Pequeño", mass: 1200, height: 1.4, latGLimit: 0.90, wheelbase: 2.5 },
@@ -6639,41 +6646,101 @@
             van: { name: "Furgoneta", mass: 2500, height: 1.95, latGLimit: 0.75, wheelbase: 3.0 }
         };
 
+        // --- CÁLCULO DE SANCIONES (BASE DGT ESPAÑA) ---
+        const calculatePenalty = (speed, limit) => {
+            if (speed <= limit) return { status: "Legal", color: "text-green-400", fine: 0, points: 0, crime: false };
+            
+            const diff = speed - limit;
+            let fine = 100;
+            let points = 0;
+            let crime = false;
+
+            // Lógica simplificada para límites > 60 km/h (Carretera/Autovía)
+            if (limit >= 60) {
+                if (diff <= 30) { fine = 100; points = 0; }
+                else if (diff <= 50) { fine = 300; points = 2; }
+                else if (diff <= 60) { fine = 400; points = 4; }
+                else if (diff <= 70) { fine = 500; points = 6; }
+                else { fine = 600; points = 6; }
+                
+                if (diff > 80) crime = true;
+            } else {
+                // Ciudad (Límites bajos)
+                if (diff <= 20) { fine = 100; points = 0; }
+                else if (diff <= 30) { fine = 300; points = 2; }
+                else if (diff <= 40) { fine = 400; points = 4; }
+                else if (diff <= 50) { fine = 500; points = 6; }
+                else { fine = 600; points = 6; }
+
+                if (diff > 60) crime = true;
+            }
+
+            return { 
+                status: crime ? "DELITO PENAL" : "Infracción", 
+                color: crime ? "text-purple-500" : "text-red-400", 
+                fine, 
+                points, 
+                crime 
+            };
+        };
+
+        // --- CÁLCULO DE LESIVIDAD (MODELO JOKSCH / ROSÉN) ---
+        const calculateInjury = (speedKmH) => {
+            // Probabilidad muerte ocupante en impacto frontal contra objeto rígido
+            // Modelo simplificado: P = (v / 100)^4  (aprox)
+            // Ajustado para coches modernos (seguridad pasiva)
+            const v = speedKmH;
+            let probDeath = 0;
+            let severity = "Leve";
+            let color = "text-green-400";
+
+            if (v < 30) { probDeath = 1; severity = "Leve (Chapa)"; }
+            else if (v < 50) { probDeath = 5; severity = "Moderada"; color = "text-yellow-400"; }
+            else if (v < 70) { probDeath = 15; severity = "Grave"; color = "text-orange-400"; }
+            else if (v < 90) { probDeath = 40; severity = "Muy Grave"; color = "text-red-400"; }
+            else if (v < 120) { probDeath = 80; severity = "Crítica"; color = "text-red-600"; }
+            else { probDeath = 99; severity = "MORTAL"; color = "text-purple-500"; }
+
+            return { prob: probDeath, label: severity, color };
+        };
+
         const calculatePhysics = (speedKmH, type) => {
             const v = Math.max(1, speedKmH) / 3.6; // m/s
             const veh = vehicles[type];
             const g = 9.81;
             const steeringRatio = 14; 
 
+            // Fricción
             const muBase = safetyState.roadCondition === 'dry' ? 0.8 : 0.5;
-            
             const slopeFactor = safetyState.gradient / 100;
-            
             const effectiveFriction = Math.max(0.1, muBase + slopeFactor);
 
+            // Distancias
             const reactionDist = v * (safetyState.reactionTimeMs / 1000);
-            
             const windMs = safetyState.windSpeed / 3.6;
-            const aeroAssist = (windMs < 0) ? 0.02 : -0.01; // Pequeño factor ajuste
+            const aeroAssist = (windMs < 0) ? 0.02 : -0.01; 
             const brakingDist = (v ** 2) / (2 * g * (effectiveFriction + (Math.abs(windMs) > 5 ? aeroAssist : 0)));
-            
             const totalDist = reactionDist + brakingDist;
 
+            // Energía e Impacto
             const energyJoules = 0.5 * veh.mass * (v ** 2);
             const impactForceTons = (energyJoules / 0.6) / 9806; 
 
+            // Estabilidad (Giro)
             const gripFactor = safetyState.roadCondition === 'dry' ? 1.0 : 0.6;
             const maxLatA = veh.latGLimit * g * gripFactor;
-            
             const maxWheelAngleRad = (maxLatA * veh.wheelbase) / (v ** 2);
             const maxSteeringWheelAngle = maxWheelAngleRad * steeringRatio * (180 / Math.PI);
-            
             const safeSteer = Math.min(180, maxSteeringWheelAngle);
 
             let rolloverRisk = "Estable";
             if (safeSteer < 15) rolloverRisk = "PÉRDIDA TOTAL";
             else if (safeSteer < 35) rolloverRisk = "Derrape Crítico";
-            else if (safeSteer < 60) rolloverRisk = safetyState.roadCondition === 'wet' ? "Aquaplaning/Derrape" : "Inestable";
+            else if (safeSteer < 60) rolloverRisk = safetyState.roadCondition === 'wet' ? "Aquaplaning" : "Inestable";
+
+            // Sanción y Daños
+            const legal = calculatePenalty(speedKmH, safetyState.limit);
+            const injury = calculateInjury(speedKmH);
 
             return {
                 kmh: speedKmH,
@@ -6685,13 +6752,15 @@
                 impactForce: impactForceTons,
                 safeSteer,
                 rolloverRisk,
-                mu: effectiveFriction
+                legal,
+                injury
             };
         };
 
         const s1 = calculatePhysics(safetyState.speed1, safetyState.vehicleType);
         const s2 = calculatePhysics(safetyState.speed2, safetyState.vehicleType);
 
+        // Diferenciales
         const diffSpeed = s2.kmh - s1.kmh;
         const diffMs = s2.ms - s1.ms;
         const diffDist = s2.totalDist - s1.totalDist;
@@ -6715,7 +6784,16 @@
                     <Icons.Shield className="w-6 h-6 text-red-500" /> LABORATORIO DE SEGURIDAD VIAL
                 </h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                {/* CONTROLES PRINCIPALES */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                    <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
+                        <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Límite Vía</label>
+                        <div className="flex items-center gap-2">
+                            <input type="range" min="30" max="130" step="10" value={safetyState.limit} onChange={(e) => setSafetyState({...safetyState, limit: Number(e.target.value)})} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-white" />
+                            <div className="w-10 h-10 rounded-full border-4 border-red-600 bg-white flex items-center justify-center text-black font-bold text-xs shrink-0">{safetyState.limit}</div>
+                        </div>
+                    </div>
+
                     <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700">
                         <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Vehículo 1 (Velocidad)</label>
                         <div className="flex items-center gap-2">
@@ -6736,7 +6814,7 @@
                         <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Tipo de Vehículo</label>
                         <div className="flex gap-1 flex-wrap">
                             {Object.entries(vehicles).map(([k, v]) => (
-                                <button key={k} onClick={() => setSafetyState({...safetyState, vehicleType: k})} className={`flex-1 min-w-[70px] py-2 text-[9px] uppercase font-bold rounded border transition-all ${safetyState.vehicleType === k ? 'bg-slate-200 text-slate-900 border-white' : 'bg-slate-900 text-slate-500 border-slate-700 hover:bg-slate-800'}`}>
+                                <button key={k} onClick={() => setSafetyState({...safetyState, vehicleType: k})} className={`flex-1 min-w-[50px] py-2 text-[9px] uppercase font-bold rounded border transition-all ${safetyState.vehicleType === k ? 'bg-slate-200 text-slate-900 border-white' : 'bg-slate-900 text-slate-500 border-slate-700 hover:bg-slate-800'}`}>
                                     {v.name.split(' ')[0]}
                                 </button>
                             ))}
@@ -6744,6 +6822,7 @@
                     </div>
                 </div>
 
+                {/* CONTROLES AMBIENTALES */}
                 <div className="bg-black/20 p-4 rounded-xl border border-slate-700/50 mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div>
                         <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Estado Asfalto</label>
@@ -6762,10 +6841,13 @@
                     </div>
                 </div>
 
+                {/* VISUALIZACIÓN VIAL */}
                 <div className="relative w-full h-52 bg-[#1e293b] rounded-xl overflow-hidden mb-8 border border-slate-700 shadow-inner group">
                     <div className={`absolute inset-0 flex flex-col justify-center gap-8 py-6 transition-colors duration-500 ${safetyState.roadCondition === 'wet' ? 'bg-[#0f172a]' : 'bg-[#1e293b]'}`}>
+                        {/* Efecto lluvia */}
                         {safetyState.roadCondition === 'wet' && <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjgiIGZpbGw9IiMwZjE3MmEiLz48cGF0aCBkPSJNMCAwTDggOFpNOCAwTDAgOFoiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjA1KSIvPjwvc3ZnPg==')] opacity-30"></div>}
                         
+                        {/* Carril 1 */}
                         <div className="relative h-12 w-full flex items-center px-4 z-10">
                             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0 border-t border-dashed border-slate-600"></div>
                             <div className="z-10 flex flex-col items-center justify-center gap-0 text-white bg-blue-600 w-12 h-8 rounded shadow-lg mr-2">
@@ -6781,6 +6863,7 @@
                             <span className="ml-2 text-xs font-bold text-white">{formatDecimal(s1.totalDist, 1)} m</span>
                         </div>
 
+                        {/* Carril 2 */}
                         <div className="relative h-12 w-full flex items-center px-4 z-10">
                             <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-0 border-t border-dashed border-slate-600"></div>
                             <div className="z-10 flex flex-col items-center justify-center gap-0 text-white bg-red-600 w-12 h-8 rounded shadow-lg mr-2">
@@ -6792,6 +6875,7 @@
                             <span className="ml-2 text-xs font-bold text-white">{formatDecimal(s2.totalDist, 1)} m</span>
                         </div>
                     </div>
+                    {/* Grid */}
                     <div className="absolute bottom-2 w-full flex justify-between px-16 text-[9px] text-slate-500 font-mono pointer-events-none z-20">
                         <span>0m</span>
                         <span>{Math.round(maxDistScale * 0.5)}m</span>
@@ -6799,6 +6883,7 @@
                     </div>
                 </div>
 
+                {/* TABLA DE ANÁLISIS MULTIDIMENSIONAL */}
                 <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                     <div className="grid grid-cols-4 bg-slate-800 border-b border-slate-700 py-3 px-4">
                         <div className="text-xs font-bold text-slate-400 uppercase">Parámetro</div>
@@ -6809,13 +6894,7 @@
 
                     <div className="divide-y divide-slate-800 text-sm">
                         
-                        <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30">
-                            <div className="text-slate-300 font-bold">Velocidad</div>
-                            <div className="text-right font-mono text-white">{s1.kmh} km/h</div>
-                            <div className="text-center font-mono"><DiffBadge val={diffSpeed} unit=" km/h" digits={0} /></div>
-                            <div className="text-right font-mono text-white">{s2.kmh} km/h</div>
-                        </div>
-
+                        {/* Velocidad / Avance */}
                         <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30">
                             <div className="text-slate-300 font-bold">Avance (Ceguera)</div>
                             <div className="text-right font-mono text-slate-400">{formatDecimal(s1.ms, 1)} m/s</div>
@@ -6823,6 +6902,7 @@
                             <div className="text-right font-mono text-slate-400">{formatDecimal(s2.ms, 1)} m/s</div>
                         </div>
 
+                        {/* Distancia Total */}
                         <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30 bg-white/5">
                             <div className="text-slate-200 font-bold">Distancia Detención</div>
                             <div className="text-right font-mono font-bold text-blue-300">{formatDecimal(s1.totalDist, 1)} m</div>
@@ -6830,21 +6910,43 @@
                             <div className="text-right font-mono font-bold text-red-300">{formatDecimal(s2.totalDist, 1)} m</div>
                         </div>
 
+                        {/* Capacidad de Giro */}
                         <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30">
                             <div className="text-slate-300 font-bold flex flex-col">
                                 <span>Volantazo Seguro</span>
-                                <span className="text-[9px] text-slate-500 font-normal">Máximo giro sin perder control</span>
+                                <span className="text-[9px] text-slate-500 font-normal">Máx giro sin perder control</span>
                             </div>
                             <div className="text-right font-mono text-slate-400">{formatDecimal(s1.safeSteer, 0)}º</div>
                             <div className="text-center font-mono"><DiffBadge val={diffAngle} unit="º" inverse={true} digits={0} /></div>
                             <div className="text-right font-mono text-slate-400">{formatDecimal(s2.safeSteer, 0)}º</div>
                         </div>
 
+                        {/* ANÁLISIS LEGAL */}
                         <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30">
-                            <div className="text-slate-300 font-bold">Energía Cinética</div>
-                            <div className="text-right font-mono text-slate-500">{formatDecimal(s1.energy/1000, 0)} kJ</div>
+                            <div className="text-slate-300 font-bold flex items-center gap-1"><Icons.FileText className="w-3 h-3"/> Legalidad</div>
+                            <div className={`text-right font-bold text-xs flex flex-col items-end ${s1.legal.color}`}>
+                                <span>{s1.legal.status}</span>
+                                {s1.legal.fine > 0 && <span>{s1.legal.fine}€ / {s1.legal.points}pts</span>}
+                            </div>
+                            <div className="text-center text-[10px] text-slate-600 flex items-center justify-center">VS</div>
+                            <div className={`text-right font-bold text-xs flex flex-col items-end ${s2.legal.color}`}>
+                                <span>{s2.legal.status}</span>
+                                {s2.legal.fine > 0 && <span>{s2.legal.fine}€ / {s2.legal.points}pts</span>}
+                            </div>
+                        </div>
+
+                        {/* ANÁLISIS MÉDICO */}
+                        <div className="grid grid-cols-4 py-3 px-4 hover:bg-slate-800/30 border-t border-slate-700/50">
+                            <div className="text-slate-300 font-bold flex items-center gap-1"><Icons.Activity className="w-3 h-3"/> Lesividad (Impacto)</div>
+                            <div className={`text-right font-bold text-xs flex flex-col items-end ${s1.injury.color}`}>
+                                <span>{s1.injury.label}</span>
+                                <span className="text-[9px] opacity-70">Mortalidad ~{s1.injury.prob}%</span>
+                            </div>
                             <div className="text-center font-mono"><DiffBadge val={diffEnergy} unit="%" /></div>
-                            <div className="text-right font-mono text-slate-500">{formatDecimal(s2.energy/1000, 0)} kJ</div>
+                            <div className={`text-right font-bold text-xs flex flex-col items-end ${s2.injury.color}`}>
+                                <span>{s2.injury.label}</span>
+                                <span className="text-[9px] opacity-70">Mortalidad ~{s2.injury.prob}%</span>
+                            </div>
                         </div>
 
                     </div>
@@ -6854,10 +6956,10 @@
                     <div className="text-[10px] text-slate-400 bg-slate-800 p-3 rounded border border-slate-700 leading-relaxed">
                         <strong>Metodología de cálculo:</strong> 
                         <ul className="list-disc pl-4 mt-1 space-y-1">
-                            <li><strong>Distancia de Frenado:</strong> Basada en física newtoniana (Energía/Trabajo) considerando coeficiente de fricción (0.8 seco / 0.5 mojado), gravedad y pendiente.</li>
-                            <li><strong>Tiempo de Reacción:</strong> Estándar promedio de 1 segundo (distancia recorrida sin frenar).</li>
-                            <li><strong>Límite de Giro (Volantazo):</strong> Cálculo dinámico de aceleración lateral máxima soportable por el vehículo (0.75G - 1.15G según tipo y estado suelo) antes de perder adherencia o estabilidad.</li>
-                            <li><strong>Energía:</strong> $E_c = 0.5 \cdot m \cdot v^2$. El daño en impacto crece exponencialmente con la velocidad.</li>
+                            <li><strong>Distancia de Frenado:</strong> Basada en física newtoniana (Energía/Trabajo) considerando coeficiente de fricción (0.8 seco / 0.5 mojado), gravedad, viento y pendiente.</li>
+                            <li><strong>Límite de Giro:</strong> Cálculo dinámico de aceleración lateral máxima soportable por el chasis antes de perder adherencia (Ackermann inverso).</li>
+                            <li><strong>Sanciones:</strong> Baremo aproximado DGT (España) según límite de vía. El término "Delito" refiere al Código Penal (Art. 379) por exceso >60/80 km/h.</li>
+                            <li><strong>Lesividad:</strong> Estimación basada en Curvas de Riesgo de Rosén/Sander para ocupantes en impacto frontal moderno. La energía cinética crece al cuadrado de la velocidad ($E_c = 0.5 \cdot m \cdot v^2$).</li>
                         </ul>
                     </div>
 
@@ -6870,7 +6972,7 @@
             </div>
         );
       };
-     
+  
        
         
     
@@ -6902,7 +7004,11 @@
                         <AdvancedConfig params={simParams} setParams={setSimParams} costs={simCosts} setCosts={setSimCosts} />
                         <SimpleSavingsSimulator params={simParams} costs={simCosts} />
                         <RegenSimulator params={simParams} costs={simCosts} />
-                        <RoadSafetySimulator currentSpeed={simParams.speed} />
+                        <RoadSafetySimulator 
+                            currentSpeed={simParams.speed} 
+                           currentGradient={simParams.gradient} 
+                           currentWind={simParams.windSpeed} 
+                        />
                     </>
                 );      
                 case 'amortization': return <AmortizationCalculator />;
