@@ -842,9 +842,7 @@
       };
  
         
-        
-
-      // --- CALCULADORA DE CARGA (DISTRIBUCIÓN FULL WIDTH + INTERÉS COMPUESTO) ---
+      // --- CALCULADORA DE CARGA (DISTRIBUCIÓN FULL WIDTH + INTERÉS COMPUESTO CON INFLACIÓN) ---
       const ChargingCalculator = () => {
         const [state, setState] = usePersistentState('chargeState', { 
             capacity: 60, 
@@ -869,6 +867,7 @@
             annualAddition: 2400,
             years: 30,
             rate: 10,
+            inflationRate: 0, // NUEVO: Dato de inflación
             compoundsPerYear: 1,
             addAtStart: true
         });
@@ -975,6 +974,7 @@
             const history = [];
             
             const r = compState.rate / 100;
+            const inf = (compState.inflationRate || 0) / 100;
             const n = compState.compoundsPerYear;
             const effectiveAnnualRate = Math.pow(1 + (r/n), n) - 1;
 
@@ -994,14 +994,23 @@
                     totalPrincipal += contribution;
                 }
 
+                // Cálculo del valor real (ajustado a inflación)
+                // Fórmula: ValorReal = ValorNominal / (1 + tasa_inflacion)^años
+                const realBalance = balance / Math.pow(1 + inf, i);
+
                 history.push({
                     year: i,
                     principal: totalPrincipal,
                     interest: balance - totalPrincipal,
-                    balance: balance
+                    balance: balance,
+                    realBalance: realBalance
                 });
             }
-            return { finalBalance: balance, totalPrincipal, history };
+            
+            // Calculamos el valor real final fuera del loop para el resumen
+            const finalRealBalance = balance / Math.pow(1 + inf, compState.years);
+
+            return { finalBalance: balance, finalRealBalance, totalPrincipal, history };
         };
 
         const compResult = calculateCompound();
@@ -1160,7 +1169,7 @@
 
                     <div className="bg-slate-900/80 p-8 rounded-2xl border border-slate-700 shadow-2xl">
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 mb-8">
                             <div>
                                 <label className="text-sm font-bold text-slate-400 block mb-2">Capital Inicial (€)</label>
                                 <FormattedInput value={compState.principal} onChange={v => handleCompChange('principal', v)} grouped={true} />
@@ -1176,6 +1185,10 @@
                             <div>
                                 <label className="text-sm font-bold text-slate-400 block mb-2">Interés Anual (%)</label>
                                 <FormattedInput value={compState.rate} onChange={v => handleCompChange('rate', v)} decimals={2} />
+                            </div>
+                            <div>
+                                <label className="text-sm font-bold text-slate-400 block mb-2">Inflación / Deflación (%)</label>
+                                <FormattedInput value={compState.inflationRate} onChange={v => handleCompChange('inflationRate', v)} decimals={2} />
                             </div>
                         </div>
 
@@ -1220,8 +1233,9 @@
 
                         <div className="bg-gradient-to-r from-blue-900/40 to-slate-900 rounded-xl p-6 border border-blue-500/30 flex flex-col md:flex-row justify-between items-center gap-6">
                             <div className="text-center md:text-left">
-                                <div className="text-sm font-bold text-blue-300 uppercase tracking-widest mb-1">Valor Futuro Estimado</div>
-                                <div className="text-5xl font-display font-bold text-white">{formatMoney(compResult.finalBalance)} €</div>
+                                <div className="text-sm font-bold text-blue-300 uppercase tracking-widest mb-1">Valor Futuro (Poder Adquisitivo)</div>
+                                <div className="text-5xl font-display font-bold text-white">{formatMoney(compResult.finalRealBalance)} €</div>
+                                <div className="text-lg font-bold text-slate-500 mt-2">{formatMoney(compResult.finalBalance)} € <span className="text-sm font-normal">(Nominal sin inflación)</span></div>
                             </div>
                             <div className="flex gap-8 text-right">
                                 <div>
@@ -1229,8 +1243,8 @@
                                     <div className="text-xl font-bold text-slate-200">{formatMoney(compResult.totalPrincipal)} €</div>
                                 </div>
                                 <div>
-                                    <div className="text-xs font-bold text-green-400 uppercase">Intereses Generados</div>
-                                    <div className="text-xl font-bold text-green-400">+{formatMoney(compResult.finalBalance - compResult.totalPrincipal)} €</div>
+                                    <div className="text-xs font-bold text-green-400 uppercase">Intereses Reales</div>
+                                    <div className="text-xl font-bold text-green-400">+{formatMoney(compResult.finalRealBalance - compResult.totalPrincipal)} €</div>
                                 </div>
                             </div>
                         </div>
@@ -1251,7 +1265,8 @@
                                                 <th className="px-6 py-3">Año</th>
                                                 <th className="px-6 py-3 text-right">Total Aportado</th>
                                                 <th className="px-6 py-3 text-right">Interés Acumulado</th>
-                                                <th className="px-6 py-3 text-right text-white">Balance Total</th>
+                                                <th className="px-6 py-3 text-right text-slate-300">Total Nominal</th>
+                                                <th className="px-6 py-3 text-right text-white border-l border-slate-700">Valor Real (Aj. Inflación)</th>
                                             </tr>
                                         </thead>
                                         <tbody className="bg-slate-900/50 divide-y divide-slate-800">
@@ -1260,7 +1275,8 @@
                                                     <td className="px-6 py-3 font-bold text-slate-400">{row.year}</td>
                                                     <td className="px-6 py-3 text-right text-slate-300">{formatMoney(row.principal)} €</td>
                                                     <td className="px-6 py-3 text-right text-green-400">+{formatMoney(row.interest)} €</td>
-                                                    <td className="px-6 py-3 text-right font-bold text-white text-lg">{formatMoney(row.balance)} €</td>
+                                                    <td className="px-6 py-3 text-right font-bold text-slate-300">{formatMoney(row.balance)} €</td>
+                                                    <td className="px-6 py-3 text-right font-bold text-white text-lg border-l border-slate-700">{formatMoney(row.realBalance)} €</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -1276,7 +1292,9 @@
                 </div>
             </div>
         );
-      };  
+      };
+        
+
         
         
       // --- DRENAJE (MODIFICADO: VISIBILIDAD DE ZONA CONSUMIDA Y SENTIDO DE CARGA) ---
