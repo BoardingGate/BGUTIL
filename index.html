@@ -2942,7 +2942,7 @@
       };
 
 
-// --- TARIFF COMPARATOR (FINAL: 3 COMPAÑÍAS, % RESTAURADO, OCTOPUS RELAX + IMPRESIÓN) ---
+// --- TARIFF COMPARATOR (FINAL: IMPRESIÓN CORREGIDA, EVITA CORTES Y DESBORDAMIENTOS) ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV9_final', {
             days: 30,
@@ -3017,7 +3017,9 @@
                 const aspect = width / height;
                 const camera = new THREE.OrthographicCamera(-VIEW_HEIGHT * aspect / 2, VIEW_HEIGHT * aspect / 2, VIEW_HEIGHT / 2, -VIEW_HEIGHT / 2, 1, 1000);
                 camera.position.set(0, 0, 100); camera.lookAt(0, 0, 0); 
-                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                
+                // preserveDrawingBuffer: true ES VITAL para que la gráfica se imprima en papel y no salga en blanco
+                const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
                 renderer.setSize(width, height); renderer.setPixelRatio(window.devicePixelRatio);
                 while (mountRef.current.firstChild) { mountRef.current.removeChild(mountRef.current.firstChild); }
                 mountRef.current.appendChild(renderer.domElement);
@@ -3061,10 +3063,10 @@
             }, [billA, billB, billC]); 
 
             return (
-                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 relative">
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 relative print-avoid-break">
                     <div className="flex justify-between items-center mb-0 border-b border-slate-700/50 pb-2">
                         <h4 className="text-sm font-bold text-slate-300 uppercase flex items-center gap-2"><Icons.TrendingUp className="w-4 h-4"/> Comparativa Visual</h4>
-                        <div className="flex flex-wrap justify-end gap-3 text-[10px] font-bold uppercase">
+                        <div className="flex flex-wrap justify-end gap-3 text-[10px] font-bold uppercase text-slate-300">
                             <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-green-400"></div>Potencia</div>
                             <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-blue-400"></div>Energía</div>
                             <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-slate-400"></div>Fijos</div>
@@ -3151,7 +3153,7 @@
 
         const getConsPct = (val) => tState.consTotal > 0 ? (val / tState.consTotal) * 100 : 0; 
         const consumptionData = { p1Kwh: tState.p1Kwh, p2Kwh: tState.p2Kwh, p3Kwh: tState.p3Kwh, p3VeKwh: tState.p3VeKwh, p4Kwh: tState.p4Kwh, totalKwh: tState.consTotal };
-        const getMinClass = (valA, valB, valC, currentVal) => { const min = Math.min(valA, valB, valC); return Math.abs(currentVal - min) < 0.001 ? 'text-green-400' : 'text-slate-300'; };
+        const getMinClass = (valA, valB, valC, currentVal) => { const min = Math.min(valA, valB, valC); return Math.abs(currentVal - min) < 0.001 ? 'text-green-600 font-black' : 'text-slate-300'; };
 
         const calculateEstimation = () => {
             const start = new Date(estState.startDate);
@@ -3221,51 +3223,82 @@
         };
         const estResult = calculateEstimation();
 
-        // Estilos CSS inyectados específicamente para la impresión de esta pestaña
+        // Estilos CSS agresivos para forzar una impresión perfecta en papel (A4 Apaisado recomendado)
         const printStyle = `
             @media print {
                 @page { size: landscape; margin: 10mm; }
-                body { background-color: #ffffff !important; color: #000000 !important; }
-                /* Ocultar barra superior y pestañas */
-                header, nav, .keyboard-padding > *:not(#tariff-print-area) { display: none !important; }
-                /* Ocultar elementos que no necesitan imprimirse (botones, inputs range) */
-                .no-print, input[type="range"], button { display: none !important; }
+                body { background-color: #ffffff !important; color: #000000 !important; font-size: 11pt !important; }
                 
-                #tariff-print-area { position: relative !important; width: 100% !important; color: #000000 !important; }
-                #tariff-print-area * { color: #000000 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                /* Ocultar barra superior, pestañas y elementos interactivos no necesarios en papel */
+                header, nav, button, input[type="range"], input[type="checkbox"], .no-print { display: none !important; }
                 
-                /* Fondos claros para impresión */
-                .bg-slate-900, .bg-slate-800, .bg-slate-900\\/80, .bg-slate-900\\/50 { background-color: #f8fafc !important; border-color: #cbd5e1 !important; }
-                .text-white, .text-slate-400, .text-slate-300, .text-slate-200 { color: #0f172a !important; }
+                /* Romper el layout del body/root principal para que ocupe todo el ancho sin recortes */
+                .keyboard-padding { padding: 0 !important; }
+                #tariff-print-area { display: block !important; width: 100% !important; max-width: 100% !important; margin: 0 !important; }
                 
-                /* Mantener colores para destacar valores clave, pero adaptados para papel blanco */
+                /* Evitar cortes a mitad de cajas importantes */
+                .print-avoid-break { break-inside: avoid !important; page-break-inside: avoid !important; margin-bottom: 15px !important; }
+                
+                /* Eliminar desbordamientos y barras de scroll */
+                .overflow-hidden, .overflow-x-auto { overflow: visible !important; }
+                
+                /* Forzar colores claros de fondo para ahorrar tinta y mejorar contraste */
+                .bg-slate-900, .bg-slate-800, .bg-slate-900\\/80, .bg-slate-900\\/50, .bg-slate-800\\/50, 
+                .bg-slate-900\\/40, .bg-slate-800\\/30, .bg-gradient-to-br, .bg-blue-900\\/10, .bg-red-900\\/10 { 
+                    background: #f8fafc !important; 
+                    border-color: #cbd5e1 !important; 
+                }
+                
+                /* Forzar textos oscuros para papel */
+                .text-white, .text-slate-200, .text-slate-300, .text-slate-400 { color: #0f172a !important; }
+                
+                /* Colores de acento ajustados para fondo blanco */
                 .text-red-400, .text-red-300 { color: #dc2626 !important; }
                 .text-green-400, .text-green-300 { color: #16a34a !important; }
                 .text-blue-400, .text-blue-300 { color: #2563eb !important; }
-                .text-yellow-400 { color: #ca8a04 !important; }
+                .text-yellow-400, .text-yellow-500 { color: #b45309 !important; }
                 .text-orange-400 { color: #ea580c !important; }
                 .text-purple-400 { color: #9333ea !important; }
                 
-                /* Adaptar inputs para que se vean como texto */
-                input[type="text"], input[type="number"] { background: transparent !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; box-shadow: none !important; }
+                /* Adaptar inputs para que se vean como texto plano */
+                input[type="text"], input[type="number"] { 
+                    background: transparent !important; 
+                    border: none !important; 
+                    border-bottom: 1px dashed #94a3b8 !important; 
+                    color: #0f172a !important; 
+                    box-shadow: none !important; 
+                    padding: 2px !important;
+                    height: auto !important;
+                }
+
+                /* Forzar grids de Tailwind a mantenerse en su sitio durante la impresión (A4 apaisado da ancho de sobra) */
+                .print-grid-3 { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 10px !important; }
+                .print-grid-7 { display: grid !important; grid-template-columns: repeat(7, minmax(0, 1fr)) !important; gap: 10px !important; }
+                .print-grid-5 { display: grid !important; grid-template-columns: repeat(5, minmax(0, 1fr)) !important; gap: 10px !important; }
+                .print-grid-2 { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
+                
+                /* Formato específico para la tabla final */
+                table { width: 100% !important; border-collapse: collapse !important; border: 1px solid #cbd5e1 !important; }
+                th, td { border: 1px solid #cbd5e1 !important; padding: 6px !important; color: #000 !important; }
+                tfoot { background-color: #e2e8f0 !important; }
             }
         `;
 
         return (
-            <div id="tariff-print-area" className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
+            <div id="tariff-print-area" className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in print:block">
                 <style>{printStyle}</style>
 
-                {/* BOTÓN IMPRIMIR */}
+                {/* BOTÓN IMPRIMIR (NO APARECERÁ EN EL PAPEL) */}
                 <div className="lg:col-span-12 flex justify-end no-print">
-                    <button onClick={() => window.print()} className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors flex items-center gap-2 shadow-lg border border-blue-500/50">
-                        <Icons.FileText className="w-5 h-5" /> IMPRIMIR COMPARATIVA
+                    <button onClick={() => window.print()} className="px-5 py-2 bg-slate-200 text-slate-900 hover:bg-white font-bold rounded-lg transition-colors flex items-center gap-2 shadow-lg border border-slate-300">
+                        <Icons.FileText className="w-5 h-5" /> IMPRIMIR INFORME
                     </button>
                 </div>
                 
-                <div className="lg:col-span-12 space-y-4">
+                <div className="lg:col-span-12 space-y-4 print-avoid-break">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5">
                         <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2"><Icons.Euro className="w-5 h-5 text-slate-400" /><h3 className="text-sm text-slate-300 font-bold uppercase">DATOS COMUNES</h3></div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 print-grid-7">
                             <div><label className="text-[10px] font-bold text-slate-400 block mb-1">Días Factura</label><FormattedInput value={tState.days} onChange={v => setTState({...tState, days: v})} decimals={0}/></div>
                             <div><label className="text-[10px] font-bold text-slate-400 block mb-1">Pot P1 (kW)</label><FormattedInput value={tState.potP1} onChange={v => setTState({...tState, potP1: v})} decimals={1}/></div>
                             <div><label className="text-[10px] font-bold text-slate-400 block mb-1">Pot P2 (kW)</label><FormattedInput value={tState.potP2} onChange={v => setTState({...tState, potP2: v})} decimals={1}/></div>
@@ -3277,7 +3310,7 @@
                     </div>
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
                         <div className="flex justify-between items-center mb-4"><h3 className="text-sm text-slate-300 font-bold uppercase flex gap-2"><Icons.Activity className="w-4 h-4"/> Patrón de Consumo (kWh)</h3><div className="flex items-center gap-4"><div className="flex items-center gap-2"><span className="text-xs font-bold text-yellow-500">Excedentes:</span><div className="w-24"><FormattedInput value={tState.solarExp} onChange={v => setTState({...tState, solarExp: v})} decimals={0}/></div></div><div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-300">Total:</span><span className="text-base font-bold text-white bg-slate-800 px-3 py-2 rounded border border-slate-700">{formatDecimal(tState.consTotal, 0)}</span></div></div></div>
-                        <div className="grid grid-cols-5 gap-4">
+                        <div className="grid grid-cols-5 gap-4 print-grid-5">
                             <div className="bg-red-900/20 p-3 rounded border border-red-900/30 text-center"><label className="text-[10px] font-bold text-red-300 block mb-1">P1 (Punta)</label><FormattedInput value={tState.p1Kwh} onChange={v => handleConsChange('p1Kwh', v)} decimals={0}/><div className="text-[10px] font-bold text-red-300 block mt-1">{formatDecimal(getConsPct(tState.p1Kwh), 0)}%</div></div>
                             <div className="bg-orange-900/20 p-3 rounded border border-orange-900/30 text-center"><label className="text-[10px] font-bold text-orange-300 block mb-1">P2 (Llano)</label><FormattedInput value={tState.p2Kwh} onChange={v => handleConsChange('p2Kwh', v)} decimals={0}/><div className="text-[10px] font-bold text-orange-300 block mt-1">{formatDecimal(getConsPct(tState.p2Kwh), 0)}%</div></div>
                             <div className="bg-green-900/20 p-3 rounded border border-green-900/30 text-center"><label className="text-[10px] font-bold text-green-300 block mb-1">P3 (Valle)</label><FormattedInput value={tState.p3Kwh} onChange={v => handleConsChange('p3Kwh', v)} decimals={0}/><div className="text-[10px] font-bold text-green-300 block mt-1">{formatDecimal(getConsPct(tState.p3Kwh), 0)}%</div></div>
@@ -3287,18 +3320,20 @@
                     </div>
                 </div>
 
-                <div className="lg:col-span-4"><ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
-                <div className="lg:col-span-4"><ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
-                <div className="lg:col-span-4"><ProposalColumn propKey="propC" title="Propuesta C" data={tState.propC} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                <div className="lg:col-span-12 print-grid-3 grid grid-cols-1 lg:grid-cols-3 gap-6 print-avoid-break mt-4">
+                    <ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} />
+                    <ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} />
+                    <ProposalColumn propKey="propC" title="Propuesta C" data={tState.propC} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} />
+                </div>
 
-                <div className="lg:col-span-12 space-y-6">
+                <div className="lg:col-span-12 space-y-6 print-avoid-break mt-4">
                     <div className="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 rounded-xl p-6">
                         <div className="flex items-center justify-center gap-3 mb-6">
                             <Icons.Award className="w-8 h-8 text-yellow-400" />
                             <h3 className="text-2xl font-display font-bold text-white uppercase tracking-widest">Ranking Final</h3>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 print-grid-3">
                             {rankedBills.map((item, index) => {
                                 const isWinner = index === 0;
                                 const diffPrev = index > 0 ? item.total - rankedBills[index - 1].total : 0;
@@ -3339,7 +3374,7 @@
                             })}
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print-grid-2">
                             
                             <div className="bg-slate-900/50 border border-blue-900/30 rounded-xl p-5 relative overflow-hidden">
                                 <div className="flex justify-between items-center mb-4 border-b border-blue-900/50 pb-2">
@@ -3395,12 +3430,12 @@
                     </div>
                 </div>
 
-                <div className="lg:col-span-12">
+                <div className="lg:col-span-12 print-avoid-break mt-4">
                     <Tariff3DChart billA={billA} billB={billB} billC={billC} nameA={tState.propA.name} nameB={tState.propB.name} nameC={tState.propC.name} />
                 </div>
 
-                <div className="lg:col-span-12">
-                    <div className="overflow-x-auto rounded-xl border border-slate-700 bg-slate-900/50">
+                <div className="lg:col-span-12 print-avoid-break mt-4">
+                    <div className="rounded-xl border border-slate-700 bg-slate-900/50 print:overflow-visible overflow-x-auto">
                         <table className="w-full text-sm border-collapse table-fixed">
                             <thead className="border-b border-slate-700">
                                 <tr>
@@ -3450,6 +3485,7 @@
                     </div>
                 </div>
 
+                {/* --- SECCIÓN OCULTA EN IMPRESIÓN (ESTIMADOR) --- */}
                 <div className="lg:col-span-12 mt-8 animate-fade-in no-print">
                     <div className="bg-slate-900/90 border-2 border-slate-700/50 rounded-2xl p-6 relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
@@ -3493,89 +3529,7 @@
                             <div className="pt-4 border-t border-slate-700">
                                 <div className="flex justify-between items-center mb-3">
                                     <label className="text-sm font-bold text-slate-300 uppercase">Configuración de Horarios (Periodos Energía)</label>
-                                    <div className="flex items-center gap-2 bg-slate-900 p-2 rounded border border-slate-600">
-                                        <input type="checkbox" checked={estState.scheduleConfig.weekendsAreP3} onChange={() => setEstState(p => ({...p, scheduleConfig: {...p.scheduleConfig, weekendsAreP3: !p.scheduleConfig.weekendsAreP3}}))} className="w-4 h-4 accent-green-500 cursor-pointer" />
-                                        <span className="text-xs text-white font-bold">Fines de Semana son Valle (P3)</span>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="bg-slate-900 p-3 rounded border border-slate-700">
-                                        <div className="text-xs font-bold text-red-400 mb-2 border-b border-red-900/50 pb-1">P1 (Horas Punta):</div>
-                                        <div className="flex flex-col gap-2">
-                                            {[0, 1, 2].map(i => (<input key={i} type="text" placeholder="Ej: 10-14" value={estState.scheduleConfig.p1[i]} onChange={(e) => handleScheduleConfig('p1', i, e.target.value)} className="w-full bg-slate-800 border border-slate-600 rounded text-center text-sm font-mono font-bold text-white p-2 focus:border-red-500 outline-none" />))}
-                                        </div>
-                                    </div>
-                                    <div className="bg-slate-900 p-3 rounded border border-slate-700">
-                                        <div className="text-xs font-bold text-orange-400 mb-2 border-b border-orange-900/50 pb-1">P2 (Horas Llano):</div>
-                                        <div className="flex flex-col gap-2">
-                                            {[0, 1, 2].map(i => (<input key={i} type="text" placeholder="Ej: 08-10" value={estState.scheduleConfig.p2[i]} onChange={(e) => handleScheduleConfig('p2', i, e.target.value)} className="w-full bg-slate-800 border border-slate-600 rounded text-center text-sm font-mono font-bold text-white p-2 focus:border-orange-500 outline-none" />))}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="text-sm font-bold text-slate-400 mt-4 italic text-center leading-relaxed bg-black/20 p-2 rounded">* Todo lo que no esté definido en P1 o P2 se considerará <span className="text-green-400">P3 (Valle)</span>. <br/>Formato obligatorio: <strong>HH-HH</strong> (Ej: 10-14 para indicar de 10:00 a 14:00).</div>
-                            </div>
-                        </div>
-
-                        <div className="space-y-4 relative z-10">
-                            {estState.devices.map((dev) => (
-                                <div key={dev.id} className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden transition-all hover:border-slate-500">
-                                    <div className="p-4 bg-slate-900/50 border-b border-slate-700 flex flex-wrap gap-4 items-end">
-                                        <div className="flex-grow min-w-[200px]"><label className="text-[10px] font-bold text-slate-500 uppercase">Nombre</label><input type="text" value={dev.name} onChange={(e) => handleDeviceChange(dev.id, 'name', e.target.value)} className="w-full bg-transparent border-b border-slate-600 focus:border-blue-500 outline-none text-white font-bold text-lg py-1" /></div>
-                                        <div className="w-24"><label className="text-[10px] font-bold text-slate-500 uppercase">Potencia (kW)</label><FormattedInput value={dev.power} onChange={(v) => handleDeviceChange(dev.id, 'power', v)} decimals={2} /></div>
-                                        <div className="w-16"><label className="text-[10px] font-bold text-slate-500 uppercase">Unidades</label><FormattedInput value={dev.count} onChange={(v) => handleDeviceChange(dev.id, 'count', v)} decimals={0} /></div>
-                                        <div className="w-40"><label className="text-[10px] font-bold text-slate-500 uppercase flex justify-between"><span>Factor Marcha</span><span className="text-blue-400">{dev.dutyCycle}%</span></label><input type="range" min="10" max="100" value={dev.dutyCycle} onChange={(e) => handleDeviceChange(dev.id, 'dutyCycle', parseInt(e.target.value))} className="w-full h-2 bg-slate-700 rounded-lg cursor-pointer accent-blue-500" /></div>
-                                        <button onClick={() => deleteDevice(dev.id)} className="px-3 py-2 text-xs font-bold text-white bg-red-600 hover:bg-red-500 rounded uppercase shadow-sm">ELIMINAR</button>
-                                    </div>
-                                    <div className="p-4 bg-slate-900/30">
-                                        <div className="flex overflow-x-auto gap-3 pb-4">
-                                            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => {
-                                                const dayInitials = { Mon: 'LU', Tue: 'MA', Wed: 'MI', Thu: 'JU', Fri: 'VI', Sat: 'SA', Sun: 'DO' };
-                                                const intervals = dev.days[day] || [];
-                                                return (
-                                                    <div key={day} className="min-w-[100px] bg-slate-800 rounded border border-slate-700 p-2 flex flex-col shrink-0">
-                                                        <div className="flex justify-between items-center border-b border-slate-700 pb-2 mb-2"><span className={`font-bold text-xs ${['Sat', 'Sun'].includes(day) ? 'text-orange-400' : 'text-slate-300'}`}>{dayInitials[day]}</span><div className="flex gap-1"><button onClick={() => addInterval(dev.id, day)} className="text-[10px] bg-slate-700 px-1.5 rounded hover:bg-slate-600 text-green-400 font-bold">+</button>{day === 'Mon' && <button onClick={() => copyScheduleToWeek(dev.id, 'Mon')} title="Copiar Lunes a toda la semana" className="text-[10px] bg-slate-700 px-1.5 rounded hover:bg-blue-600 text-blue-400 hover:text-white font-bold">All</button>}</div></div>
-                                                        <div className="flex flex-col gap-2">{intervals.map((int, idx) => (<div key={idx} className="flex flex-col gap-1 bg-slate-900 p-2 rounded border border-slate-600"><div className="w-full"><span className="text-[9px] text-slate-500 uppercase block mb-0.5">De</span><input type="text" placeholder="HH:MM" value={int.start} onChange={(e) => handleDeviceSchedule(dev.id, day, idx, 'start', e.target.value)} className="w-full bg-slate-800 text-xs text-white text-center font-mono rounded px-1 py-1 border border-slate-700 focus:border-blue-500 outline-none" /></div><div className="w-full"><span className="text-[9px] text-slate-500 uppercase block mb-0.5">A</span><input type="text" placeholder="HH:MM" value={int.end} onChange={(e) => handleDeviceSchedule(dev.id, day, idx, 'end', e.target.value)} className="w-full bg-slate-800 text-xs text-white text-center font-mono rounded px-1 py-1 border border-slate-700 focus:border-blue-500 outline-none" /></div><button onClick={() => removeInterval(dev.id, day, idx)} className="w-full mt-1 bg-red-900/30 hover:bg-red-900/50 text-red-400 text-[10px] font-bold py-1 rounded">BORRAR</button></div>))}{intervals.length === 0 && <span className="text-[10px] text-slate-600 text-center py-4 italic">Sin uso</span>}</div>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                        <div className="mt-2 text-[10px] text-slate-500 italic">* Factor de Marcha: 100% para cargas resistivas (Termos), 60% para Inverter (Aerotermia/AA). Define el % de tiempo que la máquina consume la potencia nominal en ese intervalo.</div>
-                                    </div>
-                                </div>
-                            ))}
-                            {estState.devices.length < 5 && (<button onClick={addDevice} className="w-full py-3 border-2 border-dashed border-slate-700 rounded-xl text-slate-400 font-bold hover:bg-slate-800 hover:text-white hover:border-slate-500 transition-all">+ AÑADIR OTRO DISPOSITIVO</button>)}
-                        </div>
-
-                        <div className="mt-8 bg-black/40 rounded-xl p-6 border border-slate-700/50 relative z-10">
-                            <h4 className="text-sm font-bold text-slate-300 uppercase mb-4 flex gap-2 items-center"><Icons.Activity className="w-4 h-4"/> Resultados Estimados ({estResult.daysDiff} días)</h4>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                                <div className="bg-slate-800 p-4 rounded-xl border border-slate-600 text-center flex flex-col justify-center"><div className="text-[10px] text-slate-400 uppercase font-bold mb-1">Promedio Semanal</div><div className="text-2xl font-bold text-white">{formatDecimal(estResult.weeklyCost)} €</div><div className="text-xs text-slate-500 font-mono mt-1">{formatDecimal(estResult.weeklyKwh, 0)} kWh</div></div>
-                                <div className="bg-slate-800 p-4 rounded-xl border-2 border-green-600/50 text-center flex flex-col justify-center relative shadow-lg"><div className="absolute top-0 left-0 w-full bg-green-900/30 text-[9px] text-green-300 font-bold uppercase py-0.5">Referencia Clave</div><div className="text-[10px] text-slate-400 uppercase font-bold mb-1 mt-2">Promedio Mensual</div><div className="text-4xl font-display font-bold text-green-400">{formatDecimal(estResult.monthlyCost)} €</div><div className="text-sm text-green-600/70 font-mono mt-1 font-bold">{formatDecimal(estResult.monthlyKwh, 0)} kWh</div></div>
-                                <div className="bg-slate-800 p-4 rounded-xl border border-slate-600 text-center flex flex-col justify-center"><div className="text-[10px] text-slate-400 uppercase font-bold mb-1">Total Periodo</div><div className="text-xl font-bold text-slate-300">{formatDecimal(estResult.totalCost)} €</div><div className="text-xs text-slate-500 font-mono mt-1">{formatDecimal(estResult.totalKwh, 0)} kWh</div></div>
-                                <div className="bg-slate-800 p-4 rounded-xl border border-slate-600 text-center flex flex-col justify-center relative overflow-hidden"><div className="text-[10px] text-slate-400 uppercase font-bold mb-1">Impacto en Factura</div><div className="text-3xl font-display font-bold text-orange-400">{formatDecimal(estResult.impactPct, 1)}%</div><div className="text-[9px] text-slate-500 mt-1 font-bold">del total mensual</div><div className="absolute bottom-0 left-0 h-1 bg-orange-500" style={{width: `${Math.min(100, estResult.impactPct)}%`}}></div></div>
-                            </div>
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left"><thead className="text-xs text-slate-500 uppercase bg-slate-900/50 border-b border-slate-700"><tr><th className="px-4 py-2">Dispositivo</th><th className="px-4 py-2 text-right">Coste Mensual</th><th className="px-4 py-2 text-right">Total kWh</th><th className="px-4 py-2 text-right">Coste Total</th></tr></thead><tbody className="divide-y divide-slate-800">{estResult.deviceResults.map(res => (<tr key={res.id}><td className="px-4 py-2 font-bold text-white">{res.name}</td><td className="px-4 py-2 text-right font-mono text-green-400 text-lg font-bold">{formatDecimal(res.totalCost / (estResult.daysDiff/30.44), 2)}€</td><td className="px-4 py-2 text-right font-mono text-slate-400 text-xs">{formatDecimal(res.totalKwh, 1)}</td><td className="px-4 py-2 text-right font-mono text-slate-400 text-xs">{formatDecimal(res.totalCost, 2)}€</td></tr>))}</tbody></table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="lg:col-span-12 no-print">
-                    <div className="flex flex-col md:flex-row gap-6 justify-center items-center p-6 bg-slate-900/50 rounded-xl border border-slate-700/50">
-                        <div className="flex flex-col items-center gap-2 w-full md:w-auto"><button onClick={handleSaveSnapshot} className="w-full md:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"><Icons.Settings className="w-5 h-5" /> GUARDAR DATOS</button>{savedDate && (<span className="text-xs font-bold text-slate-400">Copia: <span className="text-blue-300">{savedDate}</span></span>)}</div>
-                        {savedDate && (<div className="flex flex-col items-center gap-2 w-full md:w-auto"><button onClick={handleRestoreSnapshot} className="w-full md:w-auto px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"><Icons.Activity className="w-5 h-5" /> RESTAURAR DATOS</button></div>)}
-                    </div>
-                </div>
-
-                <div className="lg:col-span-12 mt-2 p-6 bg-purple-900/20 border border-purple-500/30 rounded-xl flex flex-col items-center gap-4 text-center no-print">
-                    <p className="text-sm font-bold text-slate-300 leading-relaxed max-w-4xl">(*) Una de las mejores Comercializadoras del Mercado es Octopus Energy. Aprovecha mi referido para colaborar con el proyecto y ahorrarte dinero (50€ gratis). El trámite se realiza en 5 minutos, sin permanencia y puedes cambiar las veces que quieras.</p>
-                    <a href="https://share.octopusenergy.es/topaz-boar-888" target="_blank" className="bg-purple-600 hover:bg-purple-500 text-white text-lg md:text-xl font-bold px-8 py-4 rounded-xl transition-all shadow-lg hover:shadow-purple-500/20 transform hover:-translate-y-1 flex items-center gap-2">CONSEGUIR 50€ DE DESCUENTO EN OCTOPUS ENERGY</a>
-                </div>
-            </div>
-        );
-      };
-
+                                    <div className="flex items-center gap-
 
  
 
