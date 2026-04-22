@@ -2943,6 +2943,7 @@
 
 
 // --- TARIFF COMPARATOR (FINAL: IMPRESIÓN CORREGIDA, EVITA CORTES Y DESBORDAMIENTOS) ---
+// --- TARIFF COMPARATOR (FINAL: IMPRESIÓN REDIMENSIONADA PARA EVITAR CORTES) ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV9_final', {
             days: 30,
@@ -3097,6 +3098,11 @@
 
         const handleSaveSnapshot = () => { try { localStorage.setItem('tariffCompSnapshot', JSON.stringify(tState)); setSavedDate(new Date().toLocaleString('es-ES')); } catch (e) {} };
         const handleRestoreSnapshot = () => { try { const data = localStorage.getItem('tariffCompSnapshot'); if (data) setTState(JSON.parse(data)); } catch (e) {} };
+        
+        const handlePrint = () => {
+            window.print();
+        };
+
         const handleConsChange = (key, val) => {
             if (key === 'consTotal') {
                  const currentTotal = tState.p1Kwh + tState.p2Kwh + tState.p3Kwh + tState.p3VeKwh + tState.p4Kwh || 1;
@@ -3146,7 +3152,6 @@
         const billC = { ...calculateBill(tState.propC), name: tState.propC.name, ev: calculateEVCost(tState.propC) };
 
         const rankedBills = [billA, billB, billC].sort((a,b) => a.total - b.total);
-        const best = rankedBills[0];
         
         const rankedEnergy = [billA, billB, billC].sort((a,b) => a.termEnNet - b.termEnNet);
         const rankedPower = [billA, billB, billC].sort((a,b) => a.termPotDisc - b.termPotDisc);
@@ -3223,36 +3228,38 @@
         };
         const estResult = calculateEstimation();
 
-        // Estilos CSS agresivos para forzar una impresión perfecta en papel (A4 Apaisado recomendado)
+        // CSS agresivo que fuerza el escalado al 65% para asegurar que todo el ancho entra en un papel A4 vertical u horizontal.
         const printStyle = `
             @media print {
-                @page { size: landscape; margin: 10mm; }
-                body { background-color: #ffffff !important; color: #000000 !important; font-size: 11pt !important; }
+                @page { size: landscape; margin: 8mm; }
+                body, html { background: #ffffff !important; color: #000000 !important; font-family: sans-serif; }
                 
-                /* Ocultar barra superior, pestañas y elementos interactivos no necesarios en papel */
+                /* Ocultar elementos inútiles en papel */
                 header, nav, button, input[type="range"], input[type="checkbox"], .no-print { display: none !important; }
                 
-                /* Romper el layout del body/root principal para que ocupe todo el ancho sin recortes */
                 .keyboard-padding { padding: 0 !important; }
-                #tariff-print-area { display: block !important; width: 100% !important; max-width: 100% !important; margin: 0 !important; }
                 
-                /* Evitar cortes a mitad de cajas importantes */
-                .print-avoid-break { break-inside: avoid !important; page-break-inside: avoid !important; margin-bottom: 15px !important; }
+                #tariff-print-area { 
+                    display: block !important; 
+                    width: 100% !important; 
+                    max-width: 100% !important; 
+                    margin: 0 !important; 
+                    padding: 0 !important;
+                    /* Magia para que no se corte por la derecha: Reduce el tamaño a un 65% del original */
+                    zoom: 0.65; 
+                }
                 
-                /* Eliminar desbordamientos y barras de scroll */
+                .print-avoid-break { break-inside: avoid !important; page-break-inside: avoid !important; margin-bottom: 20px !important; }
                 .overflow-hidden, .overflow-x-auto { overflow: visible !important; }
                 
-                /* Forzar colores claros de fondo para ahorrar tinta y mejorar contraste */
+                /* Eliminar fondos oscuros para ahorrar tinta y mejorar legibilidad */
                 .bg-slate-900, .bg-slate-800, .bg-slate-900\\/80, .bg-slate-900\\/50, .bg-slate-800\\/50, 
                 .bg-slate-900\\/40, .bg-slate-800\\/30, .bg-gradient-to-br, .bg-blue-900\\/10, .bg-red-900\\/10 { 
                     background: #f8fafc !important; 
-                    border-color: #cbd5e1 !important; 
+                    border: 1px solid #cbd5e1 !important; 
                 }
                 
-                /* Forzar textos oscuros para papel */
                 .text-white, .text-slate-200, .text-slate-300, .text-slate-400 { color: #0f172a !important; }
-                
-                /* Colores de acento ajustados para fondo blanco */
                 .text-red-400, .text-red-300 { color: #dc2626 !important; }
                 .text-green-400, .text-green-300 { color: #16a34a !important; }
                 .text-blue-400, .text-blue-300 { color: #2563eb !important; }
@@ -3260,7 +3267,7 @@
                 .text-orange-400 { color: #ea580c !important; }
                 .text-purple-400 { color: #9333ea !important; }
                 
-                /* Adaptar inputs para que se vean como texto plano */
+                /* Tratar inputs para que se vean como simple texto subrayado */
                 input[type="text"], input[type="number"] { 
                     background: transparent !important; 
                     border: none !important; 
@@ -3269,18 +3276,24 @@
                     box-shadow: none !important; 
                     padding: 2px !important;
                     height: auto !important;
+                    width: 100% !important;
+                    text-align: center !important;
                 }
 
-                /* Forzar grids de Tailwind a mantenerse en su sitio durante la impresión (A4 apaisado da ancho de sobra) */
-                .print-grid-3 { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 10px !important; }
-                .print-grid-7 { display: grid !important; grid-template-columns: repeat(7, minmax(0, 1fr)) !important; gap: 10px !important; }
-                .print-grid-5 { display: grid !important; grid-template-columns: repeat(5, minmax(0, 1fr)) !important; gap: 10px !important; }
-                .print-grid-2 { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; }
+                /* Mantener las columnas en su sitio forzando el grid independientemente de que se imprima en portrait o landscape */
+                .print-grid-3 { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 10px !important; width: 100% !important; }
+                .print-grid-7 { display: grid !important; grid-template-columns: repeat(7, minmax(0, 1fr)) !important; gap: 8px !important; width: 100% !important; }
+                .print-grid-5 { display: grid !important; grid-template-columns: repeat(5, minmax(0, 1fr)) !important; gap: 8px !important; width: 100% !important; }
+                .print-grid-2 { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; width: 100% !important; }
                 
-                /* Formato específico para la tabla final */
-                table { width: 100% !important; border-collapse: collapse !important; border: 1px solid #cbd5e1 !important; }
-                th, td { border: 1px solid #cbd5e1 !important; padding: 6px !important; color: #000 !important; }
-                tfoot { background-color: #e2e8f0 !important; }
+                /* Asegurar que la tabla ocupa todo y no se corta */
+                table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; border: 2px solid #94a3b8 !important; }
+                th, td { border: 1px solid #cbd5e1 !important; padding: 6px !important; color: #000 !important; font-size: 11px !important; word-wrap: break-word !important; }
+                thead th { background-color: #f1f5f9 !important; font-weight: bold !important; color: #000 !important; }
+                tfoot td { background-color: #e2e8f0 !important; font-weight: bold !important; color: #000 !important; }
+                
+                .shadow-lg, .shadow-xl, .shadow-2xl { box-shadow: none !important; }
+                .flex-wrap { flex-wrap: nowrap !important; }
             }
         `;
 
@@ -3290,8 +3303,8 @@
 
                 {/* BOTÓN IMPRIMIR (NO APARECERÁ EN EL PAPEL) */}
                 <div className="lg:col-span-12 flex justify-end no-print">
-                    <button onClick={() => window.print()} className="px-5 py-2 bg-slate-200 text-slate-900 hover:bg-white font-bold rounded-lg transition-colors flex items-center gap-2 shadow-lg border border-slate-300">
-                        <Icons.FileText className="w-5 h-5" /> IMPRIMIR INFORME
+                    <button onClick={handlePrint} className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors flex items-center gap-2 shadow-lg border border-blue-500/50">
+                        <Icons.FileText className="w-5 h-5" /> IMPRIMIR INFORME 
                     </button>
                 </div>
                 
