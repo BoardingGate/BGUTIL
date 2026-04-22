@@ -2943,7 +2943,7 @@
 
 
 // --- TARIFF COMPARATOR (FINAL: IMPRESIÓN CORREGIDA, EVITA CORTES Y DESBORDAMIENTOS) ---
-// --- TARIFF COMPARATOR (FINAL: IMPRESIÓN REDIMENSIONADA PARA EVITAR CORTES) ---
+// --- TARIFF COMPARATOR (FINAL: IMPRESIÓN ULTRA COMPACTA ANTI-CORTES) ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV9_final', {
             days: 30,
@@ -3079,15 +3079,15 @@
                         <div ref={mountRef} className="absolute inset-0 w-full h-full pl-10" /> 
                     </div>
                     <div className="flex justify-center mt-3 pl-8 gap-4 text-center">
-                        <div className="w-24">
+                        <div className="w-24 print-col">
                             <div className="text-xl font-display font-bold text-white leading-none mb-1">{formatDecimal(billA.total)}€</div>
                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{nameA}</div>
                         </div>
-                        <div className="w-24">
+                        <div className="w-24 print-col">
                             <div className="text-xl font-display font-bold text-white leading-none mb-1">{formatDecimal(billB.total)}€</div>
                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{nameB}</div>
                         </div>
-                        <div className="w-24">
+                        <div className="w-24 print-col">
                             <div className="text-xl font-display font-bold text-white leading-none mb-1">{formatDecimal(billC.total)}€</div>
                             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{nameC}</div>
                         </div>
@@ -3100,6 +3100,7 @@
         const handleRestoreSnapshot = () => { try { const data = localStorage.getItem('tariffCompSnapshot'); if (data) setTState(JSON.parse(data)); } catch (e) {} };
         
         const handlePrint = () => {
+            alert("CONSEJO DE IMPRESIÓN:\nSe ha forzado el formato para que encaje perfectamente tanto en Vertical como en Apaisado. Asegúrate de marcar 'Imprimir gráficos/colores de fondo' en las opciones de tu impresora para ver las tablas correctamente.");
             window.print();
         };
 
@@ -3152,7 +3153,6 @@
         const billC = { ...calculateBill(tState.propC), name: tState.propC.name, ev: calculateEVCost(tState.propC) };
 
         const rankedBills = [billA, billB, billC].sort((a,b) => a.total - b.total);
-        
         const rankedEnergy = [billA, billB, billC].sort((a,b) => a.termEnNet - b.termEnNet);
         const rankedPower = [billA, billB, billC].sort((a,b) => a.termPotDisc - b.termPotDisc);
 
@@ -3228,7 +3228,7 @@
         };
         const estResult = calculateEstimation();
 
-        // CSS agresivo que fuerza el escalado al 65% para asegurar que todo el ancho entra en un papel A4 vertical u horizontal.
+        // ESTILOS EXTREMOS DE IMPRESIÓN PARA FORZAR QUE 3 COLUMNAS ENTREN EN 1 HOJA A4 SIN CORTARSE
         const printStyle = `
             @media print {
                 @page { size: landscape; margin: 8mm; }
@@ -3237,7 +3237,8 @@
                 /* Ocultar elementos inútiles en papel */
                 header, nav, button, input[type="range"], input[type="checkbox"], .no-print { display: none !important; }
                 
-                .keyboard-padding { padding: 0 !important; }
+                /* Reseteamos padding y margin del contenedor principal del proyecto */
+                .keyboard-padding { padding: 0 !important; margin: 0 !important; }
                 
                 #tariff-print-area { 
                     display: block !important; 
@@ -3245,20 +3246,47 @@
                     max-width: 100% !important; 
                     margin: 0 !important; 
                     padding: 0 !important;
-                    /* Magia para que no se corte por la derecha: Reduce el tamaño a un 65% del original */
-                    zoom: 0.65; 
                 }
                 
-                .print-avoid-break { break-inside: avoid !important; page-break-inside: avoid !important; margin-bottom: 20px !important; }
+                /* Esta clase es la magia: Fuerza un flexbox estricto donde los hijos NUNCA pueden superar el 33% */
+                .print-grid-3 { 
+                    display: flex !important; 
+                    flex-direction: row !important; 
+                    flex-wrap: nowrap !important; 
+                    width: 100% !important; 
+                    gap: 5px !important; 
+                    margin-bottom: 10px !important;
+                }
+                
+                .print-col { 
+                    flex: 1 1 0 !important; 
+                    min-width: 0 !important; /* Vital para que el flexbox deje encoger las cajas */
+                    width: 33% !important; 
+                    max-width: 33% !important;
+                    padding: 6px !important;
+                    box-sizing: border-box !important;
+                }
+
+                .print-grid-7 { display: flex !important; flex-direction: row !important; gap: 5px !important; width: 100% !important; }
+                .print-grid-7 > div { flex: 1 1 0 !important; min-width: 0 !important; }
+                
+                .print-grid-5 { display: flex !important; flex-direction: row !important; gap: 5px !important; width: 100% !important; }
+                .print-grid-5 > div { flex: 1 1 0 !important; min-width: 0 !important; }
+
+                .print-grid-2 { display: flex !important; flex-direction: row !important; gap: 10px !important; width: 100% !important; }
+                .print-grid-2 > div { flex: 1 1 0 !important; min-width: 0 !important; width: 50% !important; }
+
+                .print-avoid-break { break-inside: avoid !important; page-break-inside: avoid !important; margin-bottom: 15px !important; }
                 .overflow-hidden, .overflow-x-auto { overflow: visible !important; }
                 
-                /* Eliminar fondos oscuros para ahorrar tinta y mejorar legibilidad */
+                /* Eliminar fondos oscuros para ahorrar tinta y mejorar contraste */
                 .bg-slate-900, .bg-slate-800, .bg-slate-900\\/80, .bg-slate-900\\/50, .bg-slate-800\\/50, 
                 .bg-slate-900\\/40, .bg-slate-800\\/30, .bg-gradient-to-br, .bg-blue-900\\/10, .bg-red-900\\/10 { 
                     background: #f8fafc !important; 
                     border: 1px solid #cbd5e1 !important; 
                 }
                 
+                /* Forzar textos legibles sobre blanco */
                 .text-white, .text-slate-200, .text-slate-300, .text-slate-400 { color: #0f172a !important; }
                 .text-red-400, .text-red-300 { color: #dc2626 !important; }
                 .text-green-400, .text-green-300 { color: #16a34a !important; }
@@ -3267,33 +3295,33 @@
                 .text-orange-400 { color: #ea580c !important; }
                 .text-purple-400 { color: #9333ea !important; }
                 
-                /* Tratar inputs para que se vean como simple texto subrayado */
+                /* Empequeñecer textos para que quepan en las cajas estrechas */
+                .text-xs, .text-\\[10px\\], .text-\\[9px\\] { font-size: 8px !important; line-height: 1.1 !important; }
+                .text-sm { font-size: 10px !important; }
+                .text-base, .text-lg, .text-xl, .text-2xl, .text-3xl, .text-4xl { font-size: 12px !important; }
+                
+                /* Convertir los inputs en texto plano simple */
                 input[type="text"], input[type="number"] { 
                     background: transparent !important; 
                     border: none !important; 
                     border-bottom: 1px dashed #94a3b8 !important; 
                     color: #0f172a !important; 
                     box-shadow: none !important; 
-                    padding: 2px !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
                     height: auto !important;
                     width: 100% !important;
                     text-align: center !important;
+                    font-size: 10px !important;
                 }
 
-                /* Mantener las columnas en su sitio forzando el grid independientemente de que se imprima en portrait o landscape */
-                .print-grid-3 { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 10px !important; width: 100% !important; }
-                .print-grid-7 { display: grid !important; grid-template-columns: repeat(7, minmax(0, 1fr)) !important; gap: 8px !important; width: 100% !important; }
-                .print-grid-5 { display: grid !important; grid-template-columns: repeat(5, minmax(0, 1fr)) !important; gap: 8px !important; width: 100% !important; }
-                .print-grid-2 { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; width: 100% !important; }
-                
-                /* Asegurar que la tabla ocupa todo y no se corta */
+                /* Tabla limpia y estrecha */
                 table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; border: 2px solid #94a3b8 !important; }
-                th, td { border: 1px solid #cbd5e1 !important; padding: 6px !important; color: #000 !important; font-size: 11px !important; word-wrap: break-word !important; }
+                th, td { border: 1px solid #cbd5e1 !important; padding: 4px !important; color: #000 !important; font-size: 9px !important; word-wrap: break-word !important; }
                 thead th { background-color: #f1f5f9 !important; font-weight: bold !important; color: #000 !important; }
                 tfoot td { background-color: #e2e8f0 !important; font-weight: bold !important; color: #000 !important; }
                 
                 .shadow-lg, .shadow-xl, .shadow-2xl { box-shadow: none !important; }
-                .flex-wrap { flex-wrap: nowrap !important; }
             }
         `;
 
@@ -3311,7 +3339,7 @@
                 <div className="lg:col-span-12 space-y-4 print-avoid-break">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5">
                         <div className="flex items-center gap-2 mb-4 border-b border-slate-700 pb-2"><Icons.Euro className="w-5 h-5 text-slate-400" /><h3 className="text-sm text-slate-300 font-bold uppercase">DATOS COMUNES</h3></div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4 print-grid-7">
+                        <div className="print-grid-7 grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-4">
                             <div><label className="text-[10px] font-bold text-slate-400 block mb-1">Días Factura</label><FormattedInput value={tState.days} onChange={v => setTState({...tState, days: v})} decimals={0}/></div>
                             <div><label className="text-[10px] font-bold text-slate-400 block mb-1">Pot P1 (kW)</label><FormattedInput value={tState.potP1} onChange={v => setTState({...tState, potP1: v})} decimals={1}/></div>
                             <div><label className="text-[10px] font-bold text-slate-400 block mb-1">Pot P2 (kW)</label><FormattedInput value={tState.potP2} onChange={v => setTState({...tState, potP2: v})} decimals={1}/></div>
@@ -3323,7 +3351,7 @@
                     </div>
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
                         <div className="flex justify-between items-center mb-4"><h3 className="text-sm text-slate-300 font-bold uppercase flex gap-2"><Icons.Activity className="w-4 h-4"/> Patrón de Consumo (kWh)</h3><div className="flex items-center gap-4"><div className="flex items-center gap-2"><span className="text-xs font-bold text-yellow-500">Excedentes:</span><div className="w-24"><FormattedInput value={tState.solarExp} onChange={v => setTState({...tState, solarExp: v})} decimals={0}/></div></div><div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-300">Total:</span><span className="text-base font-bold text-white bg-slate-800 px-3 py-2 rounded border border-slate-700">{formatDecimal(tState.consTotal, 0)}</span></div></div></div>
-                        <div className="grid grid-cols-5 gap-4 print-grid-5">
+                        <div className="print-grid-5 grid grid-cols-5 gap-4">
                             <div className="bg-red-900/20 p-3 rounded border border-red-900/30 text-center"><label className="text-[10px] font-bold text-red-300 block mb-1">P1 (Punta)</label><FormattedInput value={tState.p1Kwh} onChange={v => handleConsChange('p1Kwh', v)} decimals={0}/><div className="text-[10px] font-bold text-red-300 block mt-1">{formatDecimal(getConsPct(tState.p1Kwh), 0)}%</div></div>
                             <div className="bg-orange-900/20 p-3 rounded border border-orange-900/30 text-center"><label className="text-[10px] font-bold text-orange-300 block mb-1">P2 (Llano)</label><FormattedInput value={tState.p2Kwh} onChange={v => handleConsChange('p2Kwh', v)} decimals={0}/><div className="text-[10px] font-bold text-orange-300 block mt-1">{formatDecimal(getConsPct(tState.p2Kwh), 0)}%</div></div>
                             <div className="bg-green-900/20 p-3 rounded border border-green-900/30 text-center"><label className="text-[10px] font-bold text-green-300 block mb-1">P3 (Valle)</label><FormattedInput value={tState.p3Kwh} onChange={v => handleConsChange('p3Kwh', v)} decimals={0}/><div className="text-[10px] font-bold text-green-300 block mt-1">{formatDecimal(getConsPct(tState.p3Kwh), 0)}%</div></div>
@@ -3334,9 +3362,9 @@
                 </div>
 
                 <div className="lg:col-span-12 print-grid-3 grid grid-cols-1 lg:grid-cols-3 gap-6 print-avoid-break mt-4">
-                    <ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} />
-                    <ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} />
-                    <ProposalColumn propKey="propC" title="Propuesta C" data={tState.propC} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} />
+                    <div className="print-col"><ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                    <div className="print-col"><ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                    <div className="print-col"><ProposalColumn propKey="propC" title="Propuesta C" data={tState.propC} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
                 </div>
 
                 <div className="lg:col-span-12 space-y-6 print-avoid-break mt-4">
@@ -3346,7 +3374,7 @@
                             <h3 className="text-2xl font-display font-bold text-white uppercase tracking-widest">Ranking Final</h3>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 print-grid-3">
+                        <div className="print-grid-3 grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                             {rankedBills.map((item, index) => {
                                 const isWinner = index === 0;
                                 const diffPrev = index > 0 ? item.total - rankedBills[index - 1].total : 0;
@@ -3354,7 +3382,7 @@
                                 const borderClass = isWinner ? 'border-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.2)] bg-yellow-900/10' : index === 1 ? 'border-slate-600 bg-slate-800/30' : 'border-red-900/50 bg-red-900/10';
                                 
                                 return (
-                                    <div key={index} className={`relative rounded-2xl border-2 p-5 flex flex-col items-center text-center transition-transform hover:scale-105 ${borderClass}`}>
+                                    <div key={index} className={`print-col relative rounded-2xl border-2 p-5 flex flex-col items-center text-center transition-transform hover:scale-105 ${borderClass}`}>
                                         <div className={`absolute -top-4 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-md ${isWinner ? 'bg-yellow-500 text-black' : 'bg-slate-700 text-slate-300'}`}>
                                             {index + 1}º Puesto
                                         </div>
@@ -3387,7 +3415,7 @@
                             })}
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 print-grid-2">
+                        <div className="print-grid-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                             
                             <div className="bg-slate-900/50 border border-blue-900/30 rounded-xl p-5 relative overflow-hidden">
                                 <div className="flex justify-between items-center mb-4 border-b border-blue-900/50 pb-2">
@@ -3617,14 +3645,13 @@
                     </div>
                 </div>
 
-                <div className="lg:col-span-12 mt-2 p-6 bg-purple-900/20 border border-purple-500/30 rounded-xl flex flex-col items-center gap-4 text-center no-print">
+                  <div className="lg:col-span-12 mt-2 p-6 bg-purple-900/20 border border-purple-500/30 rounded-xl flex flex-col items-center gap-4 text-center no-print">
                     <p className="text-sm font-bold text-slate-300 leading-relaxed max-w-4xl">(*) Una de las mejores Comercializadoras del Mercado es Octopus Energy. Aprovecha mi referido para colaborar con el proyecto y ahorrarte dinero (50€ gratis). El trámite se realiza en 5 minutos, sin permanencia y puedes cambiar las veces que quieras.</p>
                     <a href="https://share.octopusenergy.es/topaz-boar-888" target="_blank" className="bg-purple-600 hover:bg-purple-500 text-white text-lg md:text-xl font-bold px-8 py-4 rounded-xl transition-all shadow-lg hover:shadow-purple-500/20 transform hover:-translate-y-1 flex items-center gap-2">CONSEGUIR 50€ DE DESCUENTO EN OCTOPUS ENERGY</a>
                 </div>
             </div>
         );
       };
-  
         
       // --- DECODIFICADOR VIN AVANZADO V2 (CORREGIDO) ---
       const VinDecoder = () => {
