@@ -2942,9 +2942,7 @@
       };
 
 
-
-
-     // --- TARIFF COMPARATOR (FINAL: 3 COMPAÑÍAS, % RESTAURADO, OCTOPUS RELAX) ---
+// --- TARIFF COMPARATOR (FINAL: 3 COMPAÑÍAS, % RESTAURADO, OCTOPUS RELAX + IMPRESIÓN) ---
       const TariffComparator = () => {
         const [tState, setTState] = usePersistentState('tariffCompV9_final', {
             days: 30,
@@ -3077,7 +3075,6 @@
                         <div className="absolute top-0 bottom-0 left-0 w-10 z-20 pointer-events-none">{ticks.map((t) => (<div key={t} className="absolute right-0 flex items-center justify-end w-full" style={{ bottom: `${10 + ((t / axisMax) * 80)}%`, transform: 'translateY(50%)' }}><span className="text-[10px] font-bold text-slate-400">{t.toFixed(0)}€</span></div>))}</div>
                         <div ref={mountRef} className="absolute inset-0 w-full h-full pl-10" /> 
                     </div>
-                    {/* AQUÍ SE MUESTRAN LOS NOMBRES Y TOTALES AL PIE DE LA GRÁFICA */}
                     <div className="flex justify-center mt-3 pl-8 gap-4 text-center">
                         <div className="w-24">
                             <div className="text-xl font-display font-bold text-white leading-none mb-1">{formatDecimal(billA.total)}€</div>
@@ -3152,7 +3149,7 @@
         const rankedEnergy = [billA, billB, billC].sort((a,b) => a.termEnNet - b.termEnNet);
         const rankedPower = [billA, billB, billC].sort((a,b) => a.termPotDisc - b.termPotDisc);
 
-        const getConsPct = (val) => tState.consTotal > 0 ? (val / tState.consTotal) * 100 : 0; // Helper restaurado
+        const getConsPct = (val) => tState.consTotal > 0 ? (val / tState.consTotal) * 100 : 0; 
         const consumptionData = { p1Kwh: tState.p1Kwh, p2Kwh: tState.p2Kwh, p3Kwh: tState.p3Kwh, p3VeKwh: tState.p3VeKwh, p4Kwh: tState.p4Kwh, totalKwh: tState.consTotal };
         const getMinClass = (valA, valB, valC, currentVal) => { const min = Math.min(valA, valB, valC); return Math.abs(currentVal - min) < 0.001 ? 'text-green-400' : 'text-slate-300'; };
 
@@ -3224,8 +3221,46 @@
         };
         const estResult = calculateEstimation();
 
+        // Estilos CSS inyectados específicamente para la impresión de esta pestaña
+        const printStyle = `
+            @media print {
+                @page { size: landscape; margin: 10mm; }
+                body { background-color: #ffffff !important; color: #000000 !important; }
+                /* Ocultar barra superior y pestañas */
+                header, nav, .keyboard-padding > *:not(#tariff-print-area) { display: none !important; }
+                /* Ocultar elementos que no necesitan imprimirse (botones, inputs range) */
+                .no-print, input[type="range"], button { display: none !important; }
+                
+                #tariff-print-area { position: relative !important; width: 100% !important; color: #000000 !important; }
+                #tariff-print-area * { color: #000000 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                
+                /* Fondos claros para impresión */
+                .bg-slate-900, .bg-slate-800, .bg-slate-900\\/80, .bg-slate-900\\/50 { background-color: #f8fafc !important; border-color: #cbd5e1 !important; }
+                .text-white, .text-slate-400, .text-slate-300, .text-slate-200 { color: #0f172a !important; }
+                
+                /* Mantener colores para destacar valores clave, pero adaptados para papel blanco */
+                .text-red-400, .text-red-300 { color: #dc2626 !important; }
+                .text-green-400, .text-green-300 { color: #16a34a !important; }
+                .text-blue-400, .text-blue-300 { color: #2563eb !important; }
+                .text-yellow-400 { color: #ca8a04 !important; }
+                .text-orange-400 { color: #ea580c !important; }
+                .text-purple-400 { color: #9333ea !important; }
+                
+                /* Adaptar inputs para que se vean como texto */
+                input[type="text"], input[type="number"] { background: transparent !important; border: 1px solid #cbd5e1 !important; color: #0f172a !important; box-shadow: none !important; }
+            }
+        `;
+
         return (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
+            <div id="tariff-print-area" className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
+                <style>{printStyle}</style>
+
+                {/* BOTÓN IMPRIMIR */}
+                <div className="lg:col-span-12 flex justify-end no-print">
+                    <button onClick={() => window.print()} className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors flex items-center gap-2 shadow-lg border border-blue-500/50">
+                        <Icons.FileText className="w-5 h-5" /> IMPRIMIR COMPARATIVA
+                    </button>
+                </div>
                 
                 <div className="lg:col-span-12 space-y-4">
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-5">
@@ -3415,7 +3450,7 @@
                     </div>
                 </div>
 
-                <div className="lg:col-span-12 mt-8 animate-fade-in">
+                <div className="lg:col-span-12 mt-8 animate-fade-in no-print">
                     <div className="bg-slate-900/90 border-2 border-slate-700/50 rounded-2xl p-6 relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
                             <Icons.Activity className="w-64 h-64 text-white" />
@@ -3526,21 +3561,22 @@
                     </div>
                 </div>
 
-                <div className="lg:col-span-12">
+                <div className="lg:col-span-12 no-print">
                     <div className="flex flex-col md:flex-row gap-6 justify-center items-center p-6 bg-slate-900/50 rounded-xl border border-slate-700/50">
                         <div className="flex flex-col items-center gap-2 w-full md:w-auto"><button onClick={handleSaveSnapshot} className="w-full md:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"><Icons.Settings className="w-5 h-5" /> GUARDAR DATOS</button>{savedDate && (<span className="text-xs font-bold text-slate-400">Copia: <span className="text-blue-300">{savedDate}</span></span>)}</div>
                         {savedDate && (<div className="flex flex-col items-center gap-2 w-full md:w-auto"><button onClick={handleRestoreSnapshot} className="w-full md:w-auto px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"><Icons.Activity className="w-5 h-5" /> RESTAURAR DATOS</button></div>)}
                     </div>
                 </div>
 
-                <div className="lg:col-span-12 mt-2 p-6 bg-purple-900/20 border border-purple-500/30 rounded-xl flex flex-col items-center gap-4 text-center">
+                <div className="lg:col-span-12 mt-2 p-6 bg-purple-900/20 border border-purple-500/30 rounded-xl flex flex-col items-center gap-4 text-center no-print">
                     <p className="text-sm font-bold text-slate-300 leading-relaxed max-w-4xl">(*) Una de las mejores Comercializadoras del Mercado es Octopus Energy. Aprovecha mi referido para colaborar con el proyecto y ahorrarte dinero (50€ gratis). El trámite se realiza en 5 minutos, sin permanencia y puedes cambiar las veces que quieras.</p>
                     <a href="https://share.octopusenergy.es/topaz-boar-888" target="_blank" className="bg-purple-600 hover:bg-purple-500 text-white text-lg md:text-xl font-bold px-8 py-4 rounded-xl transition-all shadow-lg hover:shadow-purple-500/20 transform hover:-translate-y-1 flex items-center gap-2">CONSEGUIR 50€ DE DESCUENTO EN OCTOPUS ENERGY</a>
                 </div>
             </div>
         );
       };
-        
+
+
  
 
   
