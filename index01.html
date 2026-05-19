@@ -1977,21 +1977,41 @@
                             </div>
                         </div>
                     </div>
+
                     <div className="lg:col-span-4 flex flex-col gap-6">
                         <div className="bg-slate-900/80 border border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-center flex-1">
                             <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Tiempo Total Carga</div>
                             <div className="text-5xl font-display font-bold text-white">{formatTimeShort(totalTime)}</div>
-                            <div className="text-sm text-slate-400 mt-2 font-bold">{formatDecimal(totalKwhCharged, 1)} kWh Totales</div>
+                            <div className="text-sm text-slate-400 mt-2 font-bold">{formatDecimal(totalKwhCharged, 1)} kWh a Batería</div>
                         </div>
                         <div className="bg-slate-900/80 border border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-center flex-1">
                             <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4">Coste Estimado</div>
                             <div className="flex flex-col gap-3 w-full">
-                                <div className="flex justify-between w-full text-sm font-bold text-slate-400 border-b border-slate-700 pb-2"><span>Semanal</span><span className="text-white text-lg">{formatDecimal(totalCost)}€</span></div>
-                                <div className="flex justify-between w-full text-sm font-bold text-slate-400 border-b border-slate-700 pb-2"><span>Mensual</span><span className="text-white text-lg">{formatDecimal(monthlyCost)}€</span></div>
-                                <div className="flex justify-between w-full text-sm font-bold text-slate-400"><span>Anual</span><span className="text-blue-400 text-lg">{formatMoney(annualCost)}€</span></div>
+                                <div className="flex justify-between items-center w-full text-sm font-bold text-slate-400 border-b border-slate-700 pb-2">
+                                    <span>Semanal</span>
+                                    <div className="text-right leading-tight">
+                                        <div className="text-white text-lg">{formatDecimal(totalCost)}€</div>
+                                        <div className="text-xs font-mono text-slate-400 mt-0.5">{formatDecimal(totalKwhCharged / (state.chargingEfficiency / 100 || 1), 1)} kWh red</div>
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center w-full text-sm font-bold text-slate-400 border-b border-slate-700 pb-2">
+                                    <span>Mensual</span>
+                                    <div className="text-right leading-tight">
+                                        <div className="text-white text-lg">{formatDecimal(monthlyCost)}€</div>
+                                        <div className="text-xs font-mono text-slate-400 mt-0.5">{formatDecimal((totalKwhCharged / (state.chargingEfficiency / 100 || 1) / 7) * 30.41, 1)} kWh red</div>
+                                    </div>
+                                </div>
+                                <div className="flex justify-between items-center w-full text-sm font-bold text-slate-400">
+                                    <span>Anual</span>
+                                    <div className="text-right leading-tight">
+                                        <div className="text-blue-400 text-lg">{formatMoney(annualCost)}€</div>
+                                        <div className="text-xs font-mono text-blue-400/80 mt-0.5">{formatMoney((totalKwhCharged / (state.chargingEfficiency / 100 || 1) / 7) * 365)} kWh red</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    </div>           
+ 
                 </div>
 
                 {/* 4. Calibration Section */}
@@ -3348,7 +3368,22 @@
                         </div>
                     </div>
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-                        <div className="flex justify-between items-center mb-4"><h3 className="text-sm text-slate-300 font-bold uppercase flex gap-2"><Icons.Activity className="w-4 h-4"/> Patrón de Consumo (kWh)</h3><div className="flex items-center gap-4"><div className="flex items-center gap-2"><span className="text-xs font-bold text-yellow-500">Excedentes:</span><div className="w-24"><FormattedInput value={tState.solarExp} onChange={v => setTState({...tState, solarExp: v})} decimals={0}/></div></div><div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-300">Total:</span><span className="text-base font-bold text-white bg-slate-800 px-3 py-2 rounded border border-slate-700">{formatDecimal(tState.consTotal, 0)}</span></div></div></div>
+                        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-4 gap-3">
+                            <h3 className="text-sm text-slate-300 font-bold uppercase flex gap-2 shrink-0"><Icons.Activity className="w-4 h-4"/> Patrón de Consumo (kWh)</h3>
+                            <div className="flex flex-wrap items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-yellow-500">Excedentes:</span>
+                                    <div className="w-24"><FormattedInput value={tState.solarExp} onChange={v => setTState({...tState, solarExp: v})} decimals={0}/></div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-bold text-slate-300">Total:</span>
+                                    <span className="text-base font-bold text-white bg-slate-800 px-3 py-2 rounded border border-slate-700">{formatDecimal(tState.consTotal, 0)}</span>
+                                    <span className="text-[11px] text-green-400 font-bold bg-green-900/20 px-2 py-1.5 rounded border border-green-500/30 ml-1">
+                                        [Total KWh en valle: {formatDecimal(tState.p3Kwh + tState.p3VeKwh + tState.p4Kwh, 0)}]
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                         <div className="print-grid-5 grid grid-cols-5 gap-4">
                             <div className="bg-red-900/20 p-3 rounded border border-red-900/30 text-center"><label className="text-[10px] font-bold text-red-300 block mb-1">P1 (Punta)</label><FormattedInput value={tState.p1Kwh} onChange={v => handleConsChange('p1Kwh', v)} decimals={0}/><div className="text-[10px] font-bold text-red-300 block mt-1">{formatDecimal(getConsPct(tState.p1Kwh), 0)}%</div></div>
                             <div className="bg-orange-900/20 p-3 rounded border border-orange-900/30 text-center"><label className="text-[10px] font-bold text-orange-300 block mb-1">P2 (Llano)</label><FormattedInput value={tState.p2Kwh} onChange={v => handleConsChange('p2Kwh', v)} decimals={0}/><div className="text-[10px] font-bold text-orange-300 block mt-1">{formatDecimal(getConsPct(tState.p2Kwh), 0)}%</div></div>
@@ -3360,28 +3395,43 @@
                 </div>
 
            
-                {/* CONTENEDOR DE TARIFAS (SCROLL HORIZONTAL CON BOTÓN DE ORDENACIÓN) */}
+                 {/* CONTENEDOR DE TARIFAS (SCROLL HORIZONTAL CON BOTONES DE ORDENACIÓN Y GUARDADO) */}
                 <div className="lg:col-span-12 print-avoid-break mt-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-4 no-print">
-                        <h3 className="text-lg font-display font-bold text-white flex items-center gap-2">
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4 no-print bg-slate-900/50 p-4 rounded-xl border border-slate-800 shadow-md">
+                        <h3 className="text-lg font-display font-bold text-white flex items-center gap-2 shrink-0">
                             <Icons.List className="w-5 h-5 text-blue-400" /> Comparativa de Precios
                         </h3>
-                        <button 
-                            onClick={() => {
-                                setTState(prev => ({
-                                    ...prev,
-                                    propA: rankedBills[0].data,
-                                    propB: rankedBills[1].data,
-                                    propC: rankedBills[2].data,
-                                    propD: rankedBills[3].data,
-                                    propE: rankedBills[4].data,
-                                    propF: rankedBills[5].data,
-                                }));
-                            }} 
-                            className="bg-slate-800 hover:bg-slate-700 text-yellow-400 border border-yellow-500/30 px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 shadow-lg active:scale-95"
-                        >
-                            <Icons.Award className="w-4 h-4"/> Ordenar por Ranking Global
-                        </button>
+                        
+                        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-start lg:justify-end">
+                            {savedDate && (<span className="text-xs font-bold text-slate-400 mr-2">Copia: <span className="text-blue-300">{savedDate}</span></span>)}
+                            
+                            {savedDate && (
+                                <button onClick={handleRestoreSnapshot} className="bg-orange-600 hover:bg-orange-500 text-white px-3 py-2 rounded-lg border border-orange-500/50 text-xs font-bold uppercase transition-all flex items-center gap-2 shadow-lg active:scale-95">
+                                    <Icons.Activity className="w-4 h-4" /> Restaurar
+                                </button>
+                            )}
+                            
+                            <button onClick={handleSaveSnapshot} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg border border-blue-500/50 text-xs font-bold uppercase transition-all flex items-center gap-2 shadow-lg active:scale-95">
+                                <Icons.Settings className="w-4 h-4" /> Guardar
+                            </button>
+                            
+                            <button 
+                                onClick={() => {
+                                    setTState(prev => ({
+                                        ...prev,
+                                        propA: rankedBills[0].data,
+                                        propB: rankedBills[1].data,
+                                        propC: rankedBills[2].data,
+                                        propD: rankedBills[3].data,
+                                        propE: rankedBills[4].data,
+                                        propF: rankedBills[5].data,
+                                    }));
+                                }} 
+                                className="bg-slate-800 hover:bg-slate-700 text-yellow-400 border border-yellow-500/30 px-3 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 shadow-lg active:scale-95"
+                            >
+                                <Icons.Award className="w-4 h-4"/> Ordenar Ranking
+                            </button>
+                        </div>
                     </div>
                     
                     <div className="overflow-x-auto pb-4">
