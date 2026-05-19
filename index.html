@@ -1977,7 +1977,8 @@
                             </div>
                         </div>
                     </div>
-                  <div className="lg:col-span-4 flex flex-col gap-6">
+
+                    <div className="lg:col-span-4 flex flex-col gap-6">
                         <div className="bg-slate-900/80 border border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-center flex-1">
                             <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-2">Tiempo Total Carga</div>
                             <div className="text-5xl font-display font-bold text-white">{formatTimeShort(totalTime)}</div>
@@ -1990,26 +1991,27 @@
                                     <span>Semanal</span>
                                     <div className="text-right leading-tight">
                                         <div className="text-white text-lg">{formatDecimal(totalCost)}€</div>
-                                        <div className="text-[10px] font-mono text-slate-500">{formatDecimal(totalKwhCharged / (state.chargingEfficiency / 100 || 1), 1)} kWh red</div>
+                                        <div className="text-xs font-mono text-slate-400 mt-0.5">{formatDecimal(totalKwhCharged / (state.chargingEfficiency / 100 || 1), 1)} kWh red</div>
                                     </div>
                                 </div>
                                 <div className="flex justify-between items-center w-full text-sm font-bold text-slate-400 border-b border-slate-700 pb-2">
                                     <span>Mensual</span>
                                     <div className="text-right leading-tight">
                                         <div className="text-white text-lg">{formatDecimal(monthlyCost)}€</div>
-                                        <div className="text-[10px] font-mono text-slate-500">{formatDecimal((totalKwhCharged / (state.chargingEfficiency / 100 || 1) / 7) * 30.41, 1)} kWh red</div>
+                                        <div className="text-xs font-mono text-slate-400 mt-0.5">{formatDecimal((totalKwhCharged / (state.chargingEfficiency / 100 || 1) / 7) * 30.41, 1)} kWh red</div>
                                     </div>
                                 </div>
                                 <div className="flex justify-between items-center w-full text-sm font-bold text-slate-400">
                                     <span>Anual</span>
                                     <div className="text-right leading-tight">
                                         <div className="text-blue-400 text-lg">{formatMoney(annualCost)}€</div>
-                                        <div className="text-[10px] font-mono text-blue-500/70">{formatMoney((totalKwhCharged / (state.chargingEfficiency / 100 || 1) / 7) * 365)} kWh red</div>
+                                        <div className="text-xs font-mono text-blue-400/80 mt-0.5">{formatMoney((totalKwhCharged / (state.chargingEfficiency / 100 || 1) / 7) * 365)} kWh red</div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </div>           
+ 
                 </div>
 
                 {/* 4. Calibration Section */}
