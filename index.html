@@ -3096,7 +3096,7 @@
             );
         };
 
-        const handleSaveSnapshot = () => { try { localStorage.setItem('tariffCompSnapshot', JSON.stringify(tState)); setSavedDate(new Date().toLocaleString('es-ES')); } catch (e) {} };
+        const handleSaveSnapshot = () => {              try {                  const now = new Date().toLocaleString('es-ES');                 localStorage.setItem('tariffCompSnapshot', JSON.stringify(tState));                  localStorage.setItem('tariffCompSnapshotTime', now);                 setSavedDate(now);              } catch (e) {}          };
         const handleRestoreSnapshot = () => { try { const data = localStorage.getItem('tariffCompSnapshot'); if (data) setTState(JSON.parse(data)); } catch (e) {} };
         
         const handlePrint = () => {
