@@ -2942,10 +2942,9 @@
       };
 
 
-// --- TARIFF COMPARATOR (FINAL: IMPRESIÓN CORREGIDA, EVITA CORTES Y DESBORDAMIENTOS) ---
-// --- TARIFF COMPARATOR (FINAL: IMPRESIÓN ULTRA COMPACTA ANTI-CORTES) ---
+   // --- TARIFF COMPARATOR (HASTA 6 TARIFAS CON SCROLL HORIZONTAL) ---
       const TariffComparator = () => {
-        const [tState, setTState] = usePersistentState('tariffCompV9_final', {
+        const [tState, setTState] = usePersistentState('tariffCompV10_6props', {
             days: 30,
             potP1: 4.6, potP2: 7.4,
             impuestoElec: 5.11, iva: 21,
@@ -2962,7 +2961,6 @@
                 discPot: 0, discEn: 0, comision: 0,
                 solarPrice: 0.08, virtualBat: false
             },
-
             propB: {
                 name: "Compañía B",
                 pricePotP1: 0.11, pricePotP2: 0.03,
@@ -2970,17 +2968,37 @@
                 discPot: 0, discEn: 0, comision: 0,
                 solarPrice: 0.05, virtualBat: false
             },
-
             propC: {
-                name: "Compañia C",
+                name: "Compañía C",
                 pricePotP1: 0.095, pricePotP2: 0.027,
                 priceEnP1: 0.119, priceEnP2: 0.119, priceEnP3: 0.119, priceEnP3Ve: 0.119, priceEnP4: 0.119,
                 discPot: 0, discEn: 0, comision: 0,
                 solarPrice: 0.05, virtualBat: false
+            },
+            propD: {
+                name: "Compañía D",
+                pricePotP1: 0.090, pricePotP2: 0.020,
+                priceEnP1: 0.130, priceEnP2: 0.130, priceEnP3: 0.130, priceEnP3Ve: 0.130, priceEnP4: 0.130,
+                discPot: 0, discEn: 0, comision: 0,
+                solarPrice: 0.06, virtualBat: false
+            },
+            propE: {
+                name: "Compañía E",
+                pricePotP1: 0.100, pricePotP2: 0.025,
+                priceEnP1: 0.140, priceEnP2: 0.140, priceEnP3: 0.090, priceEnP3Ve: 0.090, priceEnP4: 0.090,
+                discPot: 0, discEn: 0, comision: 0,
+                solarPrice: 0.07, virtualBat: false
+            },
+            propF: {
+                name: "Compañía F",
+                pricePotP1: 0.085, pricePotP2: 0.015,
+                priceEnP1: 0.160, priceEnP2: 0.160, priceEnP3: 0.080, priceEnP3Ve: 0.080, priceEnP4: 0.080,
+                discPot: 0, discEn: 0, comision: 0,
+                solarPrice: 0.04, virtualBat: false
             }
         });
 
-        const [estState, setEstState] = usePersistentState('estConsV3_restored', {
+        const [estState, setEstState] = usePersistentState('estConsV4_6props', {
             selectedProp: 'A',
             withTaxes: true,
             startDate: new Date().toISOString().split('T')[0],
@@ -3004,9 +3022,9 @@
             } catch (e) { console.error(e); }
         }, []);
 
-        const Tariff3DChart = ({ billA, billB, billC, nameA, nameB, nameC }) => {
+        const Tariff3DChart = ({ tariffs }) => {
             const mountRef = useRef(null);
-            const maxTotal = Math.max(billA.total, billB.total, billC.total);
+            const maxTotal = Math.max(...tariffs.map(t => t.bill.total));
             const axisMax = Math.ceil((maxTotal * 1.1) / 10) * 10; 
             const ticks = [0, 0.25, 0.5, 0.75, 1].map(t => axisMax * t);
             const VIEW_HEIGHT = 100; const BASE_Y = -40; const MAX_BAR_HEIGHT = 80; const scaleY = MAX_BAR_HEIGHT / axisMax;
@@ -3019,18 +3037,17 @@
                 const camera = new THREE.OrthographicCamera(-VIEW_HEIGHT * aspect / 2, VIEW_HEIGHT * aspect / 2, VIEW_HEIGHT / 2, -VIEW_HEIGHT / 2, 1, 1000);
                 camera.position.set(0, 0, 100); camera.lookAt(0, 0, 0); 
                 
-                // preserveDrawingBuffer: true ES VITAL para que la gráfica se imprima en papel y no salga en blanco
                 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
                 renderer.setSize(width, height); renderer.setPixelRatio(window.devicePixelRatio);
                 while (mountRef.current.firstChild) { mountRef.current.removeChild(mountRef.current.firstChild); }
                 mountRef.current.appendChild(renderer.domElement);
+                
                 const ambientLight = new THREE.AmbientLight(0xffffff, 0.95); scene.add(ambientLight);
                 const dirLight = new THREE.DirectionalLight(0xffffff, 0.3); dirLight.position.set(20, 20, 50); scene.add(dirLight);
+                
                 const colors = [0x4ade80, 0x60a5fa, 0x94a3b8, 0xc084fc];
-                const dataA = [billA.termPotDisc, billA.termEnNet, billA.fixedCosts, billA.taxes];
-                const dataB = [billB.termPotDisc, billB.termEnNet, billB.fixedCosts, billB.taxes];
-                const dataC = [billC.termPotDisc, billC.termEnNet, billC.fixedCosts, billC.taxes];
-                const barWidth = 12; const spacing = 20; 
+                const barWidth = 10; const spacing = 16; 
+                
                 const createStack = (data, xPos) => {
                     const group = new THREE.Group(); let currentY = BASE_Y; 
                     data.forEach((val, idx) => {
@@ -3043,17 +3060,25 @@
                     });
                     return group;
                 };
-                scene.add(createStack(dataA, -spacing - 5)); scene.add(createStack(dataB, 0)); scene.add(createStack(dataC, spacing + 5));
+
+                const startX = -((tariffs.length - 1) * spacing) / 2;
+                tariffs.forEach((t, idx) => {
+                    const data = [t.bill.termPotDisc, t.bill.termEnNet, t.bill.fixedCosts, t.bill.taxes];
+                    scene.add(createStack(data, startX + (idx * spacing)));
+                });
+
                 const gridGroup = new THREE.Group();
-                ticks.forEach((tickVal, i) => {
+                ticks.forEach((tickVal) => {
                     const y = BASE_Y + (tickVal * scaleY); const points = [];
-                    points.push(new THREE.Vector3(-70, y, -5)); points.push(new THREE.Vector3(70, y, -5));  
+                    points.push(new THREE.Vector3(-90, y, -5)); points.push(new THREE.Vector3(90, y, -5));  
                     const lineGeo = new THREE.BufferGeometry().setFromPoints(points); const lineMat = new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.3 });
                     const line = new THREE.Line(lineGeo, lineMat); gridGroup.add(line);
                 });
                 scene.add(gridGroup);
+                
                 renderer.render(scene, camera);
                 let s = 0; const animate = () => { if (s < 1) { s += 0.04; renderer.render(scene, camera); requestAnimationFrame(animate); } }; animate();
+                
                 const handleResize = () => {
                     if (!mountRef.current) return; const w = mountRef.current.offsetWidth; const aspect = w / height;
                     camera.left = -VIEW_HEIGHT * aspect / 2; camera.right = VIEW_HEIGHT * aspect / 2; camera.updateProjectionMatrix();
@@ -3061,7 +3086,7 @@
                 };
                 window.addEventListener('resize', handleResize);
                 return () => { window.removeEventListener('resize', handleResize); if (mountRef.current && renderer) mountRef.current.removeChild(renderer.domElement); };
-            }, [billA, billB, billC]); 
+            }, [tariffs]); 
 
             return (
                 <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 relative print-avoid-break">
@@ -3074,33 +3099,38 @@
                             <div className="flex items-center gap-1"><div className="w-2 h-2 rounded bg-purple-400"></div>Impuestos</div>
                         </div>
                     </div>
-                    <div className="relative h-[320px] w-full border-b border-slate-700/30">
+                    <div className="relative h-[320px] w-full border-b border-slate-700/30 overflow-hidden">
                         <div className="absolute top-0 bottom-0 left-0 w-10 z-20 pointer-events-none">{ticks.map((t) => (<div key={t} className="absolute right-0 flex items-center justify-end w-full" style={{ bottom: `${10 + ((t / axisMax) * 80)}%`, transform: 'translateY(50%)' }}><span className="text-[10px] font-bold text-slate-400">{t.toFixed(0)}€</span></div>))}</div>
                         <div ref={mountRef} className="absolute inset-0 w-full h-full pl-10" /> 
                     </div>
-                    <div className="flex justify-center mt-3 pl-8 gap-4 text-center">
-                        <div className="w-24 print-col">
-                            <div className="text-xl font-display font-bold text-white leading-none mb-1">{formatDecimal(billA.total)}€</div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{nameA}</div>
-                        </div>
-                        <div className="w-24 print-col">
-                            <div className="text-xl font-display font-bold text-white leading-none mb-1">{formatDecimal(billB.total)}€</div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{nameB}</div>
-                        </div>
-                        <div className="w-24 print-col">
-                            <div className="text-xl font-display font-bold text-white leading-none mb-1">{formatDecimal(billC.total)}€</div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">{nameC}</div>
+                    
+                    <div className="mt-4 overflow-x-auto pb-2">
+                        <div className="flex justify-between gap-4 text-center min-w-max px-8">
+                            {tariffs.map((t, idx) => (
+                                <div key={idx} className="w-20 print-col">
+                                    <div className="text-lg font-display font-bold text-white leading-none mb-1">{formatDecimal(t.bill.total)}€</div>
+                                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider truncate" title={t.name}>{t.name}</div>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
             );
         };
 
-        const handleSaveSnapshot = () => { try { localStorage.setItem('tariffCompSnapshot', JSON.stringify(tState)); setSavedDate(new Date().toLocaleString('es-ES')); } catch (e) {} };
+        const handleSaveSnapshot = () => { 
+            try { 
+                const now = new Date().toLocaleString('es-ES');
+                localStorage.setItem('tariffCompSnapshot', JSON.stringify(tState)); 
+                localStorage.setItem('tariffCompSnapshotTime', now);
+                setSavedDate(now); 
+            } catch (e) {} 
+        };
+        
         const handleRestoreSnapshot = () => { try { const data = localStorage.getItem('tariffCompSnapshot'); if (data) setTState(JSON.parse(data)); } catch (e) {} };
         
         const handlePrint = () => {
-            alert("CONSEJO DE IMPRESIÓN:\nSe ha forzado el formato para que encaje perfectamente tanto en Vertical como en Apaisado. Asegúrate de marcar 'Imprimir gráficos/colores de fondo' en las opciones de tu impresora para ver las tablas correctamente.");
+            alert("CONSEJO DE IMPRESIÓN:\nSe ha forzado el formato para que encaje lo mejor posible. Asegúrate de marcar 'Imprimir gráficos/colores de fondo' en las opciones de tu impresora para ver las tablas correctamente.");
             window.print();
         };
 
@@ -3111,6 +3141,7 @@
                  setTState(prev => ({ ...prev, consTotal: val, p1Kwh: val*ratios.p1, p2Kwh: val*ratios.p2, p3Kwh: val*ratios.p3, p3VeKwh: val*ratios.p3ve, p4Kwh: val*ratios.p4 }));
             } else { setTState(prev => { const newState = { ...prev, [key]: val }; newState.consTotal = newState.p1Kwh + newState.p2Kwh + newState.p3Kwh + newState.p3VeKwh + newState.p4Kwh; return newState; }); }
         };
+        
         const handlePropChange = (propKey, field, val) => { setTState(prev => ({ ...prev, [propKey]: { ...prev[propKey], [field]: val } })); };
 
         const handleDeviceChange = (id, field, value) => {
@@ -3148,17 +3179,26 @@
             return { total, pricePerKwh: tState.p3VeKwh > 0 ? total / tState.p3VeKwh : 0 };
         };
 
-        const billA = { ...calculateBill(tState.propA), name: tState.propA.name, ev: calculateEVCost(tState.propA) };
-        const billB = { ...calculateBill(tState.propB), name: tState.propB.name, ev: calculateEVCost(tState.propB) };
-        const billC = { ...calculateBill(tState.propC), name: tState.propC.name, ev: calculateEVCost(tState.propC) };
+        const tariffsList = [
+            { id: 'propA', bill: { ...calculateBill(tState.propA), ev: calculateEVCost(tState.propA) }, data: tState.propA },
+            { id: 'propB', bill: { ...calculateBill(tState.propB), ev: calculateEVCost(tState.propB) }, data: tState.propB },
+            { id: 'propC', bill: { ...calculateBill(tState.propC), ev: calculateEVCost(tState.propC) }, data: tState.propC },
+            { id: 'propD', bill: { ...calculateBill(tState.propD), ev: calculateEVCost(tState.propD) }, data: tState.propD },
+            { id: 'propE', bill: { ...calculateBill(tState.propE), ev: calculateEVCost(tState.propE) }, data: tState.propE },
+            { id: 'propF', bill: { ...calculateBill(tState.propF), ev: calculateEVCost(tState.propF) }, data: tState.propF }
+        ];
 
-        const rankedBills = [billA, billB, billC].sort((a,b) => a.total - b.total);
-        const rankedEnergy = [billA, billB, billC].sort((a,b) => a.termEnNet - b.termEnNet);
-        const rankedPower = [billA, billB, billC].sort((a,b) => a.termPotDisc - b.termPotDisc);
+        const rankedBills = [...tariffsList].sort((a,b) => a.bill.total - b.bill.total);
+        const rankedEnergy = [...tariffsList].sort((a,b) => a.bill.termEnNet - b.bill.termEnNet);
+        const rankedPower = [...tariffsList].sort((a,b) => a.bill.termPotDisc - b.bill.termPotDisc);
 
         const getConsPct = (val) => tState.consTotal > 0 ? (val / tState.consTotal) * 100 : 0; 
         const consumptionData = { p1Kwh: tState.p1Kwh, p2Kwh: tState.p2Kwh, p3Kwh: tState.p3Kwh, p3VeKwh: tState.p3VeKwh, p4Kwh: tState.p4Kwh, totalKwh: tState.consTotal };
-        const getMinClass = (valA, valB, valC, currentVal) => { const min = Math.min(valA, valB, valC); return Math.abs(currentVal - min) < 0.001 ? 'text-green-600 font-black' : 'text-slate-300'; };
+        
+        const getMinClass = (currentVal, ...allVals) => { 
+            const min = Math.min(...allVals); 
+            return Math.abs(currentVal - min) < 0.001 ? 'text-green-600 font-black' : 'text-slate-300'; 
+        };
 
         const calculateEstimation = () => {
             const start = new Date(estState.startDate);
@@ -3169,7 +3209,10 @@
             let prop;
             if (estState.selectedProp === 'A') prop = tState.propA;
             else if (estState.selectedProp === 'B') prop = tState.propB;
-            else prop = tState.propC;
+            else if (estState.selectedProp === 'C') prop = tState.propC;
+            else if (estState.selectedProp === 'D') prop = tState.propD;
+            else if (estState.selectedProp === 'E') prop = tState.propE;
+            else prop = tState.propF;
 
             const taxMultiplier = estState.withTaxes ? (1 + tState.impuestoElec/100) * (1 + tState.iva/100) : 1;
             const p1Price = prop.priceEnP1 * (1 - prop.discEn/100) * taxMultiplier;
@@ -3220,73 +3263,41 @@
             });
             const weeklyKwh = totalKwh / weeks; const weeklyCost = totalCost / weeks;
             const monthlyKwh = totalKwh / (daysDiff / 30.44); const monthlyCost = totalCost / (daysDiff / 30.44);
-            let currentBillTotal;
-            if (estState.selectedProp === 'A') currentBillTotal = billA.total; else if (estState.selectedProp === 'B') currentBillTotal = billB.total; else currentBillTotal = billC.total;
+            
+            const currentBillTotal = tariffsList.find(t => t.id === `prop${estState.selectedProp}`)?.bill.total || tariffsList[0].bill.total;
+            
             const billMonthly = currentBillTotal * (30 / tState.days); 
             const impactPct = billMonthly > 0 ? (monthlyCost / billMonthly) * 100 : 0;
             return { totalCost, totalKwh, weeklyCost, weeklyKwh, deviceResults, daysDiff, monthlyKwh, monthlyCost, impactPct };
         };
         const estResult = calculateEstimation();
 
-        // ESTILOS EXTREMOS DE IMPRESIÓN PARA FORZAR QUE 3 COLUMNAS ENTREN EN 1 HOJA A4 SIN CORTARSE
         const printStyle = `
             @media print {
                 @page { size: landscape; margin: 8mm; }
                 body, html { background: #ffffff !important; color: #000000 !important; font-family: sans-serif; }
-                
-                /* Ocultar elementos inútiles en papel */
                 header, nav, button, input[type="range"], input[type="checkbox"], .no-print { display: none !important; }
-                
-                /* Reseteamos padding y margin del contenedor principal del proyecto */
                 .keyboard-padding { padding: 0 !important; margin: 0 !important; }
+                #tariff-print-area { display: block !important; width: 100% !important; max-width: 100% !important; margin: 0 !important; padding: 0 !important; }
                 
-                #tariff-print-area { 
-                    display: block !important; 
-                    width: 100% !important; 
-                    max-width: 100% !important; 
-                    margin: 0 !important; 
-                    padding: 0 !important;
-                }
-                
-                /* Esta clase es la magia: Fuerza un flexbox estricto donde los hijos NUNCA pueden superar el 33% */
-                .print-grid-3 { 
-                    display: flex !important; 
-                    flex-direction: row !important; 
-                    flex-wrap: nowrap !important; 
-                    width: 100% !important; 
-                    gap: 5px !important; 
-                    margin-bottom: 10px !important;
-                }
-                
-                .print-col { 
-                    flex: 1 1 0 !important; 
-                    min-width: 0 !important; /* Vital para que el flexbox deje encoger las cajas */
-                    width: 33% !important; 
-                    max-width: 33% !important;
-                    padding: 6px !important;
-                    box-sizing: border-box !important;
-                }
+                .print-grid-proposals { display: flex !important; flex-wrap: wrap !important; gap: 5px !important; width: 100% !important; }
+                .print-grid-proposals > div { width: calc(33.333% - 4px) !important; flex: none !important; padding: 4px !important; box-sizing: border-box !important; }
 
                 .print-grid-7 { display: flex !important; flex-direction: row !important; gap: 5px !important; width: 100% !important; }
                 .print-grid-7 > div { flex: 1 1 0 !important; min-width: 0 !important; }
-                
                 .print-grid-5 { display: flex !important; flex-direction: row !important; gap: 5px !important; width: 100% !important; }
                 .print-grid-5 > div { flex: 1 1 0 !important; min-width: 0 !important; }
-
                 .print-grid-2 { display: flex !important; flex-direction: row !important; gap: 10px !important; width: 100% !important; }
                 .print-grid-2 > div { flex: 1 1 0 !important; min-width: 0 !important; width: 50% !important; }
 
                 .print-avoid-break { break-inside: avoid !important; page-break-inside: avoid !important; margin-bottom: 15px !important; }
                 .overflow-hidden, .overflow-x-auto { overflow: visible !important; }
                 
-                /* Eliminar fondos oscuros para ahorrar tinta y mejorar contraste */
                 .bg-slate-900, .bg-slate-800, .bg-slate-900\\/80, .bg-slate-900\\/50, .bg-slate-800\\/50, 
                 .bg-slate-900\\/40, .bg-slate-800\\/30, .bg-gradient-to-br, .bg-blue-900\\/10, .bg-red-900\\/10 { 
-                    background: #f8fafc !important; 
-                    border: 1px solid #cbd5e1 !important; 
+                    background: #f8fafc !important; border: 1px solid #cbd5e1 !important; 
                 }
                 
-                /* Forzar textos legibles sobre blanco */
                 .text-white, .text-slate-200, .text-slate-300, .text-slate-400 { color: #0f172a !important; }
                 .text-red-400, .text-red-300 { color: #dc2626 !important; }
                 .text-green-400, .text-green-300 { color: #16a34a !important; }
@@ -3295,32 +3306,20 @@
                 .text-orange-400 { color: #ea580c !important; }
                 .text-purple-400 { color: #9333ea !important; }
                 
-                /* Empequeñecer textos para que quepan en las cajas estrechas */
                 .text-xs, .text-\\[10px\\], .text-\\[9px\\] { font-size: 8px !important; line-height: 1.1 !important; }
                 .text-sm { font-size: 10px !important; }
                 .text-base, .text-lg, .text-xl, .text-2xl, .text-3xl, .text-4xl { font-size: 12px !important; }
                 
-                /* Convertir los inputs en texto plano simple */
                 input[type="text"], input[type="number"] { 
-                    background: transparent !important; 
-                    border: none !important; 
-                    border-bottom: 1px dashed #94a3b8 !important; 
-                    color: #0f172a !important; 
-                    box-shadow: none !important; 
-                    padding: 0 !important;
-                    margin: 0 !important;
-                    height: auto !important;
-                    width: 100% !important;
-                    text-align: center !important;
-                    font-size: 10px !important;
+                    background: transparent !important; border: none !important; border-bottom: 1px dashed #94a3b8 !important; 
+                    color: #0f172a !important; box-shadow: none !important; padding: 0 !important; margin: 0 !important;
+                    height: auto !important; width: 100% !important; text-align: center !important; font-size: 10px !important;
                 }
 
-                /* Tabla limpia y estrecha */
                 table { width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; border: 2px solid #94a3b8 !important; }
                 th, td { border: 1px solid #cbd5e1 !important; padding: 4px !important; color: #000 !important; font-size: 9px !important; word-wrap: break-word !important; }
                 thead th { background-color: #f1f5f9 !important; font-weight: bold !important; color: #000 !important; }
                 tfoot td { background-color: #e2e8f0 !important; font-weight: bold !important; color: #000 !important; }
-                
                 .shadow-lg, .shadow-xl, .shadow-2xl { box-shadow: none !important; }
             }
         `;
@@ -3329,7 +3328,6 @@
             <div id="tariff-print-area" className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in print:block">
                 <style>{printStyle}</style>
 
-                {/* BOTÓN IMPRIMIR (NO APARECERÁ EN EL PAPEL) */}
                 <div className="lg:col-span-12 flex justify-end no-print">
                     <button onClick={handlePrint} className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors flex items-center gap-2 shadow-lg border border-blue-500/50">
                         <Icons.FileText className="w-5 h-5" /> IMPRIMIR INFORME 
@@ -3361,80 +3359,110 @@
                     </div>
                 </div>
 
-                <div className="lg:col-span-12 print-grid-3 grid grid-cols-1 lg:grid-cols-3 gap-6 print-avoid-break mt-4">
-                    <div className="print-col"><ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
-                    <div className="print-col"><ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
-                    <div className="print-col"><ProposalColumn propKey="propC" title="Propuesta C" data={tState.propC} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
-                </div>
-
+           
+                {/* CONTENEDOR DE TARIFAS (SCROLL HORIZONTAL CON BOTÓN DE ORDENACIÓN) */}
+                <div className="lg:col-span-12 print-avoid-break mt-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-4 no-print">
+                        <h3 className="text-lg font-display font-bold text-white flex items-center gap-2">
+                            <Icons.List className="w-5 h-5 text-blue-400" /> Comparativa de Precios
+                        </h3>
+                        <button 
+                            onClick={() => {
+                                setTState(prev => ({
+                                    ...prev,
+                                    propA: rankedBills[0].data,
+                                    propB: rankedBills[1].data,
+                                    propC: rankedBills[2].data,
+                                    propD: rankedBills[3].data,
+                                    propE: rankedBills[4].data,
+                                    propF: rankedBills[5].data,
+                                }));
+                            }} 
+                            className="bg-slate-800 hover:bg-slate-700 text-yellow-400 border border-yellow-500/30 px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 shadow-lg active:scale-95"
+                        >
+                            <Icons.Award className="w-4 h-4"/> Ordenar por Ranking Global
+                        </button>
+                    </div>
+                    
+                    <div className="overflow-x-auto pb-4">
+                        <div className="flex gap-4 print-grid-proposals w-max print:w-full snap-x">
+                            <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                            <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                            <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propC" title="Propuesta C" data={tState.propC} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                            <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propD" title="Propuesta D" data={tState.propD} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                            <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propE" title="Propuesta E" data={tState.propE} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                            <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propF" title="Propuesta F" data={tState.propF} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                        </div>
+                    </div>
+                </div>    
+                
                 <div className="lg:col-span-12 space-y-6 print-avoid-break mt-4">
-                    <div className="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 rounded-xl p-6">
+                  <div className="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 rounded-xl p-6">
                         <div className="flex items-center justify-center gap-3 mb-6">
                             <Icons.Award className="w-8 h-8 text-yellow-400" />
                             <h3 className="text-2xl font-display font-bold text-white uppercase tracking-widest">Ranking Final</h3>
                         </div>
 
-                        <div className="print-grid-3 grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                            {rankedBills.map((item, index) => {
-                                const isWinner = index === 0;
-                                const diffPrev = index > 0 ? item.total - rankedBills[index - 1].total : 0;
-                                const diffPrevPct = index > 0 ? (diffPrev / rankedBills[index - 1].total) * 100 : 0;
-                                const borderClass = isWinner ? 'border-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.2)] bg-yellow-900/10' : index === 1 ? 'border-slate-600 bg-slate-800/30' : 'border-red-900/50 bg-red-900/10';
-                                
-                                return (
-                                    <div key={index} className={`print-col relative rounded-2xl border-2 p-5 flex flex-col items-center text-center transition-transform hover:scale-105 ${borderClass}`}>
-                                        <div className={`absolute -top-4 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-md ${isWinner ? 'bg-yellow-500 text-black' : 'bg-slate-700 text-slate-300'}`}>
-                                            {index + 1}º Puesto
+                        {/* Añadido pt-6, pb-6 y px-2 para evitar cortes de la etiqueta superior y sombras */}
+                        <div className="overflow-x-auto pt-6 pb-6 px-2 -mt-4">
+                            <div className="flex gap-4 print-grid-proposals min-w-max print:min-w-0 snap-x">
+                                {rankedBills.map((item, index) => {
+                                    const isWinner = index === 0;
+                                    const diffPrev = index > 0 ? item.bill.total - rankedBills[index - 1].bill.total : 0;
+                                    const diffPrevPct = index > 0 ? (diffPrev / rankedBills[index - 1].bill.total) * 100 : 0;
+                                    const borderClass = isWinner ? 'border-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.2)] bg-yellow-900/10' : 'border-slate-600 bg-slate-800/30';
+                                    
+                                    return (
+                                        <div key={index} className={`w-[260px] shrink-0 snap-center relative rounded-2xl border-2 p-5 flex flex-col items-center text-center transition-transform hover:scale-105 ${borderClass}`}>
+                                            <div className={`absolute -top-4 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-md ${isWinner ? 'bg-yellow-500 text-black' : 'bg-slate-700 text-slate-300'}`}>
+                                                {index + 1}º Puesto
+                                            </div>
+                                            <div className="mt-2 text-lg font-bold text-white uppercase mb-1 truncate w-full" title={item.data.name}>{item.data.name}</div>
+                                            <div className="text-4xl font-display font-bold text-white mb-2">{formatDecimal(item.bill.total)}€</div>
+                                            {isWinner ? (
+                                                <div className="text-green-400 font-bold text-sm bg-green-900/30 px-3 py-1 rounded-full border border-green-500/30 mb-4">¡Mejor Opción!</div>
+                                            ) : (
+                                                <div className="text-red-400 font-bold text-xs bg-red-900/20 px-3 py-1 rounded-full border border-red-500/30 mb-4">
+                                                    +{formatDecimal(diffPrev)}€ (+{formatDecimal(diffPrevPct, 1)}%) vs ant.
+                                                </div>
+                                            )}
+                                            <div className="w-full h-px bg-white/10 mb-4"></div>
+                                            <div className="w-full space-y-2 text-sm">
+                                                <div className="flex justify-between">
+                                                    <span className="text-slate-400 font-bold">Precio Medio:</span>
+                                                    <span className="text-blue-300 font-mono font-bold">{formatDecimal(item.bill.pricePerKwh, 4)} €/kWh</span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-slate-400 font-bold">Carga VE (Est):</span>
+                                                    <span className="text-green-300 font-mono font-bold">{formatDecimal(item.bill.ev.total)} €</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        
-                                        <div className="mt-2 text-lg font-bold text-white uppercase mb-1">{item.name}</div>
-                                        <div className="text-4xl font-display font-bold text-white mb-2">{formatDecimal(item.total)}€</div>
-                                        
-                                        {isWinner ? (
-                                            <div className="text-green-400 font-bold text-sm bg-green-900/30 px-3 py-1 rounded-full border border-green-500/30 mb-4">¡Mejor Opción!</div>
-                                        ) : (
-                                            <div className="text-red-400 font-bold text-xs bg-red-900/20 px-3 py-1 rounded-full border border-red-500/30 mb-4">
-                                                +{formatDecimal(diffPrev)}€ (+{formatDecimal(diffPrevPct, 1)}%) vs anterior
-                                            </div>
-                                        )}
-
-                                        <div className="w-full h-px bg-white/10 mb-4"></div>
-
-                                        <div className="w-full space-y-2 text-sm">
-                                            <div className="flex justify-between">
-                                                <span className="text-slate-400 font-bold">Precio Medio:</span>
-                                                <span className="text-blue-300 font-mono font-bold">{formatDecimal(item.pricePerKwh, 4)} €/kWh</span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-slate-400 font-bold">Carga VE (Est):</span>
-                                                <span className="text-green-300 font-mono font-bold">{formatDecimal(item.ev.total)} €</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                                    );
+                                })}
+                            </div>
                         </div>
-
-                        <div className="print-grid-2 grid grid-cols-1 md:grid-cols-2 gap-6">
-                            
+                      
+                        <div className="print-grid-2 grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                             <div className="bg-slate-900/50 border border-blue-900/30 rounded-xl p-5 relative overflow-hidden">
                                 <div className="flex justify-between items-center mb-4 border-b border-blue-900/50 pb-2">
-                                    <h4 className="text-sm font-bold text-blue-400 uppercase flex items-center gap-2"><Icons.Zap className="w-4 h-4"/> Top 3 Precio Energía</h4>
+                                    <h4 className="text-sm font-bold text-blue-400 uppercase flex items-center gap-2"><Icons.Zap className="w-4 h-4"/> Ranking Precio Energía</h4>
                                 </div>
                                 <div className="space-y-3">
                                     {rankedEnergy.map((item, idx) => {
                                         const next = rankedEnergy[idx+1];
-                                        const diffNextPct = next ? ((next.termEnNet - item.termEnNet) / next.termEnNet) * 100 : 0;
-                                        const diffNextEuro = next ? next.termEnNet - item.termEnNet : 0;
+                                        const diffNextPct = next ? ((next.bill.termEnNet - item.bill.termEnNet) / next.bill.termEnNet) * 100 : 0;
+                                        const diffNextEuro = next ? next.bill.termEnNet - item.bill.termEnNet : 0;
+                                        const isGlobalWinner = item.id === rankedBills[0].id;
                                         return (
-                                            <div key={idx} className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                            <div key={idx} className={`flex justify-between items-center p-2 rounded border transition-colors ${isGlobalWinner ? 'bg-yellow-900/20 border-yellow-500/50 shadow-[inset_0_0_15px_rgba(234,179,8,0.15)]' : 'bg-slate-800/50 border-slate-700/50'}`}>
                                                 <div className="flex items-center gap-3">
                                                     <span className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${idx===0?'bg-blue-500 text-white':'bg-slate-700 text-slate-400'}`}>{idx+1}</span>
-                                                    <span className="text-sm text-white font-bold">{item.name}</span>
+                                                    <span className={`text-sm font-bold truncate max-w-[120px] ${isGlobalWinner ? 'text-yellow-400' : 'text-white'}`} title={item.data.name}>{item.data.name} {isGlobalWinner && '⭐'}</span>
                                                 </div>
                                                 <div className="text-right">
-                                                    <div className="text-white font-mono font-bold">{formatDecimal(item.termEnNet)}€</div>
-                                                    {next && <div className="text-[10px] text-green-400 font-bold">-{formatDecimal(diffNextPct, 1)}% [-{formatDecimal(diffNextEuro)}€] vs siguiente</div>}
+                                                    <div className="text-white font-mono font-bold">{formatDecimal(item.bill.termEnNet)}€</div>
+                                                    {next && <div className="text-[10px] text-green-400 font-bold">-{formatDecimal(diffNextPct, 1)}% [-{formatDecimal(diffNextEuro)}€] vs sig.</div>}
                                                 </div>
                                             </div>
                                         );
@@ -3444,82 +3472,83 @@
 
                             <div className="bg-slate-900/50 border border-green-900/30 rounded-xl p-5 relative overflow-hidden">
                                 <div className="flex justify-between items-center mb-4 border-b border-green-900/50 pb-2">
-                                    <h4 className="text-sm font-bold text-green-400 uppercase flex items-center gap-2"><Icons.Activity className="w-4 h-4"/> Top 3 Precio Potencia</h4>
+                                    <h4 className="text-sm font-bold text-green-400 uppercase flex items-center gap-2"><Icons.Activity className="w-4 h-4"/> Ranking Precio Potencia</h4>
                                 </div>
                                 <div className="space-y-3">
                                     {rankedPower.map((item, idx) => {
                                         const next = rankedPower[idx+1];
-                                        const diffNextPct = next ? ((next.termPotDisc - item.termPotDisc) / next.termPotDisc) * 100 : 0;
-                                        const diffNextEuro = next ? next.termPotDisc - item.termPotDisc : 0;
+                                        const diffNextPct = next ? ((next.bill.termPotDisc - item.bill.termPotDisc) / next.bill.termPotDisc) * 100 : 0;
+                                        const diffNextEuro = next ? next.bill.termPotDisc - item.bill.termPotDisc : 0;
+                                        const isGlobalWinner = item.id === rankedBills[0].id;
                                         return (
-                                            <div key={idx} className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                            <div key={idx} className={`flex justify-between items-center p-2 rounded border transition-colors ${isGlobalWinner ? 'bg-yellow-900/20 border-yellow-500/50 shadow-[inset_0_0_15px_rgba(234,179,8,0.15)]' : 'bg-slate-800/50 border-slate-700/50'}`}>
                                                 <div className="flex items-center gap-3">
                                                     <span className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${idx===0?'bg-green-500 text-white':'bg-slate-700 text-slate-400'}`}>{idx+1}</span>
-                                                    <span className="text-sm text-white font-bold">{item.name}</span>
+                                                    <span className={`text-sm font-bold truncate max-w-[120px] ${isGlobalWinner ? 'text-yellow-400' : 'text-white'}`} title={item.data.name}>{item.data.name} {isGlobalWinner && '⭐'}</span>
                                                 </div>
                                                 <div className="text-right">
-                                                    <div className="text-white font-mono font-bold">{formatDecimal(item.termPotDisc)}€</div>
-                                                    {next && <div className="text-[10px] text-green-400 font-bold">-{formatDecimal(diffNextPct, 1)}% [-{formatDecimal(diffNextEuro)}€] vs siguiente</div>}
+                                                    <div className="text-white font-mono font-bold">{formatDecimal(item.bill.termPotDisc)}€</div>
+                                                    {next && <div className="text-[10px] text-green-400 font-bold">-{formatDecimal(diffNextPct, 1)}% [-{formatDecimal(diffNextEuro)}€] vs sig.</div>}
                                                 </div>
                                             </div>
                                         );
                                     })}
                                 </div>
                             </div>
-
-                        </div>
+                        </div>                        
+                       
                     </div>
                 </div>
 
                 <div className="lg:col-span-12 print-avoid-break mt-4">
-                    <Tariff3DChart billA={billA} billB={billB} billC={billC} nameA={tState.propA.name} nameB={tState.propB.name} nameC={tState.propC.name} />
+                    <Tariff3DChart tariffs={tariffsList.map(t => ({ bill: t.bill, name: t.data.name }))} />
                 </div>
 
                 <div className="lg:col-span-12 print-avoid-break mt-4">
-                    <div className="rounded-xl border border-slate-700 bg-slate-900/50 print:overflow-visible overflow-x-auto">
-                        <table className="w-full text-sm border-collapse table-fixed">
+                    <div className="rounded-xl border border-slate-700 bg-slate-900/50 print:overflow-visible overflow-x-auto pb-2">
+                        <table className="w-full text-sm border-collapse table-fixed min-w-[900px]">
                             <thead className="border-b border-slate-700">
                                 <tr>
-                                    <th className="text-left py-2 px-3 text-slate-400 font-bold w-1/4">Concepto</th>
-                                    <th className="text-right py-2 px-3 text-blue-300 font-bold w-1/4">{tState.propA.name}</th>
-                                    <th className="text-right py-2 px-3 text-blue-300 font-bold w-1/4">{tState.propB.name}</th>
-                                    <th className="text-right py-2 px-3 text-blue-300 font-bold w-1/4">{tState.propC.name}</th>
+                                    <th className="text-left py-2 px-3 text-slate-400 font-bold w-40">Concepto</th>
+                                    {tariffsList.map(t => (
+                                        <th key={t.id} className="text-right py-2 px-2 text-blue-300 font-bold truncate" title={t.data.name}>{t.data.name}</th>
+                                    ))}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-800">
                                 <tr><td className="py-2 px-3 text-slate-300">Potencia</td>
-                                    <td className={`py-2 px-3 text-right font-mono font-bold ${getMinClass(billA.termPotDisc, billB.termPotDisc, billC.termPotDisc, billA.termPotDisc)}`}>{formatDecimal(billA.termPotDisc)} €</td>
-                                    <td className={`py-2 px-3 text-right font-mono font-bold ${getMinClass(billA.termPotDisc, billB.termPotDisc, billC.termPotDisc, billB.termPotDisc)}`}>{formatDecimal(billB.termPotDisc)} €</td>
-                                    <td className={`py-2 px-3 text-right font-mono font-bold ${getMinClass(billA.termPotDisc, billB.termPotDisc, billC.termPotDisc, billC.termPotDisc)}`}>{formatDecimal(billC.termPotDisc)} €</td>
+                                    {tariffsList.map(t => (
+                                        <td key={t.id} className={`py-2 px-2 text-right font-mono font-bold ${getMinClass(t.bill.termPotDisc, ...tariffsList.map(x=>x.bill.termPotDisc))}`}>{formatDecimal(t.bill.termPotDisc)} €</td>
+                                    ))}
                                 </tr>
                                 <tr><td className="py-2 px-3 text-slate-300">Energía (Neto Solar)</td>
-                                    <td className={`py-2 px-3 text-right font-mono font-bold ${getMinClass(billA.termEnNet, billB.termEnNet, billC.termEnNet, billA.termEnNet)}`}>{formatDecimal(billA.termEnNet)} €</td>
-                                    <td className={`py-2 px-3 text-right font-mono font-bold ${getMinClass(billA.termEnNet, billB.termEnNet, billC.termEnNet, billB.termEnNet)}`}>{formatDecimal(billB.termEnNet)} €</td>
-                                    <td className={`py-2 px-3 text-right font-mono font-bold ${getMinClass(billA.termEnNet, billB.termEnNet, billC.termEnNet, billC.termEnNet)}`}>{formatDecimal(billC.termEnNet)} €</td>
+                                    {tariffsList.map(t => (
+                                        <td key={t.id} className={`py-2 px-2 text-right font-mono font-bold ${getMinClass(t.bill.termEnNet, ...tariffsList.map(x=>x.bill.termEnNet))}`}>{formatDecimal(t.bill.termEnNet)} €</td>
+                                    ))}
                                 </tr>
                                 {tState.solarExp > 0 && (
                                 <tr><td className="py-1 px-3 text-yellow-600 text-xs font-bold pl-5">↳ Comp. Excedentes</td>
-                                    <td className="py-1 px-3 text-right font-mono font-bold text-yellow-600 text-xs">-{formatDecimal(billA.solarReturn)} €</td>
-                                    <td className="py-1 px-3 text-right font-mono font-bold text-yellow-600 text-xs">-{formatDecimal(billB.solarReturn)} €</td>
-                                    <td className="py-1 px-3 text-right font-mono font-bold text-yellow-600 text-xs">-{formatDecimal(billC.solarReturn)} €</td>
+                                    {tariffsList.map(t => (
+                                        <td key={t.id} className="py-1 px-2 text-right font-mono font-bold text-yellow-600 text-xs">-{formatDecimal(t.bill.solarReturn)} €</td>
+                                    ))}
                                 </tr>)}
                                 <tr><td className="py-2 px-3 text-slate-300">Fijos (Alq+Bono+Com)</td>
-                                    <td className="py-2 px-3 text-right font-mono font-bold text-slate-300">{formatDecimal(billA.fixedCosts)} €</td>
-                                    <td className="py-2 px-3 text-right font-mono font-bold text-slate-300">{formatDecimal(billB.fixedCosts)} €</td>
-                                    <td className="py-2 px-3 text-right font-mono font-bold text-slate-300">{formatDecimal(billC.fixedCosts)} €</td>
+                                    {tariffsList.map(t => (
+                                        <td key={t.id} className="py-2 px-2 text-right font-mono font-bold text-slate-300">{formatDecimal(t.bill.fixedCosts)} €</td>
+                                    ))}
                                 </tr>
                                 <tr><td className="py-2 px-3 text-slate-300">Impuestos (IEE+IVA)</td>
-                                    <td className="py-2 px-3 text-right font-mono font-bold text-slate-300">{formatDecimal(billA.taxes)} €</td>
-                                    <td className="py-2 px-3 text-right font-mono font-bold text-slate-300">{formatDecimal(billB.taxes)} €</td>
-                                    <td className="py-2 px-3 text-right font-mono font-bold text-slate-300">{formatDecimal(billC.taxes)} €</td>
+                                    {tariffsList.map(t => (
+                                        <td key={t.id} className="py-2 px-2 text-right font-mono font-bold text-slate-300">{formatDecimal(t.bill.taxes)} €</td>
+                                    ))}
                                 </tr>
                             </tbody>
                             <tfoot className="border-t border-slate-600 bg-slate-800/30">
                                 <tr>
                                     <td className="py-3 px-3 font-bold text-white text-base">TOTAL FACTURA</td>
-                                    <td className={`py-3 px-3 text-right font-bold text-xl ${getMinClass(billA.total, billB.total, billC.total, billA.total)}`}>{formatDecimal(billA.total)} €</td>
-                                    <td className={`py-3 px-3 text-right font-bold text-xl ${getMinClass(billA.total, billB.total, billC.total, billB.total)}`}>{formatDecimal(billB.total)} €</td>
-                                    <td className={`py-3 px-3 text-right font-bold text-xl ${getMinClass(billA.total, billB.total, billC.total, billC.total)}`}>{formatDecimal(billC.total)} €</td>
+                                    {tariffsList.map(t => (
+                                        <td key={t.id} className={`py-3 px-2 text-right font-bold text-lg ${getMinClass(t.bill.total, ...tariffsList.map(x=>x.bill.total))}`}>{formatDecimal(t.bill.total)} €</td>
+                                    ))}
                                 </tr>
                             </tfoot>
                         </table>
@@ -3543,12 +3572,16 @@
 
                         <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700 mb-6 relative z-10">
                             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-4">
-                                <div>
+                                <div className="md:col-span-2">
                                     <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Tarifa a Usar</label>
-                                    <div className="flex bg-slate-900 rounded p-1 gap-1">
-                                        <button onClick={() => setEstState(p => ({...p, selectedProp: 'A'}))} className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${estState.selectedProp === 'A' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300 bg-slate-800'}`}>{tState.propA.name}</button>
-                                        <button onClick={() => setEstState(p => ({...p, selectedProp: 'B'}))} className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${estState.selectedProp === 'B' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300 bg-slate-800'}`}>{tState.propB.name}</button>
-                                        <button onClick={() => setEstState(p => ({...p, selectedProp: 'C'}))} className={`flex-1 py-2 text-xs font-bold rounded transition-colors ${estState.selectedProp === 'C' ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300 bg-slate-800'}`}>{tState.propC.name}</button>
+                                    <div className="flex bg-slate-900 rounded p-1 gap-1 overflow-x-auto">
+                                        {['A', 'B', 'C', 'D', 'E', 'F'].map(char => (
+                                            <button key={char} onClick={() => setEstState(p => ({...p, selectedProp: char}))} 
+                                                className={`min-w-[80px] flex-1 py-2 text-[10px] font-bold rounded transition-colors truncate px-1 ${estState.selectedProp === char ? 'bg-blue-600 text-white' : 'text-slate-500 hover:text-slate-300 bg-slate-800'}`}
+                                                title={tState[`prop${char}`].name}>
+                                                {tState[`prop${char}`].name || char}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                                 <div>
@@ -3558,12 +3591,11 @@
                                     </button>
                                 </div>
                                 <div>
-                                    <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Fecha Inicio</label>
-                                    <input type="text" placeholder="AAAA-MM-DD" value={estState.startDate} onChange={(e) => setEstState(p => ({...p, startDate: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white text-sm font-bold" />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Fecha Fin</label>
-                                    <input type="text" placeholder="AAAA-MM-DD" value={estState.endDate} onChange={(e) => setEstState(p => ({...p, endDate: e.target.value}))} className="w-full bg-slate-900 border border-slate-600 rounded p-2 text-white text-sm font-bold" />
+                                    <label className="text-xs font-bold text-slate-400 block mb-2 uppercase">Fechas</label>
+                                    <div className="flex gap-2">
+                                        <input type="text" placeholder="Inicio" value={estState.startDate} onChange={(e) => setEstState(p => ({...p, startDate: e.target.value}))} className="w-1/2 bg-slate-900 border border-slate-600 rounded p-2 text-white text-xs font-bold" />
+                                        <input type="text" placeholder="Fin" value={estState.endDate} onChange={(e) => setEstState(p => ({...p, endDate: e.target.value}))} className="w-1/2 bg-slate-900 border border-slate-600 rounded p-2 text-white text-xs font-bold" />
+                                    </div>
                                 </div>
                             </div>
 
@@ -3572,7 +3604,7 @@
                                     <label className="text-sm font-bold text-slate-300 uppercase">Configuración de Horarios (Periodos Energía)</label>
                                     <div className="flex items-center gap-2 bg-slate-900 p-2 rounded border border-slate-600">
                                         <input type="checkbox" checked={estState.scheduleConfig.weekendsAreP3} onChange={() => setEstState(p => ({...p, scheduleConfig: {...p.scheduleConfig, weekendsAreP3: !p.scheduleConfig.weekendsAreP3}}))} className="w-4 h-4 accent-green-500 cursor-pointer" />
-                                        <span className="text-xs text-white font-bold">Fines de Semana son Valle (P3)</span>
+                                        <span className="text-xs text-white font-bold hidden sm:block">Fines de Semana son Valle (P3)</span>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3639,13 +3671,13 @@
                 </div>
 
                 <div className="lg:col-span-12 no-print">
-                    <div className="flex flex-col md:flex-row gap-6 justify-center items-center p-6 bg-slate-900/50 rounded-xl border border-slate-700/50">
+                    <div className="flex flex-col md:flex-row gap-6 justify-center items-center p-6 bg-slate-900/50 rounded-xl border border-slate-700/50 mt-4">
                         <div className="flex flex-col items-center gap-2 w-full md:w-auto"><button onClick={handleSaveSnapshot} className="w-full md:w-auto px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"><Icons.Settings className="w-5 h-5" /> GUARDAR DATOS</button>{savedDate && (<span className="text-xs font-bold text-slate-400">Copia: <span className="text-blue-300">{savedDate}</span></span>)}</div>
                         {savedDate && (<div className="flex flex-col items-center gap-2 w-full md:w-auto"><button onClick={handleRestoreSnapshot} className="w-full md:w-auto px-6 py-3 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl transition-colors shadow-lg flex items-center justify-center gap-2"><Icons.Activity className="w-5 h-5" /> RESTAURAR DATOS</button></div>)}
                     </div>
                 </div>
 
-                  <div className="lg:col-span-12 mt-2 p-6 bg-purple-900/20 border border-purple-500/30 rounded-xl flex flex-col items-center gap-4 text-center no-print">
+                <div className="lg:col-span-12 mt-2 p-6 bg-purple-900/20 border border-purple-500/30 rounded-xl flex flex-col items-center gap-4 text-center no-print">
                     <p className="text-sm font-bold text-slate-300 leading-relaxed max-w-4xl">(*) Utiliza el comparador de la CNMC para localizar las compañias más económicas y luego usa mi web para el cálculo final</p>
                     <a href="https://comparador.cnmc.gob.es/" target="_blank" className="bg-purple-600 hover:bg-purple-500 text-white text-lg md:text-xl font-bold px-8 py-4 rounded-xl transition-all shadow-lg hover:shadow-purple-500/20 transform hover:-translate-y-1 flex items-center gap-2">COMPARADOR CNMC</a>
                 </div>
