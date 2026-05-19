@@ -3417,7 +3417,7 @@
                                 })}
                             </div>
                         </div>
-
+                      
                         <div className="print-grid-2 grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                             <div className="bg-slate-900/50 border border-blue-900/30 rounded-xl p-5 relative overflow-hidden">
                                 <div className="flex justify-between items-center mb-4 border-b border-blue-900/50 pb-2">
@@ -3428,11 +3428,12 @@
                                         const next = rankedEnergy[idx+1];
                                         const diffNextPct = next ? ((next.bill.termEnNet - item.bill.termEnNet) / next.bill.termEnNet) * 100 : 0;
                                         const diffNextEuro = next ? next.bill.termEnNet - item.bill.termEnNet : 0;
+                                        const isGlobalWinner = item.id === rankedBills[0].id;
                                         return (
-                                            <div key={idx} className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                            <div key={idx} className={`flex justify-between items-center p-2 rounded border transition-colors ${isGlobalWinner ? 'bg-yellow-900/20 border-yellow-500/50 shadow-[inset_0_0_15px_rgba(234,179,8,0.15)]' : 'bg-slate-800/50 border-slate-700/50'}`}>
                                                 <div className="flex items-center gap-3">
                                                     <span className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${idx===0?'bg-blue-500 text-white':'bg-slate-700 text-slate-400'}`}>{idx+1}</span>
-                                                    <span className="text-sm text-white font-bold truncate max-w-[120px]" title={item.data.name}>{item.data.name}</span>
+                                                    <span className={`text-sm font-bold truncate max-w-[120px] ${isGlobalWinner ? 'text-yellow-400' : 'text-white'}`} title={item.data.name}>{item.data.name} {isGlobalWinner && '⭐'}</span>
                                                 </div>
                                                 <div className="text-right">
                                                     <div className="text-white font-mono font-bold">{formatDecimal(item.bill.termEnNet)}€</div>
@@ -3453,11 +3454,12 @@
                                         const next = rankedPower[idx+1];
                                         const diffNextPct = next ? ((next.bill.termPotDisc - item.bill.termPotDisc) / next.bill.termPotDisc) * 100 : 0;
                                         const diffNextEuro = next ? next.bill.termPotDisc - item.bill.termPotDisc : 0;
+                                        const isGlobalWinner = item.id === rankedBills[0].id;
                                         return (
-                                            <div key={idx} className="flex justify-between items-center bg-slate-800/50 p-2 rounded border border-slate-700/50">
+                                            <div key={idx} className={`flex justify-between items-center p-2 rounded border transition-colors ${isGlobalWinner ? 'bg-yellow-900/20 border-yellow-500/50 shadow-[inset_0_0_15px_rgba(234,179,8,0.15)]' : 'bg-slate-800/50 border-slate-700/50'}`}>
                                                 <div className="flex items-center gap-3">
                                                     <span className={`text-xs font-bold w-5 h-5 flex items-center justify-center rounded-full ${idx===0?'bg-green-500 text-white':'bg-slate-700 text-slate-400'}`}>{idx+1}</span>
-                                                    <span className="text-sm text-white font-bold truncate max-w-[120px]" title={item.data.name}>{item.data.name}</span>
+                                                    <span className={`text-sm font-bold truncate max-w-[120px] ${isGlobalWinner ? 'text-yellow-400' : 'text-white'}`} title={item.data.name}>{item.data.name} {isGlobalWinner && '⭐'}</span>
                                                 </div>
                                                 <div className="text-right">
                                                     <div className="text-white font-mono font-bold">{formatDecimal(item.bill.termPotDisc)}€</div>
@@ -3468,7 +3470,8 @@
                                     })}
                                 </div>
                             </div>
-                        </div>
+                        </div>                        
+                       
                     </div>
                 </div>
 
