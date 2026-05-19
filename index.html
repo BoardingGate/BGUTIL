@@ -3361,27 +3361,43 @@
 
            
                 {/* CONTENEDOR DE TARIFAS (SCROLL HORIZONTAL CON BOTÓN DE ORDENACIÓN) */}
+                {/* CONTENEDOR DE TARIFAS (SCROLL HORIZONTAL CON BOTONES DE ORDENACIÓN Y GUARDADO) */}
                 <div className="lg:col-span-12 print-avoid-break mt-4">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-4 no-print">
-                        <h3 className="text-lg font-display font-bold text-white flex items-center gap-2">
+                    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4 no-print bg-slate-900/50 p-4 rounded-xl border border-slate-800 shadow-md">
+                        <h3 className="text-lg font-display font-bold text-white flex items-center gap-2 shrink-0">
                             <Icons.List className="w-5 h-5 text-blue-400" /> Comparativa de Precios
                         </h3>
-                        <button 
-                            onClick={() => {
-                                setTState(prev => ({
-                                    ...prev,
-                                    propA: rankedBills[0].data,
-                                    propB: rankedBills[1].data,
-                                    propC: rankedBills[2].data,
-                                    propD: rankedBills[3].data,
-                                    propE: rankedBills[4].data,
-                                    propF: rankedBills[5].data,
-                                }));
-                            }} 
-                            className="bg-slate-800 hover:bg-slate-700 text-yellow-400 border border-yellow-500/30 px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 shadow-lg active:scale-95"
-                        >
-                            <Icons.Award className="w-4 h-4"/> Ordenar por Ranking Global
-                        </button>
+                        
+                        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-start lg:justify-end">
+                            {savedDate && (<span className="text-xs font-bold text-slate-400 mr-2">Copia: <span className="text-blue-300">{savedDate}</span></span>)}
+                            
+                            {savedDate && (
+                                <button onClick={handleRestoreSnapshot} className="bg-orange-600 hover:bg-orange-500 text-white px-3 py-2 rounded-lg border border-orange-500/50 text-xs font-bold uppercase transition-all flex items-center gap-2 shadow-lg active:scale-95">
+                                    <Icons.Activity className="w-4 h-4" /> Restaurar
+                                </button>
+                            )}
+                            
+                            <button onClick={handleSaveSnapshot} className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 rounded-lg border border-blue-500/50 text-xs font-bold uppercase transition-all flex items-center gap-2 shadow-lg active:scale-95">
+                                <Icons.Settings className="w-4 h-4" /> Guardar
+                            </button>
+                            
+                            <button 
+                                onClick={() => {
+                                    setTState(prev => ({
+                                        ...prev,
+                                        propA: rankedBills[0].data,
+                                        propB: rankedBills[1].data,
+                                        propC: rankedBills[2].data,
+                                        propD: rankedBills[3].data,
+                                        propE: rankedBills[4].data,
+                                        propF: rankedBills[5].data,
+                                    }));
+                                }} 
+                                className="bg-slate-800 hover:bg-slate-700 text-yellow-400 border border-yellow-500/30 px-3 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 shadow-lg active:scale-95"
+                            >
+                                <Icons.Award className="w-4 h-4"/> Ordenar Ranking
+                            </button>
+                        </div>
                     </div>
                     
                     <div className="overflow-x-auto pb-4">
