@@ -3359,18 +3359,43 @@
                     </div>
                 </div>
 
-                {/* CONTENEDOR DE TARIFAS (SCROLL HORIZONTAL) */}
-                <div className="lg:col-span-12 overflow-x-auto pb-4 print-avoid-break mt-4">
-                    <div className="flex gap-4 print-grid-proposals w-max print:w-full snap-x">
-                        <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
-                        <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
-                        <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propC" title="Propuesta C" data={tState.propC} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
-                        <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propD" title="Propuesta D" data={tState.propD} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
-                        <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propE" title="Propuesta E" data={tState.propE} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
-                        <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propF" title="Propuesta F" data={tState.propF} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+           
+                {/* CONTENEDOR DE TARIFAS (SCROLL HORIZONTAL CON BOTÓN DE ORDENACIÓN) */}
+                <div className="lg:col-span-12 print-avoid-break mt-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-4 gap-4 no-print">
+                        <h3 className="text-lg font-display font-bold text-white flex items-center gap-2">
+                            <Icons.List className="w-5 h-5 text-blue-400" /> Comparativa de Precios
+                        </h3>
+                        <button 
+                            onClick={() => {
+                                setTState(prev => ({
+                                    ...prev,
+                                    propA: rankedBills[0].data,
+                                    propB: rankedBills[1].data,
+                                    propC: rankedBills[2].data,
+                                    propD: rankedBills[3].data,
+                                    propE: rankedBills[4].data,
+                                    propF: rankedBills[5].data,
+                                }));
+                            }} 
+                            className="bg-slate-800 hover:bg-slate-700 text-yellow-400 border border-yellow-500/30 px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all flex items-center gap-2 shadow-lg active:scale-95"
+                        >
+                            <Icons.Award className="w-4 h-4"/> Ordenar por Ranking Global
+                        </button>
                     </div>
-                </div>
-
+                    
+                    <div className="overflow-x-auto pb-4">
+                        <div className="flex gap-4 print-grid-proposals w-max print:w-full snap-x">
+                            <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                            <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                            <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propC" title="Propuesta C" data={tState.propC} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                            <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propD" title="Propuesta D" data={tState.propD} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                            <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propE" title="Propuesta E" data={tState.propE} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                            <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propF" title="Propuesta F" data={tState.propF} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
+                        </div>
+                    </div>
+                </div>    
+                
                 <div className="lg:col-span-12 space-y-6 print-avoid-break mt-4">
                   <div className="bg-gradient-to-br from-slate-900 to-slate-800 border border-slate-700 rounded-xl p-6">
                         <div className="flex items-center justify-center gap-3 mb-6">
