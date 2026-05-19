@@ -3348,7 +3348,22 @@
                         </div>
                     </div>
                     <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-                        <div className="flex justify-between items-center mb-4"><h3 className="text-sm text-slate-300 font-bold uppercase flex gap-2"><Icons.Activity className="w-4 h-4"/> Patrón de Consumo (kWh)</h3><div className="flex items-center gap-4"><div className="flex items-center gap-2"><span className="text-xs font-bold text-yellow-500">Excedentes:</span><div className="w-24"><FormattedInput value={tState.solarExp} onChange={v => setTState({...tState, solarExp: v})} decimals={0}/></div></div><div className="flex items-center gap-2"><span className="text-xs font-bold text-slate-300">Total:</span><span className="text-base font-bold text-white bg-slate-800 px-3 py-2 rounded border border-slate-700">{formatDecimal(tState.consTotal, 0)}</span></div></div></div>
+                        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-4 gap-3">
+                            <h3 className="text-sm text-slate-300 font-bold uppercase flex gap-2 shrink-0"><Icons.Activity className="w-4 h-4"/> Patrón de Consumo (kWh)</h3>
+                            <div className="flex flex-wrap items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-yellow-500">Excedentes:</span>
+                                    <div className="w-24"><FormattedInput value={tState.solarExp} onChange={v => setTState({...tState, solarExp: v})} decimals={0}/></div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-xs font-bold text-slate-300">Total:</span>
+                                    <span className="text-base font-bold text-white bg-slate-800 px-3 py-2 rounded border border-slate-700">{formatDecimal(tState.consTotal, 0)}</span>
+                                    <span className="text-[11px] text-green-400 font-bold bg-green-900/20 px-2 py-1.5 rounded border border-green-500/30 ml-1">
+                                        [Total KWh en valle: {formatDecimal(tState.p3Kwh + tState.p3VeKwh + tState.p4Kwh, 0)}]
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                         <div className="print-grid-5 grid grid-cols-5 gap-4">
                             <div className="bg-red-900/20 p-3 rounded border border-red-900/30 text-center"><label className="text-[10px] font-bold text-red-300 block mb-1">P1 (Punta)</label><FormattedInput value={tState.p1Kwh} onChange={v => handleConsChange('p1Kwh', v)} decimals={0}/><div className="text-[10px] font-bold text-red-300 block mt-1">{formatDecimal(getConsPct(tState.p1Kwh), 0)}%</div></div>
                             <div className="bg-orange-900/20 p-3 rounded border border-orange-900/30 text-center"><label className="text-[10px] font-bold text-orange-300 block mb-1">P2 (Llano)</label><FormattedInput value={tState.p2Kwh} onChange={v => handleConsChange('p2Kwh', v)} decimals={0}/><div className="text-[10px] font-bold text-orange-300 block mt-1">{formatDecimal(getConsPct(tState.p2Kwh), 0)}%</div></div>
@@ -3360,8 +3375,7 @@
                 </div>
 
            
-                {/* CONTENEDOR DE TARIFAS (SCROLL HORIZONTAL CON BOTÓN DE ORDENACIÓN) */}
-                {/* CONTENEDOR DE TARIFAS (SCROLL HORIZONTAL CON BOTONES DE ORDENACIÓN Y GUARDADO) */}
+                 {/* CONTENEDOR DE TARIFAS (SCROLL HORIZONTAL CON BOTONES DE ORDENACIÓN Y GUARDADO) */}
                 <div className="lg:col-span-12 print-avoid-break mt-4">
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4 no-print bg-slate-900/50 p-4 rounded-xl border border-slate-800 shadow-md">
                         <h3 className="text-lg font-display font-bold text-white flex items-center gap-2 shrink-0">
