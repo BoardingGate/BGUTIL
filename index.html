@@ -561,15 +561,17 @@
   
       // --- CALCULADORA DE AMORTIZACIÓN (V15 - INPUTS RESTORED & CSS CHART) ---
       const AmortizationCalculator = () => {
-        const [data, setData] = usePersistentState('amortDataV15', {
+        const [data, setData] = usePersistentState('amortDataV16', {
             priceEV: 43000, priceICE: 45000, moves: 7000, aidICE: 0,
             kmPerYear: 20000, consumptionEV: 16.0, consumptionICE: 6.5,
             priceElec: 0.10, priceFuel: 1.50, 
             yearsToProject: 10,
             maintenanceEV: 60, maintenanceICE: 250,
             breakdownRateEV: 2, breakdownRateICE: 5,
-            taxSavingsEV: 100, taxSavingsICE: 0
-        });
+            taxSavingsEV: 100, taxSavingsICE: 0,
+            resaleEV: 15000, // Valor de reventa por defecto para el VE
+            resaleICE: 10000 // Valor de reventa por defecto para el térmico
+        });   
         
         const [showTable, setShowTable] = useState(true);
 
@@ -599,8 +601,12 @@
                 const accOpEV = annOpEV * i;
                 const accOpICE = annOpICE * i;
 
-                const totalEV = netPriceEV + accElec + accOpEV;
-                const totalICE = netPriceICE + accFuel + accOpICE;
+                // Solo aplicamos el valor residual/reventa en el año final proyectado
+                const finalResaleEV = i === years ? num(data.resaleEV) : 0;
+                const finalResaleICE = i === years ? num(data.resaleICE) : 0;
+
+                const totalEV = netPriceEV + accElec + accOpEV - finalResaleEV;
+                const totalICE = netPriceICE + accFuel + accOpICE - finalResaleICE;
 
                 rows.push({
                     year: i,
@@ -610,12 +616,12 @@
                     diff: totalICE - totalEV,
                     stacks: {
                         ev: {
-                            base: netPriceEV,
+                            base: Math.max(0, netPriceEV - finalResaleEV),
                             energy: accElec,
                             ops: accOpEV
                         },
                         ice: {
-                            base: netPriceICE,
+                            base: Math.max(0, netPriceICE - finalResaleICE),
                             energy: accFuel,
                             ops: accOpICE
                         }
@@ -623,8 +629,8 @@
                 });
             }
             return rows;
-        }, [data, years, netPriceEV, netPriceICE, annElec, annFuel, annOpEV, annOpICE]);
-
+        }, [data, years, netPriceEV, netPriceICE, annElec, annFuel, annOpEV, annOpICE]);            
+    
         const totalSavingsProjected = tableRows[tableRows.length -1].diff;
         const effectiveCost = netPriceEV - totalSavingsProjected;
         const breakEvenRow = tableRows.find(r => r.diff >= 0);
@@ -756,8 +762,11 @@
                         <h4 className="text-blue-400 font-display font-bold mb-4 flex items-center gap-2 text-lg"><Icons.Zap /> Vehículo Eléctrico</h4>
                         <div className="space-y-4">
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Compra (€)</label><FormattedInput value={data.priceEV} onChange={val=>handleChange('priceEV', val)} /></div>
-                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Ayudas / MOVES (€)</label><FormattedInput value={data.moves} onChange={val=>handleChange('moves', val)} /></div>
-                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="text-sm font-bold text-slate-400 block mb-1">Ayudas / MOVES (€)</label><FormattedInput value={data.moves} onChange={val=>handleChange('moves', val)} /></div>
+                                <div><label className="text-sm font-bold text-slate-400 block mb-1">Valor de Reventa (€)</label><FormattedInput value={data.resaleEV} onChange={val=>handleChange('resaleEV', val)} /></div>
+                            </div>                     
+                        
                             <div className="pt-2 border-t border-slate-800">
                                 <h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-4 h-4"/> Mantenimiento y Averías</h5>
                                 <div className="grid grid-cols-3 gap-4">
@@ -781,8 +790,11 @@
                         <h4 className="text-orange-400 font-display font-bold mb-4 flex items-center gap-2 text-lg"><Icons.Fuel /> Vehículo Térmico</h4>
                         <div className="space-y-4">
                             <div><label className="text-sm font-bold text-slate-400 block mb-1">Precio Compra (€)</label><FormattedInput value={data.priceICE} onChange={val=>handleChange('priceICE', val)} /></div>
-                            <div><label className="text-sm font-bold text-slate-400 block mb-1">Ayudas / Plan Renove (€)</label><FormattedInput value={data.aidICE} onChange={val=>handleChange('aidICE', val)} /></div>
-                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="text-sm font-bold text-slate-400 block mb-1">Ayudas / Plan Renove (€)</label><FormattedInput value={data.aidICE} onChange={val=>handleChange('aidICE', val)} /></div>
+                                <div><label className="text-sm font-bold text-slate-400 block mb-1">Valor de Reventa (€)</label><FormattedInput value={data.resaleICE} onChange={val=>handleChange('resaleICE', val)} /></div>
+                            </div>
+                       
                             <div className="pt-2 border-t border-slate-800">
                                 <h5 className="text-sm font-bold text-slate-300 mb-2 flex gap-2 items-center"><Icons.Wrench className="w-4 h-4"/> Mantenimiento y Averías</h5>
                                 <div className="grid grid-cols-3 gap-4">
