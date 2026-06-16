@@ -11,7 +11,10 @@
     
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    
+
+    <script>
+       window.Babel = { disableAutoDiscovery: true };
+    </script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -78,7 +81,7 @@
       };
     </script>
 
-    <script type="text/babel">
+    <script id="react-app" type="text/plain">    
       const { useState, useEffect, useMemo, useRef } = React;
       const { createRoot } = ReactDOM;
       
@@ -7398,5 +7401,28 @@ const PlaceholderTab = () => {
       const root = createRoot(document.getElementById('root'));
       root.render(<App />);
     </script>
+    <script>
+  window.addEventListener('DOMContentLoaded', () => {
+    const code = document.getElementById('react-app').textContent;
+    try {
+      // Ajustamos el preset de react para usar el runtime clásico
+      const transformed = Babel.transform(code, { 
+        presets: [
+          ['react', { 
+            "runtime": "classic"  // <--- ESTO ELIMINA EL ERROR DE "runtime is automatic"
+          }],
+          ['env', { "modules": false }]
+        ]
+      }).code;
+      
+      eval(transformed);
+    } catch (err) {
+      console.error("Error al compilar React:", err);
+      document.getElementById('error-display').style.display = 'block';
+      document.getElementById('error-display').innerHTML = '<strong>Error de Transpilación:</strong><br>' + err.message;
+    }
+  });
+</script>
+    
 </body>
 </html>
