@@ -81,9 +81,9 @@
       };
     </script>
 
-    <script id="react-app" type="text/plain">    
+    <script id="react-app" type="text/plain"> 
       const { useState, useEffect, useMemo, useRef } = React;
-      const { createRoot } = ReactDOM;
+       const { createRoot } = ReactDOM;
       
       const usePersistentState = (key, initialValue) => {
         const [state, setState] = useState(() => {
@@ -7399,7 +7399,7 @@ const PlaceholderTab = () => {
           
    
       const root = createRoot(document.getElementById('root'));
-      root.render(<App />);
+    //  root.render(<App />);
     </script>
     <script>
   window.addEventListener('DOMContentLoaded', () => {
@@ -7409,7 +7409,7 @@ const PlaceholderTab = () => {
       const transformed = Babel.transform(code, { 
         presets: [
           ['react', { 
-            "runtime": "classic"  // <--- ESTO ELIMINA EL ERROR DE "runtime is automatic"
+            "runtime": "classic"  
           }],
           ['env', { "modules": false }]
         ]
