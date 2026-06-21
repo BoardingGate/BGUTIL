@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -2974,14 +2973,18 @@ const PlaceholderTab = () => {
             const p1Pot = powerData?.p1 || 0;
             const p2Pot = powerData?.p2 || 0;
 
-            const { p1Kwh, p2Kwh, p3Kwh, p3VeKwh, p4Kwh, totalKwh } = consData;
+        
+            const { p1Kwh, p2Kwh, p3Kwh, p3VeKwh, p4Kwh, totalKwh, days = 30 } = consData;
 
             const calcP1Annual = data.pricePotP1 * 365 * p1Pot;
             const calcP1KwYear = data.pricePotP1 * 365;
-            
+
             const calcP2Annual = data.pricePotP2 * 365 * p2Pot;
             const calcP2KwYear = data.pricePotP2 * 365;
-            
+
+            const calcP1_Days = data.pricePotP1 * days * p1Pot;
+            const calcP2_Days = data.pricePotP2 * days * p2Pot;    
+        
             const savingsPct = data.pricePotP1 > 0 ? ((data.pricePotP1 - data.pricePotP2) / data.pricePotP1) * 100 : 0;
 
             const costP1 = p1Kwh * data.priceEnP1;
@@ -2996,31 +2999,35 @@ const PlaceholderTab = () => {
                 <div className="bg-slate-900/40 p-5 rounded-xl border border-slate-700/50 h-full">
                     <input type="text" value={data.name} onChange={(e) => onChange(propKey, 'name', e.target.value)} 
                         className="w-full bg-zinc-700 border border-zinc-600 rounded px-3 py-3 text-yellow-300 font-bold text-center mb-4 focus:outline-none focus:border-yellow-500 text-lg placeholder-zinc-500 transition-colors" />
+
                     
                     <h4 className="text-xs uppercase font-bold text-slate-300 mb-2 border-b border-slate-700/50 pb-1">Potencia (€/kW/día)</h4>
-                    <div className="grid grid-cols-2 gap-3 mb-4">
+                     <div className="grid grid-cols-2 gap-3 mb-4">
                         <div>
                             <label className="text-[10px] font-bold text-slate-400 block">P1</label>
                             <FormattedInput value={data.pricePotP1} onChange={v => onChange(propKey, 'pricePotP1', v)} decimals={6}/>
                             <div className="mt-1 text-[10px] font-mono leading-tight">
                                 <div className="text-yellow-400 font-bold">{formatDecimal(calcP1Annual, 0)} €/año</div>
                                 <div className="text-slate-500">({formatDecimal(calcP1KwYear, 2)} €/kW)</div>
+                                <div className="text-blue-400 font-bold mt-0.5">{formatDecimal(calcP1_Days, 2)} € ({days}d)</div>
                             </div>
                         </div>
-
+                    
                         <div>
                             <label className="text-[10px] font-bold text-slate-400 block">P2</label>
                             <FormattedInput value={data.pricePotP2} onChange={v => onChange(propKey, 'pricePotP2', v)} decimals={6}/>
                             <div className="mt-1 text-[10px] font-mono leading-tight">
                                 <div className="text-yellow-400 font-bold">{formatDecimal(calcP2Annual, 0)} €/año</div>
                                 <div className="text-slate-500">({formatDecimal(calcP2KwYear, 2)} €/kW)</div>
+                                <div className="text-blue-400 font-bold mt-0.5">{formatDecimal(calcP2_Days, 2)} € ({days}d)</div>
                                 {savingsPct > 0 && (
                                     <div className="text-green-400 font-bold mt-0.5">-{formatDecimal(savingsPct, 0)}% vs P1</div>
                                 )}
                             </div>
                         </div>
                     </div>
-
+                    
+                                       
                     <h4 className="text-xs uppercase font-bold text-slate-300 mb-2 border-b border-slate-700/50 pb-1">Energía (€/kWh)</h4>
                     <div className="space-y-3 mb-6">
                         <div className="grid grid-cols-12 gap-2 items-center">
@@ -3353,7 +3360,7 @@ const PlaceholderTab = () => {
         const rankedPower = [...tariffsList].sort((a,b) => a.bill.termPotDisc - b.bill.termPotDisc);
 
         const getConsPct = (val) => tState.consTotal > 0 ? (val / tState.consTotal) * 100 : 0; 
-        const consumptionData = { p1Kwh: tState.p1Kwh, p2Kwh: tState.p2Kwh, p3Kwh: tState.p3Kwh, p3VeKwh: tState.p3VeKwh, p4Kwh: tState.p4Kwh, totalKwh: tState.consTotal };
+        const consumptionData = { p1Kwh: tState.p1Kwh, p2Kwh: tState.p2Kwh, p3Kwh: tState.p3Kwh, p3VeKwh: tState.p3VeKwh, p4Kwh: tState.p4Kwh, totalKwh: tState.consTotal, days: tState.days };
         
         const getMinClass = (currentVal, ...allVals) => { 
             const min = Math.min(...allVals); 
