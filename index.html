@@ -2980,12 +2980,12 @@ const PlaceholderTab = () => {
             const calcP1Annual = data.pricePotP1 * 365 * p1Pot;
             const calcP1KwYear = data.pricePotP1 * 365;
 
-            const calcP1_Days = data.pricePotP1 * days * p1Pot;
-            const calcP2_Days = data.pricePotP2 * days * p2Pot;
-    
             const calcP2Annual = data.pricePotP2 * 365 * p2Pot;
             const calcP2KwYear = data.pricePotP2 * 365;
-            
+
+            const calcP1_Days = data.pricePotP1 * days * p1Pot;
+            const calcP2_Days = data.pricePotP2 * days * p2Pot;    
+        
             const savingsPct = data.pricePotP1 > 0 ? ((data.pricePotP1 - data.pricePotP2) / data.pricePotP1) * 100 : 0;
 
             const costP1 = p1Kwh * data.priceEnP1;
