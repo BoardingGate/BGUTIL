@@ -3360,7 +3360,7 @@ const PlaceholderTab = () => {
         const rankedPower = [...tariffsList].sort((a,b) => a.bill.termPotDisc - b.bill.termPotDisc);
 
         const getConsPct = (val) => tState.consTotal > 0 ? (val / tState.consTotal) * 100 : 0; 
-        const consumptionData = { p1Kwh: tState.p1Kwh, p2Kwh: tState.p2Kwh, p3Kwh: tState.p3Kwh, p3VeKwh: tState.p3VeKwh, p4Kwh: tState.p4Kwh, totalKwh: tState.consTotal, days: tState.days }; 2. Mod
+        const consumptionData = { p1Kwh: tState.p1Kwh, p2Kwh: tState.p2Kwh, p3Kwh: tState.p3Kwh, p3VeKwh: tState.p3VeKwh, p4Kwh: tState.p4Kwh, totalKwh: tState.consTotal, days: tState.days };
         
         const getMinClass = (currentVal, ...allVals) => { 
             const min = Math.min(...allVals); 
