@@ -1908,24 +1908,19 @@ const PlaceholderTab = () => {
 
         const { results, totalTime, totalKmCharged, totalKmDriven, totalKwhCharged, lowestPoint, calibrationOpportunity } = calculateWeek();       
 
-// 1. Tu fórmula: (Media Km Diarios + Media Km Cargados) / 2
-const kmDiariosMedia = (totalKmDriven || 0) / 7;
-const kmCargadosMedia = (totalKmCharged || 0) / 7;
-const mediaMaestraDiaria = (kmDiariosMedia + kmCargadosMedia) / 2;
+// CÁLCULO MAESTRO ANTI-ERRORES
+const kmTotalesDiarios = parseFloat(totalKmDriven) || 0;
+const kmTotalesCargados = parseFloat(totalKmCharged) || 0;
+const mediaDiariaKms = ((kmTotalesDiarios / 7) + (kmTotalesCargados / 7)) / 2;
+const kmsAnualesProyectados = mediaDiariaKms * 365;
 
-// 2. Proyecciones de distancia
-const fSemanaKm = mediaMaestraDiaria * 7;
-const fMesKm = mediaMaestraDiaria * 30.41;
-const fAnioKm = mediaMaestraDiaria * 365;
-
-// 3. Cálculo del coste por km (Importe Anual / Km Anuales)
-// La función isFinite y el check > 0 evitan el error NaN
-const costePorKmFinal = (fAnioKm > 0 && isFinite(fAnioKm)) ? (annualCost / fAnioKm) : 0;
+// La división: Importe Anual / Km Anuales (Si hay Km, divide. Si no, 0)
+const costePorKmReal = kmsAnualesProyectados > 0 ? (annualCost / kmsAnualesProyectados) : 0;
         
         const reserveKm = totalKmCharged - totalKmDriven; 
         const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * state.energyPrice;
         const monthlyCost = (totalCost / 7) * 30.41;
-        const annualCost = (totalCost / 7) * 365;
+        (totalCost / 7) * 365;
 
         const totalDrivingKwh = (state.currentKm / 100) * state.consumption;
         const daysOwned = carAge ? carAge.days : 0; 
@@ -2138,49 +2133,55 @@ const costePorKmFinal = (fAnioKm > 0 && isFinite(fAnioKm)) ? (annualCost / fAnio
                             <div className="text-5xl font-display font-bold text-white">{formatTimeShort(totalTime)}</div>
                             <div className="text-sm text-slate-400 mt-2 font-bold">{formatDecimal(totalKwhCharged, 1)} kWh a Batería</div>
                         </div>
-                     <div className="bg-slate-900/80 border border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-center flex-1">
-                        <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Coste Estimado</div>
-                        
-                        {/* Subtítulo con el dato que faltaba */}
-                        <div className="text-xs font-bold text-blue-400 mb-6 uppercase">
-                            [Coste estimado por km: {formatDecimal(costePorKmFinal, 4)}€]
-                        </div>
-                        
-                        <div className="flex flex-col gap-6 w-full">
-                            {/* SEMANAL */}
-                            <div className="flex justify-between items-center w-full border-b border-slate-700 pb-4">
-                                <span className="text-xs font-bold text-slate-500 uppercase">Semanal</span>
-                                <div className="text-right leading-tight">
-                                    <div className="text-white text-xl font-bold">{formatDecimal(totalCost)}€</div>
-                                    <div className="text-2xl font-mono text-slate-200 mt-2 font-bold">
-                                        {formatDecimal(totalKwhCharged / (state.chargingEfficiency / 100 || 1), 1)} <span className="text-xs text-slate-500 font-sans">kWh</span> <span className="text-slate-700">|</span> {formatMoney(fSemanaKm)} <span className="text-xs text-slate-500 font-sans">km</span>
-                                    </div>
-                                </div>
-                            </div>
-                    
-                            {/* MENSUAL */}
-                            <div className="flex justify-between items-center w-full border-b border-slate-700 pb-4">
-                                <span className="text-xs font-bold text-slate-500 uppercase">Mensual</span>
-                                <div className="text-right leading-tight">
-                                    <div className="text-white text-xl font-bold">{formatDecimal(monthlyCost)}€</div>
-                                    <div className="text-2xl font-mono text-slate-200 mt-2 font-bold">
-                                        {formatDecimal((totalKwhCharged / (state.chargingEfficiency / 100 || 1) / 7) * 30.41, 1)} <span className="text-xs text-slate-500 font-sans">kWh</span> <span className="text-slate-700">|</span> {formatMoney(fMesKm)} <span className="text-xs text-slate-500 font-sans">km</span>
-                                    </div>
-                                </div>
-                            </div>
-                    
-                            {/* ANUAL */}
-                            <div className="flex justify-between items-center w-full pt-2">
-                                <span className="text-xs font-bold text-blue-400 uppercase">Anual</span>
-                                <div className="text-right leading-tight">
-                                    <div className="text-blue-400 text-3xl font-bold">{formatMoney(annualCost)}€</div>
-                                    <div className="text-2xl font-mono text-blue-300 mt-2 font-bold">
-                                        {formatMoney((totalKwhCharged / (state.chargingEfficiency / 100 || 1) / 7) * 365)} <span className="text-xs text-blue-900 font-sans">kWh</span> <span className="text-blue-900">|</span> {formatMoney(fAnioKm)} <span className="text-xs text-blue-900 font-sans">km</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                     <div className="bg-slate-900/80 border border-slate-700 rounded-xl p-6 flex flex-col items-center justify-center text-center flex-1 shadow-2xl">
+    <div className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Coste Estimado</div>
+    
+    {/* EL DATO SOLICITADO */}
+    <div className="text-xs font-bold text-blue-400 mb-6 uppercase bg-blue-900/20 px-3 py-1 rounded-full border border-blue-500/30">
+        [Coste estimado por km: {formatDecimal(costePorKmReal, 4)}€]
+    </div>
+    
+    <div className="flex flex-col gap-6 w-full">
+        {/* SEMANAL */}
+        <div className="flex justify-between items-center w-full border-b border-slate-700 pb-4">
+            <span className="text-xs font-bold text-slate-500 uppercase">Semanal</span>
+            <div className="text-right leading-tight">
+                <div className="text-white text-xl font-bold">{formatDecimal(totalCost)}€</div>
+                <div className="text-2xl font-mono text-slate-200 mt-2 font-black">
+                    {formatDecimal(totalKwhCharged / (state.chargingEfficiency / 100 || 1), 1)}<span className="text-xs text-slate-500 font-normal ml-1">kWh</span> 
+                    <span className="text-slate-700 mx-2">|</span> 
+                    {formatMoney(mediaDiariaKms * 7)}<span className="text-xs text-slate-500 font-normal ml-1">km</span>
+                </div>
+            </div>
+        </div>
+
+        {/* MENSUAL */}
+        <div className="flex justify-between items-center w-full border-b border-slate-700 pb-4">
+            <span className="text-xs font-bold text-slate-500 uppercase">Mensual</span>
+            <div className="text-right leading-tight">
+                <div className="text-white text-xl font-bold">{formatDecimal(monthlyCost)}€</div>
+                <div className="text-2xl font-mono text-slate-200 mt-2 font-black">
+                    {formatDecimal((totalKwhCharged / (state.chargingEfficiency / 100 || 1) / 7) * 30.41, 1)}<span className="text-xs text-slate-500 font-normal ml-1">kWh</span>
+                    <span className="text-slate-700 mx-2">|</span> 
+                    {formatMoney(mediaDiariaKms * 30.41)}<span className="text-xs text-slate-500 font-normal ml-1">km</span>
+                </div>
+            </div>
+        </div>
+
+        {/* ANUAL */}
+        <div className="flex justify-between items-center w-full pt-2">
+            <span className="text-xs font-bold text-blue-400 uppercase">Anual</span>
+            <div className="text-right leading-tight">
+                <div className="text-blue-400 text-3xl font-black">{formatMoney(annualCost)}€</div>
+                <div className="text-2xl font-mono text-blue-300 mt-2 font-black">
+                    {formatMoney((totalKwhCharged / (state.chargingEfficiency / 100 || 1) / 7) * 365)}<span className="text-xs text-blue-900 font-normal ml-1">kWh</span>
+                    <span className="text-blue-900 mx-2">|</span> 
+                    {formatMoney(kmsAnualesProyectados)}<span className="text-xs text-blue-900 font-normal ml-1">km</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
                         
                     </div>
  
@@ -5705,7 +5706,7 @@ const costePorKmFinal = (fAnioKm > 0 && isFinite(fAnioKm)) ? (annualCost / fAnio
             const efficiencyFactor = 1 - penalty;
             const realRange = config.baseRange * efficiencyFactor;
             const consumption = config.batteryKwh / (realRange / 100); 
-            const annualCost = (consumption * config.annualKm / 100) * config.priceKwh;
+            (consumption * config.annualKm / 100) * config.priceKwh;
             const diameterMm = (setup.width * (setup.profile / 100) * 2) + (setup.size * 25.4);
 
             return { realRange, consumption, annualCost, penalty, diameterMm };
