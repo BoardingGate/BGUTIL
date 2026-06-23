@@ -1907,21 +1907,25 @@ const PlaceholderTab = () => {
         };
 
         const { results, totalTime, totalKmCharged, totalKmDriven, totalKwhCharged, lowestPoint, calibrationOpportunity } = calculateWeek();       
-
-// CÁLCULO MAESTRO ANTI-ERRORES
-const kmTotalesDiarios = parseFloat(totalKmDriven) || 0;
-const kmTotalesCargados = parseFloat(totalKmCharged) || 0;
-const mediaDiariaKms = ((kmTotalesDiarios / 7) + (kmTotalesCargados / 7)) / 2;
-const kmsAnualesProyectados = mediaDiariaKms * 365;
-
-// La división: Importe Anual / Km Anuales (Si hay Km, divide. Si no, 0)
-const costePorKmReal = kmsAnualesProyectados > 0 ? (annualCost / kmsAnualesProyectados) : 0;
         
         const reserveKm = totalKmCharged - totalKmDriven; 
-        const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * state.energyPrice;
-        const monthlyCost = (totalCost / 7) * 30.41;
-        (totalCost / 7) * 365;
 
+const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * state.energyPrice;
+        const monthlyCost = (totalCost / 7) * 30.41;
+        const annualCost = (totalCost / 7) * 365;
+
+        // --- CÁLCULOS DE DISTANCIA MAESTROS PARA EVITAR NaN ---
+        const kmDiariosReales = (totalKmDriven || 0) / 7;
+        const kmDiariosCargados = (totalKmCharged || 0) / 7;
+        const mediaDiariaMaestra = (kmDiariosReales + kmDiariosCargados) / 2;
+
+        const kmSemanalesProy = mediaDiariaMaestra * 7;
+        const kmMensualesProy = mediaDiariaMaestra * 30.41;
+        const kmAnualesProy = mediaDiariaMaestra * 365;
+
+        // DIVISIÓN SEGURA: Importe Anual / Km Anuales
+        const costeKmFinal = kmAnualesProy > 0 ? (annualCost / kmAnualesProy) : 0;
+    
         const totalDrivingKwh = (state.currentKm / 100) * state.consumption;
         const daysOwned = carAge ? carAge.days : 0; 
         const totalVampireKwh = daysOwned * state.vampireRate;
@@ -2138,7 +2142,8 @@ const costePorKmReal = kmsAnualesProyectados > 0 ? (annualCost / kmsAnualesProye
     
     {/* EL DATO SOLICITADO */}
     <div className="text-xs font-bold text-blue-400 mb-6 uppercase bg-blue-900/20 px-3 py-1 rounded-full border border-blue-500/30">
-        [Coste estimado por km: {formatDecimal(costePorKmReal, 4)}€]
+        [Coste estimado por km: {formatDecimal(costeKmFinal, 4)}€]
+        
     </div>
     
     <div className="flex flex-col gap-6 w-full">
