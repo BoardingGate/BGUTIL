@@ -3159,41 +3159,7 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
 
 
    // --- TARIFF COMPARATOR (HASTA 6 TARIFAS CON SCROLL HORIZONTAL) ---
-      const TariffComparator = () => {
-        // Asegurar que siempre existan datos para el mapeo (Protección Backup Viejo)
-            const safeSlots = tState.indexedSlots || DEFAULT_INDEXED_SLOTS;
-            
-            const handleIndexedSlotChange = (index, field, value) => {
-                const newSlots = [...safeSlots];
-                newSlots[index][field] = field === 'kwh' ? (parseFloat(value) || 0) : value;
-                setTState(prev => ({ ...prev, indexedSlots: newSlots }));
-            };
-            
-            const clearMasterPattern = () => {
-                if(confirm("¿Poner a cero todos los kWh de la sección superior?")) {
-                    setTState(prev => ({ ...prev, p1Kwh: 0, p2Kwh: 0, p3Kwh: 0, p3VeKwh: 0, p4Kwh: 0, consTotal: 0 }));
-                }
-            };
-            
-            const syncIndexedToMaster = () => {
-                const totals = { P1: 0, P2: 0, P3: 0, 'PE(VE)': 0, 'P4(EXTRA)': 0 };
-                safeSlots.forEach(slot => {
-                    if (totals.hasOwnProperty(slot.type)) totals[slot.type] += slot.kwh;
-                });
-            
-                setTState(prev => ({
-                    ...prev,
-                    p1Kwh: totals.P1,
-                    p2Kwh: totals.P2,
-                    p3Kwh: totals.P3,
-                    p3VeKwh: totals['PE(VE)'],
-                    p4Kwh: totals['P4(EXTRA)'],
-                    consTotal: totals.P1 + totals.P2 + totals.P3 + totals['PE(VE)'] + totals['P4(EXTRA)']
-                }));
-            };
-            
-            const totalIndexedKwh = safeSlots.reduce((acc, s) => acc + (s.kwh || 0), 0);  
-        
+      const TariffComparator = () => {        
         const [tState, setTState] = usePersistentState('tariffCompV10_6props', {
             days: 30,
             potP1: 4.6, potP2: 7.4,
@@ -3259,6 +3225,40 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
                 solarPrice: 0.04, virtualBat: false
             }
         });
+
+      // Asegurar que siempre existan datos para el mapeo (Protección Backup Viejo)
+            const safeSlots = tState.indexedSlots || DEFAULT_INDEXED_SLOTS;
+            
+            const handleIndexedSlotChange = (index, field, value) => {
+                const newSlots = [...safeSlots];
+                newSlots[index][field] = field === 'kwh' ? (parseFloat(value) || 0) : value;
+                setTState(prev => ({ ...prev, indexedSlots: newSlots }));
+            };
+            
+            const clearMasterPattern = () => {
+                if(confirm("¿Poner a cero todos los kWh de la sección superior?")) {
+                    setTState(prev => ({ ...prev, p1Kwh: 0, p2Kwh: 0, p3Kwh: 0, p3VeKwh: 0, p4Kwh: 0, consTotal: 0 }));
+                }
+            };
+            
+            const syncIndexedToMaster = () => {
+                const totals = { P1: 0, P2: 0, P3: 0, 'PE(VE)': 0, 'P4(EXTRA)': 0 };
+                safeSlots.forEach(slot => {
+                    if (totals.hasOwnProperty(slot.type)) totals[slot.type] += slot.kwh;
+                });
+            
+                setTState(prev => ({
+                    ...prev,
+                    p1Kwh: totals.P1,
+                    p2Kwh: totals.P2,
+                    p3Kwh: totals.P3,
+                    p3VeKwh: totals['PE(VE)'],
+                    p4Kwh: totals['P4(EXTRA)'],
+                    consTotal: totals.P1 + totals.P2 + totals.P3 + totals['PE(VE)'] + totals['P4(EXTRA)']
+                }));
+            };
+            
+            const totalIndexedKwh = safeSlots.reduce((acc, s) => acc + (s.kwh || 0), 0);  
 
         const [estState, setEstState] = usePersistentState('estConsV4_6props', {
             selectedProp: 'A',
