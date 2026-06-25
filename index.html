@@ -3284,29 +3284,6 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
             } catch (e) { console.error(e); }
         }, []);
 
-     const handleIndexedSlotChange = (index, field, value) => {
-            const newSlots = [...(tState.indexedSlots || [])];
-            newSlots[index][field] = field === 'kwh' ? (parseFloat(value) || 0) : value;
-        
-           const totals = { P1: 0, P2: 0, P3: 0, 'PE(VE)': 0, 'P4(EXTRA)': 0 };
-            newSlots.forEach(slot => {
-                if (totals.hasOwnProperty(slot.type)) {
-                    totals[slot.type] += slot.kwh;
-                }
-    });
-
-    setTState(prev => ({
-        ...prev,
-        indexedSlots: newSlots,
-        p1Kwh: totals.P1,
-        p2Kwh: totals.P2,
-        p3Kwh: totals.P3,
-        p3VeKwh: totals['PE(VE)'],
-        p4Kwh: totals['P4(EXTRA)'],
-        consTotal: totals.P1 + totals.P2 + totals.P3 + totals['PE(VE)'] + totals['P4(EXTRA)']
-    }));
-};
-
 const totalIndexedKwh = (tState.indexedSlots || []).reduce((acc, s) => acc + (s.kwh || 0), 0);
 
         const Tariff3DChart = ({ tariffs }) => {
