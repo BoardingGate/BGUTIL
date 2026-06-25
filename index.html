@@ -3268,7 +3268,7 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
             scheduleConfig: {
                 p1: ["10-14", "18-22", ""], 
                 p2: ["08-10", "14-18", "22-24"], 
-                weekendsAreP3: true 
+                weekendMode: 'p3', // Opciones: 'p3', 'p3ve_p4', 'none'    
             },
             devices: [
                 { id: 1, name: "Aerotermia / Calefacción", power: 4.5, count: 1, dutyCycle: 60, days: { Mon: [], Tue: [], Wed: [], Thu: [], Fri: [], Sat: [], Sun: [] } }
@@ -3484,75 +3484,116 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
         };
 
         const calculateEstimation = () => {
-            const start = new Date(estState.startDate);
-            const end = new Date(estState.endDate);
-            const daysDiff = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
-            const weeks = daysDiff / 7;
+    const start = new Date(estState.startDate);
+    const end = new Date(estState.endDate);
+    const daysDiff = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)));
+    const weeks = daysDiff / 7;
 
-            let prop;
-            if (estState.selectedProp === 'A') prop = tState.propA;
-            else if (estState.selectedProp === 'B') prop = tState.propB;
-            else if (estState.selectedProp === 'C') prop = tState.propC;
-            else if (estState.selectedProp === 'D') prop = tState.propD;
-            else if (estState.selectedProp === 'E') prop = tState.propE;
-            else prop = tState.propF;
+    const propKey = `prop${estState.selectedProp || 'A'}`;
+    const prop = tState[propKey] || tState.propA;
+    const taxMultiplier = estState.withTaxes ? (1 + tState.impuestoElec / 100) * (1 + tState.iva / 100) : 1;
+    
+    const prices = {
+        p1: prop.priceEnP1 * (1 - prop.discEn / 100) * taxMultiplier,
+        p2: prop.priceEnP2 * (1 - prop.discEn / 100) * taxMultiplier,
+        p3: prop.priceEnP3 * (1 - prop.discEn / 100) * taxMultiplier,
+        p3Ve: prop.priceEnP3Ve * (1 - prop.discEn / 100) * taxMultiplier,
+        p4: prop.priceEnP4 * (1 - prop.discEn / 100) * taxMultiplier
+    };
 
-            const taxMultiplier = estState.withTaxes ? (1 + tState.impuestoElec/100) * (1 + tState.iva/100) : 1;
-            const p1Price = prop.priceEnP1 * (1 - prop.discEn/100) * taxMultiplier;
-            const p2Price = prop.priceEnP2 * (1 - prop.discEn/100) * taxMultiplier;
-            const p3Price = prop.priceEnP3 * (1 - prop.discEn/100) * taxMultiplier;
+    const parseHourArray = (textArray) => {
+        if (!textArray || !Array.isArray(textArray)) return [];
+        const hours = new Set();
+        textArray.forEach(range => {
+            if (!range || !range.includes('-')) return;
+            const [s, e] = range.split('-').map(Number);
+            if (isNaN(s) || isNaN(e)) return;
+            let current = s; while (current < e) { hours.add(current % 24); current++; }
+        });
+        return Array.from(hours);
+    };
 
-            const parseHourArray = (textArray) => {
-                const hours = new Set();
-                textArray.forEach(range => {
-                    if(!range || !range.includes('-')) return;
-                    const [s, e] = range.split('-').map(Number);
-                    if(isNaN(s) || isNaN(e)) return;
-                    let current = s; while(current < e) { hours.add(current); current++; }
-                });
-                return Array.from(hours);
-            };
-            const p1Hours = parseHourArray(estState.scheduleConfig.p1);
-            const p2Hours = parseHourArray(estState.scheduleConfig.p2);
+    const h = {
+        p1: parseHourArray(estState.scheduleConfig?.p1 || []),
+        p2: parseHourArray(estState.scheduleConfig?.p2 || []),
+        p3: parseHourArray(estState.scheduleConfig?.p3 || []),
+        p3Ve: parseHourArray(estState.scheduleConfig?.p3Ve || []),
+        p4: parseHourArray(estState.scheduleConfig?.p4 || [])
+    };
 
-            let totalCost = 0; let totalKwh = 0;
-            const deviceResults = [];
+    let totalCost = 0; let totalKwh = 0;
+    const deviceResults = [];
 
-            estState.devices.forEach(dev => {
-                let devKwhWeekly = 0; let devCostWeekly = 0;
-                ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((dayStr) => {
-                    const isWeekend = dayStr === 'Sat' || dayStr === 'Sun';
-                    const intervals = dev.days[dayStr] || [];
-                    intervals.forEach(int => {
-                        if(!int.start || !int.end) return;
-                        const parseTime = (str) => { if(!str) return 0; const parts = str.includes(':') ? str.split(':') : [str, '0']; return parseInt(parts[0]) + (parseInt(parts[1]||0)/60); };
-                        const startH = parseTime(int.start); let endH = parseTime(int.end); if(endH < startH) endH += 24; 
-                        const duration = endH - startH; if(duration <= 0) return;
-                        const effectivePower = dev.power * dev.count * (dev.dutyCycle / 100);
-                        for(let h = Math.floor(startH); h < Math.ceil(endH); h++) {
-                            const hourReal = h % 24;
-                            const overlapStart = Math.max(h, startH); const overlapEnd = Math.min(h + 1, endH);
-                            const fraction = Math.max(0, overlapEnd - overlapStart);
-                            const kwh = effectivePower * fraction;
-                            let price = p3Price; 
-                            if (!(estState.scheduleConfig.weekendsAreP3 && isWeekend)) { if (p1Hours.includes(hourReal)) price = p1Price; else if (p2Hours.includes(hourReal)) price = p2Price; }
-                            devKwhWeekly += kwh; devCostWeekly += (kwh * price);
+    estState.devices.forEach(dev => {
+        let devKwhWeekly = 0; let devCostWeekly = 0;
+        ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((dayStr) => {
+            const isWeekend = dayStr === 'Sat' || dayStr === 'Sun';
+            const intervals = dev.days[dayStr] || [];
+            intervals.forEach(int => {
+                if (!int.start || !int.end) return;
+                const parseTime = (s) => { 
+                    const p = s.includes(':') ? s.split(':') : [s, '0']; 
+                    return parseInt(p[0]) + (parseInt(p[1] || 0) / 60); 
+                };
+                const startH = parseTime(int.start);
+                let endH = parseTime(int.end);
+                if (endH < startH) endH += 24;
+
+                const effectivePower = dev.power * dev.count * (dev.dutyCycle / 100);
+
+                for (let curr = Math.floor(startH); curr < Math.ceil(endH); curr++) {
+                    const hourReal = curr % 24;
+                    const fraction = Math.max(0, Math.min(curr + 1, endH) - Math.max(curr, startH));
+                    const kwh = effectivePower * fraction;
+                    let price = prices.p3; // Base
+
+                    const mode = estState.scheduleConfig?.weekendMode || (estState.scheduleConfig?.weekendsAreP3 ? 'p3' : 'none');
+
+                    if (isWeekend) {
+                        if (mode === 'p3') {
+                            price = prices.p3;
+                        } else if (mode === 'p3ve_p4') {
+                            // En este modo, ignoramos P1/P2 y priorizamos P3VE y P4
+                            if (h.p3Ve.includes(hourReal)) price = prices.p3Ve;
+                            else if (h.p4.includes(hourReal)) price = prices.p4;
+                            else price = prices.p3;
+                        } else {
+                            // Modo 'none': Se comporta como un día normal (usa todos los tramos)
+                            if (h.p1.includes(hourReal)) price = prices.p1;
+                            else if (h.p2.includes(hourReal)) price = prices.p2;
+                            else if (h.p3Ve.includes(hourReal)) price = prices.p3Ve;
+                            else if (h.p4.includes(hourReal)) price = prices.p4;
+                            else if (h.p3.includes(hourReal)) price = prices.p3;
                         }
-                    });
-                });
-                const devTotalKwh = devKwhWeekly * weeks; const devTotalCost = devCostWeekly * weeks;
-                deviceResults.push({ ...dev, totalKwh: devTotalKwh, totalCost: devTotalCost });
-                totalKwh += devTotalKwh; totalCost += devTotalCost;
+                    } else {
+                        // Lógica normal entre semana
+                        if (h.p1.includes(hourReal)) price = prices.p1;
+                        else if (h.p2.includes(hourReal)) price = prices.p2;
+                        else if (h.p3Ve.includes(hourReal)) price = prices.p3Ve;
+                        else if (h.p4.includes(hourReal)) price = prices.p4;
+                        else if (h.p3.includes(hourReal)) price = prices.p3;
+                    }
+                    devKwhWeekly += kwh;
+                    devCostWeekly += (kwh * price);
+                }
             });
-            const weeklyKwh = totalKwh / weeks; const weeklyCost = totalCost / weeks;
-            const monthlyKwh = totalKwh / (daysDiff / 30.44); const monthlyCost = totalCost / (daysDiff / 30.44);
-            
-            const currentBillTotal = tariffsList.find(t => t.id === `prop${estState.selectedProp}`)?.bill.total || tariffsList[0].bill.total;
-            
-            const billMonthly = currentBillTotal * (30 / tState.days); 
-            const impactPct = billMonthly > 0 ? (monthlyCost / billMonthly) * 100 : 0;
-            return { totalCost, totalKwh, weeklyCost, weeklyKwh, deviceResults, daysDiff, monthlyKwh, monthlyCost, impactPct };
-        };
+        });
+        const devTotalKwh = devKwhWeekly * weeks;
+        const devTotalCost = devCostWeekly * weeks;
+        deviceResults.push({ ...dev, totalKwh: devTotalKwh, totalCost: devTotalCost });
+        totalKwh += devTotalKwh; totalCost += devTotalCost;
+    });
+
+    const monthlyKwh = totalKwh / (daysDiff / 30.44);
+    const monthlyCost = totalCost / (daysDiff / 30.44);
+    const billMonthly = (tariffsList.find(t => t.id === propKey) || tariffsList[0]).bill.total * (30 / tState.days);
+    
+    return { 
+        totalCost, totalKwh, weeklyCost: weeks > 0 ? totalCost / weeks : 0, 
+        weeklyKwh: weeks > 0 ? totalKwh / weeks : 0, deviceResults, 
+        daysDiff, monthlyKwh, monthlyCost, impactPct: billMonthly > 0 ? (monthlyCost / billMonthly) * 100 : 0 
+    };
+};
         const estResult = calculateEstimation();
 
         const printStyle = `
@@ -3973,10 +4014,26 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
                             <div className="pt-4 border-t border-slate-700">
                                 <div className="flex justify-between items-center mb-3">
                                     <label className="text-sm font-bold text-slate-300 uppercase">Configuración de Horarios (Periodos Energía)</label>
-                                    <div className="flex items-center gap-2 bg-slate-900 p-2 rounded border border-slate-600">
-                                        <input type="checkbox" checked={estState.scheduleConfig.weekendsAreP3} onChange={() => setEstState(p => ({...p, scheduleConfig: {...p.scheduleConfig, weekendsAreP3: !p.scheduleConfig.weekendsAreP3}}))} className="w-4 h-4 accent-green-500 cursor-pointer" />
-                                        <span className="text-xs text-white font-bold hidden sm:block">Fines de Semana son Valle (P3)</span>
+                                    
+                                    <div className="flex justify-between items-center mb-3">
+                                        <label className="text-sm font-bold text-slate-300 uppercase">Configuración de Horarios y Fines de Semana</label>
+                                        <div className="flex items-center gap-2 bg-slate-900 p-1 rounded border border-slate-600">
+                                            <Icons.Calendar className="w-4 h-4 text-blue-400 ml-2" />
+                                            <select 
+                                                value={estState.scheduleConfig?.weekendMode || (estState.scheduleConfig?.weekendsAreP3 ? 'p3' : 'none')}
+                                                onChange={(e) => setEstState(p => ({
+                                                    ...p, 
+                                                    scheduleConfig: { ...p.scheduleConfig, weekendMode: e.target.value }
+                                                }))}
+                                                className="bg-slate-800 text-white text-xs font-bold p-2 outline-none border-none cursor-pointer rounded"
+                                            >
+                                                <option value="p3">S y D: Todo es P3 (Valle)</option>
+                                                <option value="p3ve_p4">S y D: Usar solo P3(VE) y P4</option>
+                                                <option value="none">S y D: Sin precio especial (Igual que entre semana)</option>
+                                            </select>
+                                        </div>
                                     </div>
+        
                                 </div>
 
 
