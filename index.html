@@ -3284,7 +3284,6 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
             } catch (e) { console.error(e); }
         }, []);
 
-const totalIndexedKwh = (tState.indexedSlots || []).reduce((acc, s) => acc + (s.kwh || 0), 0);
 
         const Tariff3DChart = ({ tariffs }) => {
             const mountRef = useRef(null);
