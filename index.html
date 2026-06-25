@@ -3958,20 +3958,47 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
                                         <span className="text-xs text-white font-bold hidden sm:block">Fines de Semana son Valle (P3)</span>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="bg-slate-900 p-3 rounded border border-slate-700">
-                                        <div className="text-xs font-bold text-red-400 mb-2 border-b border-red-900/50 pb-1">P1 (Horas Punta):</div>
-                                        <div className="flex flex-col gap-2">
-                                            {[0, 1, 2].map(i => (<input key={i} type="text" placeholder="Ej: 10-14" value={estState.scheduleConfig.p1[i]} onChange={(e) => handleScheduleConfig('p1', i, e.target.value)} className="w-full bg-slate-800 border border-slate-600 rounded text-center text-sm font-mono font-bold text-white p-2 focus:border-red-500 outline-none" />))}
+
+
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                                    {/* BLOQUE P1 */}
+                                    <div className="bg-slate-900 p-2 rounded border border-slate-700">
+                                        <div className="text-[10px] font-bold text-red-400 mb-2 border-b border-red-900/50 pb-1 uppercase">P1 (Punta)</div>
+                                        <div className="flex flex-col gap-1.5">
+                                            {[0, 1, 2].map(i => (<input key={i} type="text" placeholder="HH-HH" value={estState.scheduleConfig.p1?.[i] || ""} onChange={(e) => handleScheduleConfig('p1', i, e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded text-center text-xs font-mono font-bold text-white p-1.5 focus:border-red-500 outline-none" />))}
                                         </div>
                                     </div>
-                                    <div className="bg-slate-900 p-3 rounded border border-slate-700">
-                                        <div className="text-xs font-bold text-orange-400 mb-2 border-b border-orange-900/50 pb-1">P2 (Horas Llano):</div>
-                                        <div className="flex flex-col gap-2">
-                                            {[0, 1, 2].map(i => (<input key={i} type="text" placeholder="Ej: 08-10" value={estState.scheduleConfig.p2[i]} onChange={(e) => handleScheduleConfig('p2', i, e.target.value)} className="w-full bg-slate-800 border border-slate-600 rounded text-center text-sm font-mono font-bold text-white p-2 focus:border-orange-500 outline-none" />))}
+                                    {/* BLOQUE P2 */}
+                                    <div className="bg-slate-900 p-2 rounded border border-slate-700">
+                                        <div className="text-[10px] font-bold text-orange-400 mb-2 border-b border-orange-900/50 pb-1 uppercase">P2 (Llano)</div>
+                                        <div className="flex flex-col gap-1.5">
+                                            {[0, 1, 2].map(i => (<input key={i} type="text" placeholder="HH-HH" value={estState.scheduleConfig.p2?.[i] || ""} onChange={(e) => handleScheduleConfig('p2', i, e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded text-center text-xs font-mono font-bold text-white p-1.5 focus:border-orange-500 outline-none" />))}
                                         </div>
                                     </div>
-                                </div>
+                                    {/* BLOQUE P3 */}
+                                    <div className="bg-slate-900 p-2 rounded border border-slate-700">
+                                        <div className="text-[10px] font-bold text-green-400 mb-2 border-b border-green-900/50 pb-1 uppercase">P3 (Valle)</div>
+                                        <div className="flex flex-col gap-1.5">
+                                            {[0, 1, 2].map(i => (<input key={i} type="text" placeholder="HH-HH" value={estState.scheduleConfig.p3?.[i] || ""} onChange={(e) => handleScheduleConfig('p3', i, e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded text-center text-xs font-mono font-bold text-white p-1.5 focus:border-green-500 outline-none" />))}
+                                        </div>
+                                    </div>
+                                    {/* BLOQUE P3-VE */}
+                                    <div className="bg-slate-900 p-2 rounded border border-slate-700">
+                                        <div className="text-[10px] font-bold text-blue-400 mb-2 border-b border-blue-900/50 pb-1 uppercase">P3 (VE)</div>
+                                        <div className="flex flex-col gap-1.5">
+                                            {[0, 1, 2].map(i => (<input key={i} type="text" placeholder="HH-HH" value={estState.scheduleConfig.p3Ve?.[i] || ""} onChange={(e) => handleScheduleConfig('p3Ve', i, e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded text-center text-xs font-mono font-bold text-white p-1.5 focus:border-blue-500 outline-none" />))}
+                                        </div>
+                                    </div>
+                                    {/* BLOQUE P4 */}
+                                    <div className="bg-slate-900 p-2 rounded border border-slate-700">
+                                        <div className="text-[10px] font-bold text-purple-400 mb-2 border-b border-purple-900/50 pb-1 uppercase">P4 (Extra)</div>
+                                        <div className="flex flex-col gap-1.5">
+                                            {[0, 1, 2].map(i => (<input key={i} type="text" placeholder="HH-HH" value={estState.scheduleConfig.p4?.[i] || ""} onChange={(e) => handleScheduleConfig('p4', i, e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded text-center text-xs font-mono font-bold text-white p-1.5 focus:border-purple-500 outline-none" />))}
+                                        </div>
+                                    </div>
+                                </div>                        
+
                                 <div className="text-sm font-bold text-slate-400 mt-4 italic text-center leading-relaxed bg-black/20 p-2 rounded">* Todo lo que no esté definido en P1 o P2 se considerará <span className="text-green-400">P3 (Valle)</span>. <br/>Formato obligatorio: <strong>HH-HH</strong> (Ej: 10-14 para indicar de 10:00 a 14:00).</div>
                             </div>
                         </div>
