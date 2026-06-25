@@ -3418,8 +3418,28 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
         const copyScheduleToWeek = (deviceId, sourceDay) => { setEstState(prev => ({ ...prev, devices: prev.devices.map(d => { if (d.id !== deviceId) return d; const source = d.days[sourceDay]; const newDays = { ...d.days }; ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach(day => { newDays[day] = JSON.parse(JSON.stringify(source)); }); return { ...d, days: newDays }; }) })); };
         const addDevice = () => { if (estState.devices.length >= 5) return; const newId = Math.max(...estState.devices.map(d => d.id), 0) + 1; setEstState(prev => ({ ...prev, devices: [...prev.devices, { id: newId, name: "Nuevo Dispositivo", power: 1.0, count: 1, dutyCycle: 100, days: { Mon: [], Tue: [], Wed: [], Thu: [], Fri: [], Sat: [], Sun: [] } }] })); };
         const deleteDevice = (id) => { setEstState(prev => ({ ...prev, devices: prev.devices.filter(d => d.id !== id) })); };
-        const handleScheduleConfig = (period, index, value) => { setEstState(prev => { const newArr = [...prev.scheduleConfig[period]]; newArr[index] = value; return { ...prev, scheduleConfig: { ...prev.scheduleConfig, [period]: newArr } }; }); };
 
+        const handleScheduleConfig = (period, index, value) => {
+            setEstState(prev => {
+                const config = prev.scheduleConfig || { 
+                    p1: ["","",""], p2: ["","",""], p3: ["","",""], p3Ve: ["","",""], p4: ["","",""] 
+                };
+        
+                const currentPeriodArr = Array.isArray(config[period]) ? config[period] : ["", "", ""];
+        
+               const newArr = [...currentPeriodArr];
+                newArr[index] = value;
+        
+                return {
+                    ...prev,
+                    scheduleConfig: {
+                        ...config,
+                        [period]: newArr
+                    }
+                };
+            });
+        };
+        
         const calculateBill = (proposal) => {
             const termPotDisc = ((tState.potP1 * proposal.pricePotP1 * tState.days) + (tState.potP2 * proposal.pricePotP2 * tState.days)) * (1 - proposal.discPot / 100);
             const termEnRaw = (tState.p1Kwh * proposal.priceEnP1) + (tState.p2Kwh * proposal.priceEnP2) + (tState.p3Kwh * proposal.priceEnP3) + (tState.p3VeKwh * proposal.priceEnP3Ve) + (tState.p4Kwh * proposal.priceEnP4);
