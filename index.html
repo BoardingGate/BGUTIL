@@ -3165,7 +3165,7 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
             potP1: 4.6, potP2: 7.4,
             impuestoElec: 5.11, iva: 21,
             alquiler: 0.027, bonoSocial: 0.006,
-            
+            evItemIndices: '1',
             consTotal: 635,
             p1Kwh: 80, p2Kwh: 60, p3Kwh: 170, p3VeKwh: 325, p4Kwh: 0,
             solarExp: 0, 
@@ -3259,6 +3259,28 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
             };
             
             const totalIndexedKwh = safeSlots.reduce((acc, s) => acc + (s.kwh || 0), 0);  
+
+        const calculateSpecificEV = (proposal) => {
+            const indices = (tState.evItemIndices || "").split(',').map(x => parseInt(x.trim()) - 1).filter(x => !isNaN(x) && x >= 0 && x < 9);
+            let kwh = 0;
+            let costBase = 0;
+            indices.forEach(idx => {
+                const slot = safeSlots[idx];
+                const val = slot.kwh || 0;
+                kwh += val;
+                let price = 0;
+                if (slot.type === 'P1') price = proposal.priceEnP1;
+                else if (slot.type === 'P2') price = proposal.priceEnP2;
+                else if (slot.type === 'P3') price = proposal.priceEnP3;
+                else if (slot.type === 'PE(VE)') price = proposal.priceEnP3Ve;
+                else if (slot.type === 'P4(EXTRA)') price = proposal.priceEnP4;
+                costBase += val * price * (1 - proposal.discEn / 100);
+            });
+            const taxes = (1 + tState.impuestoElec / 100) * (1 + tState.iva / 100);
+            return { kwh, costBase, costTotal: costBase * taxes };
+        };
+        
+        const evDataFooter = calculateSpecificEV(tState.propA); 
 
         const [estState, setEstState] = usePersistentState('estConsV4_6props', {
             selectedProp: 'A',
@@ -3459,17 +3481,16 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
             const evTermPotP2 = ((tState.potP2 * proposal.pricePotP2 * tState.days) * (1 - proposal.discPot / 100)) * evRatio;
             const termEnP3Ve = (tState.p3VeKwh * proposal.priceEnP3Ve) * (1 - proposal.discEn / 100);
             const total = ((evTermPotP2 + termEnP3Ve) * (1 + tState.impuestoElec / 100)) * (1 + tState.iva / 100);
-            return { total, pricePerKwh: tState.p3VeKwh > 0 ? total / tState.p3VeKwh : 0 };
-        };
+            return { total, pricePerKwh: tState.p3VeKwh > 0 ? total / tState.p3VeKwh : 0 };   };
 
-        const tariffsList = [
-            { id: 'propA', bill: { ...calculateBill(tState.propA), ev: calculateEVCost(tState.propA) }, data: tState.propA },
-            { id: 'propB', bill: { ...calculateBill(tState.propB), ev: calculateEVCost(tState.propB) }, data: tState.propB },
-            { id: 'propC', bill: { ...calculateBill(tState.propC), ev: calculateEVCost(tState.propC) }, data: tState.propC },
-            { id: 'propD', bill: { ...calculateBill(tState.propD), ev: calculateEVCost(tState.propD) }, data: tState.propD },
-            { id: 'propE', bill: { ...calculateBill(tState.propE), ev: calculateEVCost(tState.propE) }, data: tState.propE },
-            { id: 'propF', bill: { ...calculateBill(tState.propF), ev: calculateEVCost(tState.propF) }, data: tState.propF }
-        ];
+            const tariffsList = [
+                { id: 'propA', bill: { ...calculateBill(tState.propA), ev: calculateSpecificEV(tState.propA) }, data: tState.propA },
+                { id: 'propB', bill: { ...calculateBill(tState.propB), ev: calculateSpecificEV(tState.propB) }, data: tState.propB },
+                { id: 'propC', bill: { ...calculateBill(tState.propC), ev: calculateSpecificEV(tState.propC) }, data: tState.propC },
+                { id: 'propD', bill: { ...calculateBill(tState.propD), ev: calculateSpecificEV(tState.propD) }, data: tState.propD },
+                { id: 'propE', bill: { ...calculateBill(tState.propE), ev: calculateSpecificEV(tState.propE) }, data: tState.propE },
+                { id: 'propF', bill: { ...calculateBill(tState.propF), ev: calculateSpecificEV(tState.propF) }, data: tState.propF }
+            ];
 
         const rankedBills = [...tariffsList].sort((a,b) => a.bill.total - b.bill.total);
         const rankedEnergy = [...tariffsList].sort((a,b) => a.bill.termEnNet - b.bill.termEnNet);
@@ -3748,10 +3769,27 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
                                 </div>
                             ))}
                         </div>
-                        <div className="mt-2 flex justify-between items-center px-2">
-                            <span className="text-[10px] text-slate-500 italic">* Pulsa "Recalcular" para volcar estos datos a la factura superior.</span>
-                            <span className="text-xs font-bold text-slate-300 uppercase">Total: <span className="text-white font-mono">{totalIndexedKwh.toFixed(1)} kWh</span></span>
-                        </div>
+                            <div className="mt-4 pt-4 border-t border-slate-700/50 flex flex-col md:flex-row justify-between items-end gap-4 px-2">
+                                <div className="w-full md:w-auto">
+                                    <label className="text-[10px] font-bold text-blue-400 uppercase block mb-1">Items destinados a carga VE (ej: 1,5,6)</label>
+                                    <input 
+                                        type="text" 
+                                        value={tState.evItemIndices} 
+                                        onChange={(e) => setTState({...tState, evItemIndices: e.target.value})}
+                                        placeholder="Nº de items"
+                                        className="w-32 bg-zinc-800 border border-blue-500/30 rounded p-2 text-blue-300 font-mono font-bold text-xs outline-none focus:border-blue-500"
+                                    />
+                                    <div className="mt-1 text-[11px] font-bold text-slate-400">
+                                        Carga VE detectada: <span className="text-white">{evDataFooter.kwh.toFixed(1)} kWh</span> 
+                                        <span className="text-blue-400 ml-2">[{formatDecimal(evDataFooter.costBase)}€ s/imp. en {tState.propA.name}]</span>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-[10px] text-slate-500 italic block mb-1">* Pulsa "Recalcular" para volcar estos datos a la factura superior.</span>
+                                    <span className="text-sm font-bold text-slate-300 uppercase">Total Patrón: <span className="text-white font-mono text-lg">{totalIndexedKwh.toFixed(1)} kWh</span></span>
+                                </div>
+                            </div>
+                        
                     </div>
         
                 </div>
