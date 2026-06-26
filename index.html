@@ -1592,6 +1592,12 @@ const PlaceholderTab = () => {
             targets: { Mon: 0, Tue: 0, Wed: 0, Thu: 70, Fri: 0, Sat: 0, Sun: 100 }
         });
 
+        const [savedDate, setSavedDate] = useState(null);
+           useEffect(() => {
+          const date = localStorage.getItem('strategySnapshotTime');
+          if (date) setSavedDate(date);
+        }, []);
+
         const WeeklyCharge3D = ({ data }) => {
             const mountRef = useRef(null);
 
