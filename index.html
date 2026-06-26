@@ -3299,54 +3299,7 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
             };
             
              const evDataFooter = calculateSpecificEV(tState.propA);
-
-        const calculateSpecificEV = (proposal) => {
-            const indices = (tState.evItemIndices || "").split(',').map(x => parseInt(x.trim()) - 1).filter(x => !isNaN(x) && x >= 0 && x < 9);
-            let kwh = 0;
-            let costBase = 0;
-            indices.forEach(idx => {
-                const slot = safeSlots[idx];
-                const val = slot.kwh || 0;
-                kwh += val;
-                let price = 0;
-                if (slot.type === 'P1') price = proposal.priceEnP1;
-                else if (slot.type === 'P2') price = proposal.priceEnP2;
-                else if (slot.type === 'P3') price = proposal.priceEnP3;
-                else if (slot.type === 'PE(VE)') price = proposal.priceEnP3Ve;
-                else if (slot.type === 'P4(EXTRA)') price = proposal.priceEnP4;
-                costBase += val * price * (1 - proposal.discEn / 100);
-            });
-            const taxes = (1 + tState.impuestoElec / 100) * (1 + tState.iva / 100);
-            return { kwh, costBase, costTotal: costBase * taxes };
-        };
-        
-        const evDataFooter = calculateSpecificEV(tState.propA); 
-
-        const [estState, setEstState] = usePersistentState('estConsV4_6props', {
-            selectedProp: 'A',
-            withTaxes: true,
-            startDate: new Date().toISOString().split('T')[0],
-            endDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
-            scheduleConfig: {
-                p1: ["10-14", "18-22", ""], 
-                p2: ["08-10", "14-18", "22-24"], 
-                weekendMode: 'p3', // Opciones: 'p3', 'p3ve_p4', 'none'    
-            },
-            devices: [
-                { id: 1, name: "Aerotermia / Calefacción", power: 4.5, count: 1, dutyCycle: 60, days: { Mon: [], Tue: [], Wed: [], Thu: [], Fri: [], Sat: [], Sun: [] } }
-            ]
-        });
-
-        const [savedDate, setSavedDate] = useState(null);
-
-        useEffect(() => {
-            try {
-                const date = localStorage.getItem('tariffCompSnapshotTime');
-                if(date) setSavedDate(date);
-            } catch (e) { console.error(e); }
-        }, []);
-
-
+  
         const Tariff3DChart = ({ tariffs }) => {
             const mountRef = useRef(null);
             const maxTotal = Math.max(...tariffs.map(t => t.bill.total));
