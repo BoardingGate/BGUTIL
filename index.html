@@ -4181,9 +4181,29 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
                     </div>
                 </div>
 
-                <div className="lg:col-span-12 mt-2 p-6 bg-purple-900/20 border border-purple-500/30 rounded-xl flex flex-col items-center gap-4 text-center no-print">
-                    <p className="text-sm font-bold text-slate-300 leading-relaxed max-w-4xl">(*) Utiliza el comparador de la CNMC para localizar las compañias más económicas y luego usa mi web para el cálculo final</p>
-                    <a href="https://comparador.cnmc.gob.es/" target="_blank" className="bg-purple-600 hover:bg-purple-500 text-white text-lg md:text-xl font-bold px-8 py-4 rounded-xl transition-all shadow-lg hover:shadow-purple-500/20 transform hover:-translate-y-1 flex items-center gap-2">COMPARADOR CNMC</a>
+                {/* --- NUEVA SECCIÓN DE COMPROBACIÓN DE LECTURAS INDEXADAS --- */}
+                <div className="lg:col-span-12 mt-6 p-6 bg-slate-900/80 border border-slate-700 rounded-xl flex flex-col items-center gap-4 text-center no-print">
+                    <div className="flex items-center gap-2">
+                        <Icons.Table className="w-6 h-6 text-blue-400" />
+                        <h4 className="text-lg font-display font-bold text-white uppercase tracking-wider">
+                            HERRAMIENTA PARA COMPROBAR LAS LECTURAS DE SU CONTADOR
+                        </h4>
+                    </div>
+                    <p className="text-sm text-slate-300 leading-relaxed max-w-4xl">
+                        Para analizar de forma precisa sus hábitos de consumo y contrastar los datos facturados, puede exportar su curva de carga horaria. Para ello, es necesario descargar previamente el archivo de lecturas horarias en formato compatible (habitualmente un archivo de texto o .csv) desde la <strong>oficina virtual de la Distribuidora de energía eléctrica</strong> asociada a su zona y contrato (como i-DE, UFD, Endesa Distribución, E-Redes o Viesgo), datos que puede localizar en el reverso de su factura de luz.
+                    </p>
+                    <p className="text-xs text-slate-400 leading-relaxed max-w-4xl">
+                        (*) Si desea conocer más detalles sobre el funcionamiento de las tarifas reguladas y la obtención de datos de consumo oficiales, puede consultar la información provista por Red Eléctrica de España (REE) en su portal de transparencia <a href="https://www.esios.ree.es/es/pvpc" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline font-bold inline-flex items-center gap-1">e-sios (Red Eléctrica de España) <Icons.Link className="w-3 h-3 inline"/></a>.
+                    </p>
+                    <a 
+                        href="https://boardinggate.github.io/INDEXADA/INDEXADA.HTML" 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="bg-blue-600 hover:bg-blue-500 text-white text-base md:text-lg font-bold px-8 py-3.5 rounded-xl transition-all shadow-lg hover:shadow-blue-500/20 transform hover:-translate-y-1 flex items-center gap-2"
+                    >
+                        <Icons.Link className="w-5 h-5"/>
+                        ACCEDER A LA HERRAMIENTA DE LECTURAS
+                    </a>
                 </div>
             </div>
         );
