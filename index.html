@@ -4205,6 +4205,10 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
                         ACCEDER A LA HERRAMIENTA DE LECTURAS
                     </a>
                 </div>
+                 <div className="lg:col-span-12 mt-2 p-6 bg-purple-900/20 border border-purple-500/30 rounded-xl flex flex-col items-center gap-4 text-center no-print">
+                    <p className="text-sm font-bold text-slate-300 leading-relaxed max-w-4xl">(*) Utiliza el comparador de la CNMC para localizar las compañias más económicas y luego usa mi web para el cálculo final</p>
+                    <a href="https://comparador.cnmc.gob.es/" target="_blank" className="bg-purple-600 hover:bg-purple-500 text-white text-lg md:text-xl font-bold px-8 py-4 rounded-xl transition-all shadow-lg hover:shadow-purple-500/20 transform hover:-translate-y-1 flex items-center gap-2">COMPARADOR CNMC</a>
+                </div>
             </div>
         );
       };
