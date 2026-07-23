@@ -3157,8 +3157,21 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
 
 
    // --- TARIFF COMPARATOR (HASTA 6 TARIFAS CON SCROLL HORIZONTAL) ---
+
       const TariffComparator = () => {        
-        const [tState, setTState] = usePersistentState('tariffCompV10_6props', {
+        const scrollContainerRef = useRef(null);
+
+        const scroll = (direction) => {
+            if (scrollContainerRef.current) {
+                const scrollAmount = 316; // Ancho aproximado de columna + brecha (gap)
+                scrollContainerRef.current.scrollBy({
+                    left: direction === 'left' ? -scrollAmount : scrollAmount,
+                    behavior: 'smooth'
+                });
+            }
+        };
+
+        const [tState, setTState] = usePersistentState('tariffCompV10_6props', {  
             days: 30,
             potP1: 4.6, potP2: 7.4,
             impuestoElec: 5.11, iva: 21,
@@ -3806,11 +3819,30 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
 
            
                  {/* CONTENEDOR DE TARIFAS (SCROLL HORIZONTAL CON BOTONES DE ORDENACIÓN Y GUARDADO) */}
+
                 <div className="lg:col-span-12 print-avoid-break mt-4">
                     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-4 gap-4 no-print bg-slate-900/50 p-4 rounded-xl border border-slate-800 shadow-md">
-                        <h3 className="text-lg font-display font-bold text-white flex items-center gap-2 shrink-0">
-                            <Icons.List className="w-5 h-5 text-blue-400" /> Comparativa de Precios
-                        </h3>
+                        <div className="flex items-center gap-4 w-full lg:w-auto justify-between lg:justify-start">
+                            <h3 className="text-lg font-display font-bold text-white flex items-center gap-2 shrink-0">
+                                <Icons.List className="w-5 h-5 text-blue-400" /> Comparativa de Precios
+                            </h3>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={() => scroll('left')} 
+                                    className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-700 active:scale-95 transition-all font-bold text-xs"
+                                    title="Desplazar a la izquierda"
+                                >
+                                    ◀
+                                </button>
+                                <button 
+                                    onClick={() => scroll('right')} 
+                                    className="bg-slate-800 hover:bg-slate-700 text-white px-3 py-2 rounded-lg border border-slate-700 active:scale-95 transition-all font-bold text-xs"
+                                    title="Desplazar a la derecha"
+                                >
+                                    ▶
+                                </button>
+                            </div>
+                        </div>
                         
                         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-start lg:justify-end">
                             {savedDate && (<span className="text-xs font-bold text-slate-400 mr-2">Copia: <span className="text-blue-300">{savedDate}</span></span>)}
@@ -3844,7 +3876,7 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
                         </div>
                     </div>
                     
-                    <div className="overflow-x-auto pb-4">
+                   <div ref={scrollContainerRef} className="overflow-x-auto pb-4 scroll-smooth">
                         <div className="flex gap-4 print-grid-proposals w-max print:w-full snap-x">
                             <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propA" title="Propuesta A" data={tState.propA} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
                             <div className="w-[300px] shrink-0 snap-center"><ProposalColumn propKey="propB" title="Propuesta B" data={tState.propB} powerData={{p1: tState.potP1, p2: tState.potP2}} consData={consumptionData} onChange={handlePropChange} /></div>
