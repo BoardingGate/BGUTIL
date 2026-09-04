@@ -2,6 +2,25 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8" />
+    <!-- Corrección de resolución para el navegador de Tesla (1254x784) -->
+    <script>
+        (function() {
+            function adaptTeslaResolution() {
+                const isTeslaResolution = (window.innerWidth === 1254 && window.innerHeight === 784) || 
+                                          (window.screen.width === 1254 && window.screen.height === 784);
+                
+                if (isTeslaResolution) {
+                    // Se aplica el zoom inverso (1 / 1.53) para recuperar la proporción anterior
+                    document.documentElement.style.zoom = "0.6536";
+                }
+            }
+            // Ejecución inmediata
+            adaptTeslaResolution();
+            // Ejecución tras carga para asegurar la lectura correcta de dimensiones del viewport
+            window.addEventListener('DOMContentLoaded', adaptTeslaResolution);
+            window.addEventListener('resize', adaptTeslaResolution);
+        })();
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>BoardingGate - Ecosistema Tesla</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
