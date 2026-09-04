@@ -6054,9 +6054,9 @@ const totalCost = (totalKwhCharged / (state.chargingEfficiency / 100 || 1)) * st
             const efficiencyFactor = 1 - penalty;
             const realRange = config.baseRange * efficiencyFactor;
             const consumption = config.batteryKwh / (realRange / 100); 
-            (consumption * config.annualKm / 100) * config.priceKwh;
+            const annualCost = (consumption * config.annualKm / 100) * config.priceKwh;
             const diameterMm = (setup.width * (setup.profile / 100) * 2) + (setup.size * 25.4);
-
+        
             return { realRange, consumption, annualCost, penalty, diameterMm };
         };
 
